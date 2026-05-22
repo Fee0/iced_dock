@@ -1,0 +1,18 @@
+[package]
+name = "iced_dock"
+version = "0.1.0"
+edition = "2021"
+description = "Docking layout system for iced"
+license = "MIT"
+
+[dependencies]
+iced = { version = "0.14", default-features = false, features = ["wgpu", "advanced"] }
+iced_split = "0.1.0"
+slotmap = "1.0"
+
+[dev-dependencies]
+iced = { version = "0.14", default-features = false, features = ["wgpu", "advanced", "tokio"] }
+
+[[example]]
+name = "minimal"
+path = "examples/minimal.rs"
