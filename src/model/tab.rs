@@ -1,24 +1,15 @@
 use super::{ContentKey, NodeId};
 
-/// Document vs tool tab hosts (no cross-mixing in MVP).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TabGroupKind {
-    Document,
-    Tool,
-}
-
-/// Tabbed host for document or tool leaves.
+/// Tabbed host for dockable leaves.
 #[derive(Debug, Clone)]
 pub struct TabGroup {
-    pub kind: TabGroupKind,
     pub children: Vec<NodeId>,
     pub active: Option<NodeId>,
 }
 
 impl TabGroup {
-    pub fn new(kind: TabGroupKind) -> Self {
+    pub fn new() -> Self {
         Self {
-            kind,
             children: Vec::new(),
             active: None,
         }

@@ -62,11 +62,9 @@ impl DockManager {
     ) -> bool {
         match op {
             DockOperation::Fill => {
-                let leaf_kind = layout.leaf_kind(source_tab);
-                let group_kind = layout.tab_group_kind(target);
                 source_group != target
-                    && leaf_kind.is_some()
-                    && group_kind == leaf_kind
+                    && layout.is_leaf(source_tab)
+                    && matches!(layout.kind(target), Some(NodeKind::TabGroup(_)))
             }
             DockOperation::Left
             | DockOperation::Right
@@ -110,6 +108,7 @@ impl DockManager {
         let factory = Factory;
         match op {
             DockOperation::Fill => factory.dock_fill(layout, session.source_tab, target),
+            // Edge drops move the entire source tab group (pane), not only the active tab.
             _ => factory.split(layout, session.source_group, target, op),
         }
     }

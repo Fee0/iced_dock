@@ -1,6 +1,5 @@
 use iced_dock::factory::Factory;
 use iced_dock::model::{Axis, ContentKey, DockOperation, Layout, NodeKind};
-use iced_dock::TabGroupKind;
 
 #[test]
 fn split_merges_into_same_axis_parent() {
@@ -9,7 +8,7 @@ fn split_merges_into_same_axis_parent() {
 
     let a = factory.insert_document(&mut layout, "a", "A", ContentKey(0));
     let b = factory.insert_document(&mut layout, "b", "B", ContentKey(1));
-    let g = factory.create_tab_group(&mut layout, TabGroupKind::Document);
+    let g = factory.create_tab_group(&mut layout);
     factory.add_to_tab_group(&mut layout, g, a).unwrap();
     factory.add_to_tab_group(&mut layout, g, b).unwrap();
 

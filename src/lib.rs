@@ -9,7 +9,7 @@ pub use factory::Factory;
 pub use manager::{DockManager, DragSession, DropZone};
 pub use model::{
     Axis, ContentKey, DockOperation, DockableMeta, Layout, NodeEntry, NodeId, NodeKind,
-    ProportionalGroup, TabGroup, TabGroupKind,
+    ProportionalGroup, TabGroup,
 };
 pub use widget::{
     apply_message, dock, handle_dock_message, Dock, DockMessage, DockWidgetState, TabMessage,

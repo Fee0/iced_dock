@@ -2,7 +2,7 @@
 
 use crate::model::{
     Axis, ContentKey, DockOperation, DockableMeta, Layout, NodeEntry, NodeId, NodeKind,
-    ProportionalGroup, TabGroup, TabGroupKind,
+    ProportionalGroup, TabGroup,
 };
 
 /// All structural changes to a [`Layout`].
@@ -36,9 +36,9 @@ impl Factory {
         })
     }
 
-    pub fn create_tab_group(&self, layout: &mut Layout, kind: TabGroupKind) -> NodeId {
+    pub fn create_tab_group(&self, layout: &mut Layout) -> NodeId {
         layout.nodes.insert(NodeEntry {
-            kind: NodeKind::TabGroup(TabGroup::new(kind)),
+            kind: NodeKind::TabGroup(TabGroup::new()),
             owner: None,
         })
     }
@@ -65,9 +65,7 @@ impl Factory {
         group: NodeId,
         leaf: NodeId,
     ) -> Result<(), ()> {
-        let kind = layout.tab_group_kind(group).ok_or(())?;
-        let leaf_kind = layout.leaf_kind(leaf).ok_or(())?;
-        if kind != leaf_kind {
+        if !layout.is_leaf(leaf) {
             return Err(());
         }
         if let Some(NodeKind::TabGroup(ref mut g)) = layout.get_mut(group).map(|e| &mut e.kind) {
@@ -141,6 +139,10 @@ impl Factory {
         Ok(())
     }
 
+    /// Split `target` and place `source` beside it.
+    ///
+    /// `source` is a tab group node (the whole pane). Title-bar drags pass `source_group`,
+    /// so edge drops relocate every tab in that group, not only the active tab.
     pub fn split(
         &self,
         layout: &mut Layout,
@@ -369,6 +371,11 @@ impl Factory {
             } else if go == layout.root {
                 layout.set_root_child(None);
                 layout.nodes.remove(owner);
+            } else {
+                // Empty TabGroup inside a Proportional (or other non-root parent).
+                let _ = self.remove_from_parent(layout, owner);
+                layout.nodes.remove(owner);
+                self.collapse_owner(layout, go);
             }
         }
     }
@@ -456,12 +463,12 @@ impl Factory {
     pub fn complex_ide_layout(&self, layout: &mut Layout) -> Result<(), ()> {
         let d_main = self.insert_document(layout, "main", "main.rs", ContentKey(0));
         let d_lib = self.insert_document(layout, "lib", "lib.rs", ContentKey(1));
-        let doc_group1 = self.create_tab_group(layout, TabGroupKind::Document);
+        let doc_group1 = self.create_tab_group(layout);
         self.add_to_tab_group(layout, doc_group1, d_main)?;
         self.add_to_tab_group(layout, doc_group1, d_lib)?;
 
         let d_prev = self.insert_document(layout, "preview", "preview", ContentKey(2));
-        let doc_group2 = self.create_tab_group(layout, TabGroupKind::Document);
+        let doc_group2 = self.create_tab_group(layout);
         self.add_to_tab_group(layout, doc_group2, d_prev)?;
 
         let left_col = self.create_proportional(
@@ -477,13 +484,13 @@ impl Factory {
 
         let t_prop = self.insert_tool(layout, "props", "Properties", ContentKey(10));
         let t_out = self.insert_tool(layout, "output", "Output", ContentKey(11));
-        let tool_group1 = self.create_tab_group(layout, TabGroupKind::Tool);
+        let tool_group1 = self.create_tab_group(layout);
         self.add_to_tab_group(layout, tool_group1, t_prop)?;
         self.add_to_tab_group(layout, tool_group1, t_out)?;
 
         let t_exp = self.insert_tool(layout, "explorer", "Explorer", ContentKey(12));
         let t_srch = self.insert_tool(layout, "search", "Search", ContentKey(13));
-        let tool_group2 = self.create_tab_group(layout, TabGroupKind::Tool);
+        let tool_group2 = self.create_tab_group(layout);
         self.add_to_tab_group(layout, tool_group2, t_exp)?;
         self.add_to_tab_group(layout, tool_group2, t_srch)?;
 

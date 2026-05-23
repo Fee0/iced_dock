@@ -1,5 +1,5 @@
 use iced_dock::factory::Factory;
-use iced_dock::model::{ContentKey, Layout, NodeKind, TabGroupKind};
+use iced_dock::model::{ContentKey, Layout, NodeKind};
 
 #[test]
 fn fill_and_close_collapses_empty_group() {
@@ -8,8 +8,8 @@ fn fill_and_close_collapses_empty_group() {
 
     let a = factory.insert_document(&mut layout, "a", "A", ContentKey(0));
     let b = factory.insert_document(&mut layout, "b", "B", ContentKey(1));
-    let g1 = factory.create_tab_group(&mut layout, TabGroupKind::Document);
-    let g2 = factory.create_tab_group(&mut layout, TabGroupKind::Document);
+    let g1 = factory.create_tab_group(&mut layout);
+    let g2 = factory.create_tab_group(&mut layout);
     factory.add_to_tab_group(&mut layout, g1, a).unwrap();
     factory.add_to_tab_group(&mut layout, g2, b).unwrap();
 

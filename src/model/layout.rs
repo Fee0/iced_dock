@@ -1,7 +1,7 @@
 use slotmap::{new_key_type, SlotMap};
 
 use super::tab::{DockableMeta, TabGroup};
-use super::{ProportionalGroup, TabGroupKind};
+use super::ProportionalGroup;
 
 new_key_type! {
     /// Stable node handle in the layout arena.
@@ -107,21 +107,6 @@ impl Layout {
             self.kind(id),
             Some(NodeKind::Document(_) | NodeKind::Tool(_))
         )
-    }
-
-    pub fn tab_group_kind(&self, id: NodeId) -> Option<TabGroupKind> {
-        match self.kind(id)? {
-            NodeKind::TabGroup(g) => Some(g.kind),
-            _ => None,
-        }
-    }
-
-    pub fn leaf_kind(&self, id: NodeId) -> Option<TabGroupKind> {
-        match self.kind(id)? {
-            NodeKind::Document(_) => Some(TabGroupKind::Document),
-            NodeKind::Tool(_) => Some(TabGroupKind::Tool),
-            _ => None,
-        }
     }
 
     pub fn root_child(&self) -> Option<NodeId> {
