@@ -205,11 +205,15 @@ fn build_tab_strip<Message: Clone + 'static>(
     if tabs.len() <= 1 {
         return None;
     }
+    let mut style = style.clone();
+    style.sync_tab_appearance();
     let bar = &style.tab_bar;
     let tab_style = &style.tab;
+    let bar_background = bar.background;
     let mut strip = row![]
         .spacing(bar.spacing)
-        .padding(bar.padding);
+        .padding(bar.padding)
+        .width(Length::Fill);
     for tab in tabs {
         let label = text(tab.title.clone())
             .size(tab_style.text_size)
@@ -228,7 +232,16 @@ fn build_tab_strip<Message: Clone + 'static>(
             });
         strip = strip.push(btn);
     }
-    Some(strip.height(Length::Fixed(bar.height)).into())
+    Some(
+        container(strip.height(Length::Fixed(bar.height)))
+            .width(Length::Fill)
+            .height(Length::Fixed(bar.height))
+            .style(move |_| container::Style {
+                background: Some(bar_background.into()),
+                ..Default::default()
+            })
+            .into(),
+    )
 }
 
 impl<'a, Message> Widget<Message, Theme, iced::Renderer> for TabDock<'a, Message>
@@ -339,7 +352,7 @@ where
         viewport: &Rectangle,
     ) {
         let mut dock_style = (self.style)(theme);
-        dock_style.sync_active_tab_with_window();
+        dock_style.sync_tab_appearance();
 
         let pane_bounds = layout.bounds();
         let window = &dock_style.window;

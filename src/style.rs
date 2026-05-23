@@ -197,6 +197,17 @@ impl DockStyle {
     pub fn sync_active_tab_with_window(&mut self) {
         self.tab.active_background = self.window.background;
     }
+
+    /// Align tab strip fill with the dock root background.
+    pub fn sync_tab_bar_with_dock(&mut self) {
+        self.tab_bar.background = self.background.color;
+    }
+
+    /// Apply [`sync_tab_bar_with_dock`] and [`sync_active_tab_with_window`].
+    pub fn sync_tab_appearance(&mut self) {
+        self.sync_tab_bar_with_dock();
+        self.sync_active_tab_with_window();
+    }
 }
 
 /// Wrap a fixed [`DockStyle`] for use with [`crate::dock`]'s `.style(...)` builder.
