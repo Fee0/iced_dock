@@ -817,7 +817,6 @@ name = "iced_dock"
 version = "0.1.0"
 dependencies = [
  "iced",
- "iced_split",
  "slotmap",
 ]
 
@@ -888,15 +887,6 @@ dependencies = [
  "iced_futures",
  "raw-window-handle",
  "thiserror 2.0.18",
-]
-
-[[package]]
-name = "iced_split"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6938b71924cf266604ec05a89057a214999408a498ce623d4274969762f066d7"
-dependencies = [
- "iced_core",
 ]
 
 [[package]]
