@@ -8,7 +8,7 @@ new_key_type! {
     pub struct NodeId;
 }
 
-/// Application content identity (documents/tools map UI in the host app).
+/// Application content identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
