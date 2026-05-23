@@ -17,6 +17,7 @@ pub enum TabMessage {
         target: NodeId,
         zone: DropZone,
     },
+    DragCancelled,
 }
 
 #[derive(Debug, Clone)]

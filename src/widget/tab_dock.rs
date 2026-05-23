@@ -349,24 +349,25 @@ where
             }
         }
 
-        let state = tree.state.downcast_ref::<TabDockState>();
-        if self.drag_active || state.dragging {
-            if let Some(zone) = state.hover_zone {
-                let palette = theme.extended_palette();
-                let highlight = iced::Color {
-                    a: 0.35,
-                    ..palette.primary.base.color
-                };
-                if let Some(content_layout) = layout.children().nth(1) {
-                    let bounds = content_layout.bounds();
-                    let zone_bounds = drop_zone_rect(bounds, zone);
-                    renderer.fill_quad(
-                        iced::advanced::renderer::Quad {
-                            bounds: zone_bounds,
-                            ..Default::default()
-                        },
-                        highlight,
-                    );
+        if self.drag_active || tree.state.downcast_ref::<TabDockState>().dragging {
+            if let Some(content_layout) = layout.children().nth(1) {
+                let bounds = content_layout.bounds();
+                if let Some(point) = cursor.position_over(bounds) {
+                    if let Some(zone) = DockManager::hit_test_drop_zone(bounds, point) {
+                        let palette = theme.extended_palette();
+                        let highlight = iced::Color {
+                            a: 0.35,
+                            ..palette.primary.base.color
+                        };
+                        let zone_bounds = drop_zone_rect(bounds, zone);
+                        renderer.fill_quad(
+                            iced::advanced::renderer::Quad {
+                                bounds: zone_bounds,
+                                ..Default::default()
+                            },
+                            highlight,
+                        );
+                    }
                 }
             }
         }
@@ -490,17 +491,29 @@ where
                                 zone,
                             })));
                         }
-                        shell.capture_event();
+                    } else {
+                        state.hover_zone = None;
                     }
+                    shell.capture_event();
                 }
             }
             if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) = event {
-                if let Some(zone) = state.hover_zone {
-                    shell.publish((self.on_event)(DockMessage::Tab(TabMessage::DragEnded {
-                        target: self.group_id,
-                        zone,
-                    })));
-                    state.hover_zone = None;
+                let drop_zone = layout.children().nth(1).and_then(|content_layout| {
+                    let bounds = content_layout.bounds();
+                    cursor
+                        .position_over(bounds)
+                        .and_then(|point| DockManager::hit_test_drop_zone(bounds, point))
+                });
+                state.hover_zone = None;
+                state.dragging = false;
+
+                if self.drag_active {
+                    if let Some(zone) = drop_zone {
+                        shell.publish((self.on_event)(DockMessage::Tab(TabMessage::DragEnded {
+                            target: self.group_id,
+                            zone,
+                        })));
+                    }
                     shell.capture_event();
                 }
             }

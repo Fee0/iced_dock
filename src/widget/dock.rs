@@ -383,22 +383,39 @@ where
         let Some(child_tree) = tree.children.first_mut() else {
             return;
         };
-        let mut root = tree
-            .state
-            .downcast_mut::<DockTreeHolder<Message>>()
-            .root
-            .borrow_mut();
-        if let Some(child) = root.as_mut() {
-            child.as_widget_mut().update(
-                child_tree,
-                event,
-                child_layout,
-                cursor,
-                renderer,
-                clipboard,
-                shell,
-                viewport,
-            );
+        {
+            let mut root = tree
+                .state
+                .downcast_mut::<DockTreeHolder<Message>>()
+                .root
+                .borrow_mut();
+            if let Some(child) = root.as_mut() {
+                child.as_widget_mut().update(
+                    child_tree,
+                    event,
+                    child_layout,
+                    cursor,
+                    renderer,
+                    clipboard,
+                    shell,
+                    viewport,
+                );
+            }
+        }
+
+        if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) = event {
+            let dock_state = tree
+                .state
+                .downcast_ref::<DockTreeHolder<Message>>()
+                .dock_state
+                .clone();
+            if dock_state.borrow().drag.is_some() {
+                let _ = handle_dock_message_impl(
+                    &mut dock_state.borrow_mut(),
+                    DockMessage::Tab(TabMessage::DragCancelled),
+                );
+                self.sync_root(tree);
+            }
         }
     }
 
@@ -511,6 +528,10 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
                         changed = true;
                     }
                 }
+            }
+            TabMessage::DragCancelled => {
+                state.drag = None;
+                changed = true;
             }
         },
         DockMessage::SplitDrag {
