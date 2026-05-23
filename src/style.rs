@@ -124,7 +124,6 @@ impl DockStyle {
     pub fn modern_dark() -> Self {
         let canvas = Color::from_rgb(0.094, 0.094, 0.106); // #18181b
         let pane = Color::from_rgb(0.145, 0.145, 0.157); // #252528
-        let chrome = Color::from_rgb(0.118, 0.118, 0.129); // #1e1e21
         let chrome_top = Color::from_rgb(0.133, 0.133, 0.145); // #222225
         let border = Color::from_rgb(0.2, 0.2, 0.22);
         let text = Color::from_rgb(0.82, 0.82, 0.85);
@@ -163,7 +162,7 @@ impl DockStyle {
             },
             tab_bar: TabBarStyle {
                 height: 30.0,
-                background: chrome,
+                background: canvas,
                 spacing: 2.0,
                 padding: [4.0, 6.0],
             },
@@ -180,12 +179,12 @@ impl DockStyle {
                 active_accent: accent,
             },
             splitter: SplitterStyle {
-                size: 4.0,
-                gap: 6.0,
+                size: 0.5,
+                gap: 10.0,
                 min_pane_size: 80.0,
                 idle_color: Color::TRANSPARENT,
-                hover_color: Color::from_rgba(0.38, 0.62, 0.98, 0.55),
-                drag_color: Color::from_rgba(0.38, 0.62, 0.98, 0.85),
+                hover_color: Color::from_rgba(0.99, 0.99, 0.99, 0.99),
+                drag_color: Color::from_rgba(0.99, 0.99, 0.99, 0.99),
             },
             drop_overlay: DropOverlayStyle {
                 color: Color::from_rgba(0.38, 0.62, 0.98, 0.28),

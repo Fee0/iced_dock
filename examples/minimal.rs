@@ -36,6 +36,9 @@ fn update(app: &mut App, message: Message) -> Task<Message> {
 }
 
 fn view(app: &App) -> Element<'_, Message> {
+    let dock_style = DockStyle::from_theme(&Theme::Dark);
+    let window_background = dock_style.background.color;
+
     container(
         dock::<Message>()
             .state(app.dock_state.clone())
@@ -47,6 +50,10 @@ fn view(app: &App) -> Element<'_, Message> {
     .width(Length::Fill)
     .height(Length::Fill)
     .padding(10)
+    .style(move |_| container::Style {
+        background: Some(window_background.into()),
+        ..Default::default()
+    })
     .into()
 }
 

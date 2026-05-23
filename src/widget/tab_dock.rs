@@ -7,8 +7,8 @@ use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
 use iced::advanced::{Clipboard, Renderer as AdvRenderer, Shell};
 use iced::mouse::{self, Cursor};
-use iced::widget::{button, mouse_area, row, text, Space};
-use iced::{Color, Element, Event, Length, Rectangle, Size, Theme};
+use iced::widget::{button, container, mouse_area, row, text, Space};
+use iced::{Color, Element, Event, Length, Padding, Rectangle, Size, Theme};
 
 use crate::manager::DockManager;
 use crate::model::NodeId;
@@ -155,12 +155,17 @@ fn build_chrome<Message: Clone + 'static>(
     let title_label = text(title)
         .size(tb.text_size)
         .color(tb.text_color);
-    let drag_strip = mouse_area(Space::new().width(Length::Fill).height(Length::Fill));
-    let drag_strip = if can_drag {
-        drag_strip.interaction(mouse::Interaction::Grab)
-    } else {
-        drag_strip
-    };
+    let mut drag_strip = mouse_area(
+        Space::new()
+            .width(Length::Fill)
+            .height(Length::Fill),
+    );
+    if can_drag {
+        drag_strip = drag_strip.interaction(mouse::Interaction::Grab);
+    }
+    let drag_strip = container(drag_strip)
+        .width(Length::Fill)
+        .height(Length::Fill);
 
     let close: Element<'_, Message, Theme, iced::Renderer> = if can_close {
         let on_event = on_event.clone();
@@ -178,9 +183,15 @@ fn build_chrome<Message: Clone + 'static>(
             .into()
     };
 
-    row![title_label.width(Length::FillPortion(1)), drag_strip, close]
+    row![title_label, drag_strip, close]
         .height(Length::Fixed(tb.height))
         .align_y(iced::Alignment::Center)
+        .padding(Padding {
+            top: 0.0,
+            right: 0.0,
+            bottom: 0.0,
+            left: 10.0,
+        })
         .into()
 }
 
@@ -512,14 +523,11 @@ where
         }
 
         if let Some(bar_layout) = layout.children().next() {
-            let bar_bounds = bar_layout.bounds();
-            let close_w = layout_style.title_bar.close_button_width;
-            let drag_bounds = Rectangle {
-                x: bar_bounds.x,
-                y: bar_bounds.y,
-                width: (bar_bounds.width - close_w).max(0.0),
-                height: bar_bounds.height,
-            };
+            let drag_bounds = bar_layout
+                .children()
+                .nth(1)
+                .map(|drag_layout| drag_layout.bounds())
+                .unwrap_or_else(|| bar_layout.bounds());
             let threshold = layout_style.title_bar.drag_threshold;
             match event {
                 Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
