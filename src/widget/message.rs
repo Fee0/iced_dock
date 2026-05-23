@@ -5,7 +5,10 @@ use crate::model::NodeId;
 pub enum TabMessage {
     Select { group: NodeId, tab: NodeId },
     Close { tab: NodeId },
-    DragStarted { source: NodeId },
+    DragStarted {
+        source_group: NodeId,
+        source_tab: NodeId,
+    },
     DragMoved {
         target: NodeId,
         zone: DropZone,

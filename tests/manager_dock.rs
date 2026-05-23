@@ -13,9 +13,11 @@ fn fill_rejects_cross_kind() {
     factory.add_to_tab_group(&mut layout, dg, doc).unwrap();
     factory.add_to_tab_group(&mut layout, tg, tool).unwrap();
 
+    let dg2 = factory.create_tab_group(&mut layout, TabGroupKind::Document);
+
     let mgr = DockManager;
-    assert!(!mgr.validate(&layout, doc, tg, DockOperation::Fill));
-    assert!(mgr.validate(&layout, doc, dg, DockOperation::Fill));
+    assert!(!mgr.validate(&layout, dg, doc, tg, DockOperation::Fill));
+    assert!(mgr.validate(&layout, dg, doc, dg2, DockOperation::Fill));
 }
 
 #[test]

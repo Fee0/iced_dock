@@ -489,8 +489,11 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
                     changed = true;
                 }
             }
-            TabMessage::DragStarted { source } => {
-                state.drag = Some(DragSession::new(source));
+            TabMessage::DragStarted {
+                source_group,
+                source_tab,
+            } => {
+                state.drag = Some(DragSession::new(source_group, source_tab));
                 changed = true;
             }
             TabMessage::DragMoved { target, zone } => {

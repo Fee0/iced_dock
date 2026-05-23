@@ -90,7 +90,8 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
         on_event: Rc<dyn Fn(DockMessage) -> Message>,
     ) -> Self {
         let chrome = build_chrome::<Message>(title, can_close, can_drag, active_tab, on_event.clone());
-        let tab_strip = build_tab_strip::<Message>(group_id, tabs.clone(), on_event.clone());
+        let tab_strip =
+            build_tab_strip::<Message>(group_id, tabs.clone(), active_tab, on_event.clone());
         Self {
             group_id,
             can_drag,
@@ -141,6 +142,7 @@ fn build_chrome<Message: Clone + 'static>(
 fn build_tab_strip<Message: Clone + 'static>(
     group_id: NodeId,
     tabs: Vec<TabInfo>,
+    active_tab: NodeId,
     on_event: Rc<dyn Fn(DockMessage) -> Message>,
 ) -> Option<Element<'static, Message, Theme, iced::Renderer>> {
     if tabs.len() <= 1 {
@@ -151,14 +153,20 @@ fn build_tab_strip<Message: Clone + 'static>(
         let label = text(tab.title.clone()).size(12);
         let on_event = on_event.clone();
         let tab_id = tab.id;
-        let btn = button(label)
-            .padding([2, 8])
-            .on_press_with(move || {
-                (on_event)(DockMessage::Tab(TabMessage::Select {
-                    group: group_id,
-                    tab: tab_id,
-                }))
-            });
+        let is_active = tab.id == active_tab;
+        let btn = if is_active {
+            button(label)
+                .padding([2, 8])
+                .style(button::primary)
+        } else {
+            button(label).padding([2, 8])
+        };
+        let btn = btn.on_press_with(move || {
+            (on_event)(DockMessage::Tab(TabMessage::Select {
+                group: group_id,
+                tab: tab_id,
+            }))
+        });
         strip = strip.push(btn);
     }
     Some(
@@ -452,7 +460,8 @@ where
                                 state.drag_pending = false;
                                 shell.publish((self.on_event)(DockMessage::Tab(
                                     TabMessage::DragStarted {
-                                        source: self.group_id,
+                                        source_group: self.group_id,
+                                        source_tab: self.active_tab,
                                     },
                                 )));
                                 shell.capture_event();

@@ -30,15 +30,17 @@ impl DropZone {
 /// Active tab drag session.
 #[derive(Debug, Clone, Copy)]
 pub struct DragSession {
-    pub source: NodeId,
+    pub source_group: NodeId,
+    pub source_tab: NodeId,
     pub hover_target: Option<NodeId>,
     pub operation: Option<DockOperation>,
 }
 
 impl DragSession {
-    pub fn new(source: NodeId) -> Self {
+    pub fn new(source_group: NodeId, source_tab: NodeId) -> Self {
         Self {
-            source,
+            source_group,
+            source_tab,
             hover_target: None,
             operation: None,
         }
@@ -53,25 +55,25 @@ impl DockManager {
     pub fn validate(
         &self,
         layout: &Layout,
-        source: NodeId,
+        source_group: NodeId,
+        source_tab: NodeId,
         target: NodeId,
         op: DockOperation,
     ) -> bool {
-        if source == target {
-            return false;
-        }
-
         match op {
             DockOperation::Fill => {
-                let source_kind = layout.leaf_kind(source);
-                let target_kind = layout.tab_group_kind(target);
-                source_kind.is_some() && target_kind == source_kind
+                let leaf_kind = layout.leaf_kind(source_tab);
+                let group_kind = layout.tab_group_kind(target);
+                source_group != target
+                    && leaf_kind.is_some()
+                    && group_kind == leaf_kind
             }
             DockOperation::Left
             | DockOperation::Right
             | DockOperation::Top
             | DockOperation::Bottom => {
-                self.is_target_visible(layout, source)
+                source_group != target
+                    && self.is_target_visible(layout, source_group)
                     && self.is_target_visible(layout, target)
             }
         }
@@ -96,13 +98,19 @@ impl DockManager {
     ) -> Result<(), ()> {
         let target = session.hover_target.ok_or(())?;
         let op = session.operation.ok_or(())?;
-        if !self.validate(layout, session.source, target, op) {
+        if !self.validate(
+            layout,
+            session.source_group,
+            session.source_tab,
+            target,
+            op,
+        ) {
             return Err(());
         }
         let factory = Factory;
         match op {
-            DockOperation::Fill => factory.dock_fill(layout, session.source, target),
-            _ => factory.split(layout, session.source, target, op),
+            DockOperation::Fill => factory.dock_fill(layout, session.source_tab, target),
+            _ => factory.split(layout, session.source_group, target, op),
         }
     }
 

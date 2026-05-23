@@ -93,10 +93,15 @@ impl Factory {
     pub fn dock_fill(
         &self,
         layout: &mut Layout,
-        source: NodeId,
+        source_leaf: NodeId,
         target_group: NodeId,
     ) -> Result<(), ()> {
-        self.move_tab_to_group(layout, source, target_group)
+        let old_owner = layout.get(source_leaf).and_then(|e| e.owner);
+        self.move_tab_to_group(layout, source_leaf, target_group)?;
+        if let Some(owner) = old_owner {
+            self.collapse_owner(layout, owner);
+        }
+        Ok(())
     }
 
     pub fn reorder_tab(
