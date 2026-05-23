@@ -1,10 +1,10 @@
 use iced_dock::widget::DockWidgetState;
 
 #[test]
-fn default_layout_has_root_child() {
+fn default_layout_is_empty() {
     let state = DockWidgetState::default();
     assert!(
-        state.layout.root_child().is_some(),
-        "IDE seed layout should set a root proportional node"
+        state.layout.root_child().is_none(),
+        "default dock state should start with an empty layout"
     );
 }

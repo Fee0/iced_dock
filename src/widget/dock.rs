@@ -29,12 +29,8 @@ pub struct DockWidgetState {
 
 impl Default for DockWidgetState {
     fn default() -> Self {
-        let mut layout = DockLayout::new();
-        Factory
-            .complex_ide_layout(&mut layout)
-            .expect("complex_ide_layout seed");
         Self {
-            layout,
+            layout: DockLayout::new(),
             drag: None,
             drop_targets: Vec::new(),
             layout_dirty: false,

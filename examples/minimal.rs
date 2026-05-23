@@ -6,7 +6,66 @@ use std::rc::Rc;
 use iced::widget::{column, container, text};
 use iced::{application, Color, Element, Length, Size, Task, Theme};
 
-use iced_dock::{apply_message, dock, ContentKey, DockMessage, DockStyle, DockWidgetState};
+use iced_dock::{
+    apply_message, dock, Axis, ContentKey, DockMessage, DockStyle, DockWidgetState, Factory,
+    Layout, NodeKind,
+};
+
+fn complex_ide_layout(layout: &mut Layout) -> Result<(), ()> {
+    let factory = Factory;
+
+    let p_main = factory.insert_panel(layout, "main", "main.rs", ContentKey(0));
+    let p_lib = factory.insert_panel(layout, "lib", "lib.rs", ContentKey(1));
+    let pane_left_top = factory.create_pane(layout);
+    factory.add_panel_to_pane(layout, pane_left_top, p_main)?;
+    factory.add_panel_to_pane(layout, pane_left_top, p_lib)?;
+
+    let p_prev = factory.insert_panel(layout, "preview", "preview", ContentKey(2));
+    let pane_left_bot = factory.create_pane(layout);
+    factory.add_panel_to_pane(layout, pane_left_bot, p_prev)?;
+
+    let left_col = factory.create_proportional(
+        layout,
+        Axis::Vertical,
+        vec![pane_left_top, pane_left_bot],
+    );
+    if let Some(NodeKind::Proportional(ref mut pg)) =
+        layout.get_mut(left_col).map(|e| &mut e.kind)
+    {
+        pg.proportions = vec![0.55, 0.45];
+    }
+
+    let p_prop = factory.insert_panel(layout, "props", "Properties", ContentKey(10));
+    let p_out = factory.insert_panel(layout, "output", "Output", ContentKey(11));
+    let pane_right_top = factory.create_pane(layout);
+    factory.add_panel_to_pane(layout, pane_right_top, p_prop)?;
+    factory.add_panel_to_pane(layout, pane_right_top, p_out)?;
+
+    let p_exp = factory.insert_panel(layout, "explorer", "Explorer", ContentKey(12));
+    let p_srch = factory.insert_panel(layout, "search", "Search", ContentKey(13));
+    let pane_right_bot = factory.create_pane(layout);
+    factory.add_panel_to_pane(layout, pane_right_bot, p_exp)?;
+    factory.add_panel_to_pane(layout, pane_right_bot, p_srch)?;
+
+    let right_col = factory.create_proportional(
+        layout,
+        Axis::Vertical,
+        vec![pane_right_top, pane_right_bot],
+    );
+    if let Some(NodeKind::Proportional(ref mut pg)) =
+        layout.get_mut(right_col).map(|e| &mut e.kind)
+    {
+        pg.proportions = vec![0.5, 0.5];
+    }
+
+    let main = factory.create_proportional(layout, Axis::Horizontal, vec![left_col, right_col]);
+    if let Some(NodeKind::Proportional(ref mut pg)) = layout.get_mut(main).map(|e| &mut e.kind) {
+        pg.proportions = vec![0.72, 0.28];
+    }
+
+    layout.set_root_child(Some(main));
+    Ok(())
+}
 
 fn main() -> iced::Result {
     application(App::default, update, view)
@@ -19,9 +78,18 @@ fn main() -> iced::Result {
         .run()
 }
 
-#[derive(Default)]
 struct App {
     dock_state: Rc<RefCell<DockWidgetState>>,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        let mut state = DockWidgetState::default();
+        complex_ide_layout(&mut state.layout).expect("complex_ide_layout seed");
+        Self {
+            dock_state: Rc::new(RefCell::new(state)),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
