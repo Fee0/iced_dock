@@ -517,6 +517,11 @@ where
         viewport: &Rectangle,
         renderer: &iced::Renderer,
     ) -> mouse::Interaction {
+        let holder = tree.state.downcast_ref::<DockTreeHolder<Message>>();
+        if holder.dock_state.borrow().drag.is_some() {
+            return mouse::Interaction::Grab;
+        }
+
         let Some(child_layout) = layout.children().next() else {
             return mouse::Interaction::default();
         };

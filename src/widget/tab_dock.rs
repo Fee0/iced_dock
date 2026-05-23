@@ -692,6 +692,10 @@ where
         viewport: &Rectangle,
         renderer: &iced::Renderer,
     ) -> mouse::Interaction {
+        if self.is_dragging(tree) {
+            return mouse::Interaction::Grab;
+        }
+
         let mut interaction = mouse::Interaction::None;
         if let Some(chrome_layout) = layout.children().next() {
             interaction = interaction.max(compose::child_mouse_interaction(
