@@ -1,0 +1,66 @@
+use iced_dock::builder::build_tree;
+use iced_dock::{
+    horizontal, panel, tabs, vertical, BuiltLayout, ContentKey, Layout, LayoutTree, NodeKind,
+};
+
+fn nested_layout() -> LayoutTree {
+    horizontal([
+        vertical([
+            tabs([
+                panel("main", "main.rs", ContentKey(0)),
+                panel("lib", "lib.rs", ContentKey(1)),
+            ])
+            .active("main"),
+            tabs([panel("preview", "preview", ContentKey(2))]),
+        ])
+        .weights([0.55, 0.45]),
+        vertical([
+            tabs([
+                panel("props", "Properties", ContentKey(10)),
+                panel("output", "Output", ContentKey(11)),
+            ]),
+            tabs([
+                panel("explorer", "Explorer", ContentKey(12)),
+                panel("search", "Search", ContentKey(13)),
+            ]),
+        ])
+        .weights([0.5, 0.5]),
+    ])
+    .weights([0.72, 0.28])
+}
+
+#[test]
+fn layout_tree_json_roundtrip() {
+    let tree = nested_layout();
+    let json = serde_json::to_string(&tree).unwrap();
+    let back: LayoutTree = serde_json::from_str(&json).unwrap();
+    assert_eq!(tree, back);
+}
+
+#[test]
+fn layout_runtime_json_roundtrip() {
+    let tree = nested_layout();
+    let built = build_tree(&tree).expect("compile");
+    let json = serde_json::to_string(&built.layout).unwrap();
+    let back: Layout = serde_json::from_str(&json).unwrap();
+    assert_eq!(built.layout.nodes.len(), back.nodes.len());
+    assert_eq!(built.index.panels.len(), 7);
+
+    let root = back.root_child().expect("root child");
+    let NodeKind::Proportional(pg) = back.kind(root).expect("proportional root") else {
+        panic!("expected proportional root");
+    };
+    assert_eq!(pg.children.len(), 2);
+}
+
+#[test]
+fn built_layout_json_roundtrip() {
+    let tree = nested_layout();
+    let built = build_tree(&tree).expect("compile");
+    let json = serde_json::to_string(&built).unwrap();
+    let back: BuiltLayout = serde_json::from_str(&json).unwrap();
+    assert_eq!(built.index.panels.len(), back.index.panels.len());
+    for id in built.index.panels.keys() {
+        assert!(back.index.panels.contains_key(id));
+    }
+}

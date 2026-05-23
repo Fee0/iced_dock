@@ -4,6 +4,7 @@ use crate::model::{Layout, NodeId, NodeKind};
 
 /// String-id lookups for panels and named panes.
 #[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DockIndex {
     pub panels: HashMap<String, NodeId>,
     pub panes: HashMap<String, NodeId>,

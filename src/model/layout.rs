@@ -10,10 +10,13 @@ new_key_type! {
 
 /// Application content identity (documents/tools map UI in the host app).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct ContentKey(pub u32);
 
 /// Dock drop / split operations (floating window deferred).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum DockOperation {
     Fill,
     Left,
@@ -30,6 +33,7 @@ impl DockOperation {
 
 /// Split orientation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Axis {
     Horizontal,
     Vertical,
@@ -54,11 +58,13 @@ impl Axis {
 
 /// Root wrapper (single child).
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RootState {
     pub child: Option<NodeId>,
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum NodeKind {
     Panel(Panel),
     Pane(Pane),
@@ -67,6 +73,7 @@ pub enum NodeKind {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NodeEntry {
     pub kind: NodeKind,
     pub owner: Option<NodeId>,
@@ -74,6 +81,7 @@ pub struct NodeEntry {
 
 /// Layout tree arena.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Layout {
     pub nodes: SlotMap<NodeId, NodeEntry>,
     pub root: NodeId,

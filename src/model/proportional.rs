@@ -2,6 +2,7 @@ use super::{Axis, NodeId};
 
 /// Ordered split container (rendered as nested `iced_split` widgets).
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProportionalGroup {
     pub axis: Axis,
     pub children: Vec<NodeId>,

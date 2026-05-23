@@ -1,4 +1,10 @@
 //! Docking layout system for iced.
+//!
+//! ## Serialization
+//!
+//! Enable the `serde` feature to derive [`serde::Serialize`] and [`serde::Deserialize`] on layout
+//! types. Persist declarative [`LayoutTree`] for defaults, or [`Layout`] to capture runtime
+//! split/tab state after user edits.
 
 pub mod builder;
 pub mod error;

@@ -2,6 +2,7 @@ use crate::model::{Axis, ContentKey};
 
 /// Declarative layout description.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum LayoutTree {
     /// Tabbed pane (typical split leaf).
     Tabs(TabsNode),
@@ -11,6 +12,7 @@ pub enum LayoutTree {
 
 /// Panel metadata used when building or opening tabs.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PanelDef {
     pub id: String,
     pub title: String,
@@ -50,6 +52,7 @@ impl PanelDef {
 
 /// Tabbed pane node.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TabsNode {
     pub name: Option<String>,
     pub panels: Vec<PanelDef>,
@@ -78,6 +81,7 @@ impl TabsNode {
 
 /// Split container node.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SplitNode {
     pub axis: Axis,
     pub children: Vec<LayoutTree>,

@@ -5,6 +5,7 @@ pub type Result<T = ()> = std::result::Result<T, Error>;
 
 /// Unified error type for the docking layout system.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Error {
     // --- Layout spec / builder ---
     #[error("layout tree is empty")]

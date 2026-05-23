@@ -5,13 +5,24 @@ edition = "2021"
 description = "Docking layout system for iced"
 license = "MIT"
 
+[features]
+default = []
+serde = ["dep:serde", "slotmap/serde"]
+
 [dependencies]
 iced = { version = "0.14", default-features = false, features = ["wgpu", "advanced", "thread-pool"] }
+serde = { version = "1.0", optional = true, features = ["derive"] }
 slotmap = "1.0"
 thiserror = "2.0"
 
 [dev-dependencies]
 iced = { version = "0.14", default-features = false, features = ["wgpu", "advanced", "tokio"] }
+serde_json = "1.0"
+
+[[test]]
+name = "serde_roundtrip"
+path = "tests/serde_roundtrip.rs"
+required-features = ["serde"]
 
 [[example]]
 name = "minimal"

@@ -6,6 +6,7 @@ use crate::{Error, Result};
 
 /// Result of compiling a [`LayoutTree`].
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BuiltLayout {
     pub layout: Layout,
     pub index: DockIndex,

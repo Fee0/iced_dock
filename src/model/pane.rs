@@ -2,6 +2,7 @@ use super::{ContentKey, NodeId};
 
 /// Single tab content (leaf node).
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Panel {
     pub id: String,
     pub title: String,
@@ -26,6 +27,7 @@ impl Panel {
 
 /// Tabbed pane host.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Pane {
     pub name: Option<String>,
     pub tabs: Vec<NodeId>,
