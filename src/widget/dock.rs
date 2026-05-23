@@ -27,6 +27,21 @@ pub struct DockWidgetState {
     pub layout_dirty: bool,
 }
 
+impl DockWidgetState {
+    /// Build widget state from a declarative [`LayoutTree`](crate::LayoutTree).
+    pub fn from_tree(
+        tree: crate::LayoutTree,
+    ) -> Result<Self, crate::LayoutError> {
+        let built = crate::builder::build_tree(&tree)?;
+        Ok(Self {
+            layout: built.layout,
+            drag: None,
+            drop_targets: Vec::new(),
+            layout_dirty: true,
+        })
+    }
+}
+
 impl Default for DockWidgetState {
     fn default() -> Self {
         Self {

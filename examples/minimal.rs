@@ -1,74 +1,41 @@
 //! Demo: complex IDE layout with splitters, tabs, and drag-dock.
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use iced::widget::{column, container, text};
 use iced::{application, Color, Element, Length, Size, Task, Theme};
 
 use iced_dock::{
-    apply_message, dock, Axis, ContentKey, DockMessage, DockStyle, DockWidgetState, Factory,
-    Layout, NodeKind,
+    dock, horizontal, panel as tab, tabs, vertical, ContentKey, DockMessage, DockSession,
+    DockStyle, LayoutTree,
 };
 
-fn complex_ide_layout(layout: &mut Layout) -> Result<(), ()> {
-    let factory = Factory;
-
-    let p_main = factory.insert_panel(layout, "main", "main.rs", ContentKey(0));
-    let p_lib = factory.insert_panel(layout, "lib", "lib.rs", ContentKey(1));
-    let pane_left_top = factory.create_pane(layout);
-    factory.add_panel_to_pane(layout, pane_left_top, p_main)?;
-    factory.add_panel_to_pane(layout, pane_left_top, p_lib)?;
-
-    let p_prev = factory.insert_panel(layout, "preview", "preview", ContentKey(2));
-    let pane_left_bot = factory.create_pane(layout);
-    factory.add_panel_to_pane(layout, pane_left_bot, p_prev)?;
-
-    let left_col = factory.create_proportional(
-        layout,
-        Axis::Vertical,
-        vec![pane_left_top, pane_left_bot],
-    );
-    if let Some(NodeKind::Proportional(ref mut pg)) =
-        layout.get_mut(left_col).map(|e| &mut e.kind)
-    {
-        pg.proportions = vec![0.55, 0.45];
-    }
-
-    let p_prop = factory.insert_panel(layout, "props", "Properties", ContentKey(10));
-    let p_out = factory.insert_panel(layout, "output", "Output", ContentKey(11));
-    let pane_right_top = factory.create_pane(layout);
-    factory.add_panel_to_pane(layout, pane_right_top, p_prop)?;
-    factory.add_panel_to_pane(layout, pane_right_top, p_out)?;
-
-    let p_exp = factory.insert_panel(layout, "explorer", "Explorer", ContentKey(12));
-    let p_srch = factory.insert_panel(layout, "search", "Search", ContentKey(13));
-    let pane_right_bot = factory.create_pane(layout);
-    factory.add_panel_to_pane(layout, pane_right_bot, p_exp)?;
-    factory.add_panel_to_pane(layout, pane_right_bot, p_srch)?;
-
-    let right_col = factory.create_proportional(
-        layout,
-        Axis::Vertical,
-        vec![pane_right_top, pane_right_bot],
-    );
-    if let Some(NodeKind::Proportional(ref mut pg)) =
-        layout.get_mut(right_col).map(|e| &mut e.kind)
-    {
-        pg.proportions = vec![0.5, 0.5];
-    }
-
-    let main = factory.create_proportional(layout, Axis::Horizontal, vec![left_col, right_col]);
-    if let Some(NodeKind::Proportional(ref mut pg)) = layout.get_mut(main).map(|e| &mut e.kind) {
-        pg.proportions = vec![0.72, 0.28];
-    }
-
-    layout.set_root_child(Some(main));
-    Ok(())
+fn demo_layout() -> LayoutTree {
+    horizontal([
+        vertical([
+            tabs([
+                tab("main", "main.rs", ContentKey(0)),
+                tab("lib", "lib.rs", ContentKey(1)),
+            ])
+            .active("main"),
+            tabs([tab("preview", "preview", ContentKey(2))]),
+        ])
+        .weights([0.55, 0.45]),
+        vertical([
+            tabs([
+                tab("props", "Properties", ContentKey(10)),
+                tab("output", "Output", ContentKey(11)),
+            ]),
+            tabs([
+                tab("explorer", "Explorer", ContentKey(12)),
+                tab("search", "Search", ContentKey(13)),
+            ]),
+        ])
+        .weights([0.5, 0.5]),
+    ])
+    .weights([0.72, 0.28])
 }
 
 fn main() -> iced::Result {
-    application(App::default, update, view)
+    application(App::new, update, view)
         .title("iced_dock — minimal")
         .theme(Theme::Dark)
         .window(iced::window::Settings {
@@ -79,15 +46,14 @@ fn main() -> iced::Result {
 }
 
 struct App {
-    dock_state: Rc<RefCell<DockWidgetState>>,
+    dock: DockSession,
 }
 
-impl Default for App {
-    fn default() -> Self {
-        let mut state = DockWidgetState::default();
-        complex_ide_layout(&mut state.layout).expect("complex_ide_layout seed");
+impl App {
+    fn new() -> Self {
         Self {
-            dock_state: Rc::new(RefCell::new(state)),
+            dock: DockSession::from_tree(demo_layout())
+                .expect("failed to build demo layout"),
         }
     }
 }
@@ -99,7 +65,7 @@ enum Message {
 
 fn update(app: &mut App, message: Message) -> Task<Message> {
     let Message::Dock(msg) = message;
-    let _ = apply_message(&app.dock_state, msg);
+    let _ = app.dock.apply_message(msg);
     Task::none()
 }
 
@@ -109,7 +75,7 @@ fn view(app: &App) -> Element<'_, Message> {
 
     container(
         dock::<Message>()
-            .state(app.dock_state.clone())
+            .state(app.dock.state())
             .on_event(Message::Dock)
             .content(panel)
             .style(|theme| DockStyle::from_theme(theme))

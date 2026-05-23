@@ -27,6 +27,7 @@ impl Panel {
 /// Tabbed pane host.
 #[derive(Debug, Clone)]
 pub struct Pane {
+    pub name: Option<String>,
     pub tabs: Vec<NodeId>,
     pub active: Option<NodeId>,
 }
@@ -34,6 +35,7 @@ pub struct Pane {
 impl Pane {
     pub fn new() -> Self {
         Self {
+            name: None,
             tabs: Vec::new(),
             active: None,
         }
