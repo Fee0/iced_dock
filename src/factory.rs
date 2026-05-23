@@ -447,29 +447,17 @@ impl Factory {
             } else {
                 vec![1.0; n]
             };
-            let left_sum: f32 = props[..=splitter_index].iter().sum();
-            let right_sum: f32 = props[splitter_index + 1..].iter().sum();
-            let total = left_sum + right_sum;
+            let total: f32 = props.iter().sum();
             if total <= 0.0 {
                 return Err(());
             }
-            let new_left = ratio_before * total;
-            let new_right = total - new_left;
-            if splitter_index == 0 {
-                props[0] = new_left;
-                for p in &mut props[1..] {
-                    *p = new_right / (n - 1) as f32;
-                }
-            } else {
-                let per_left = new_left / (splitter_index + 1) as f32;
-                for p in props[..=splitter_index].iter_mut() {
-                    *p = per_left;
-                }
-                let per_right = new_right / (n - splitter_index - 1) as f32;
-                for p in props[splitter_index + 1..].iter_mut() {
-                    *p = per_right;
-                }
-            }
+            let left_fixed: f32 = props[..splitter_index].iter().sum();
+            let pair_total = props[splitter_index] + props[splitter_index + 1];
+            let min_weight = 0.05 * total;
+            let left = (ratio_before * total - left_fixed)
+                .clamp(min_weight, pair_total - min_weight);
+            props[splitter_index] = left;
+            props[splitter_index + 1] = pair_total - left;
             pg.proportions = props;
             pg.normalize_proportions();
             Ok(())

@@ -1,5 +1,5 @@
 use iced_dock::factory::Factory;
-use iced_dock::model::{Axis, ContentKey, DockOperation, Layout, NodeKind};
+use iced_dock::model::{Axis, ContentKey, DockOperation, Layout, NodeId, NodeKind};
 
 #[test]
 fn split_merges_into_same_axis_parent() {
@@ -72,4 +72,90 @@ fn same_pane_edge_split_single_panel() {
     };
     assert_eq!(pg.children.len(), 2);
     assert_eq!(pg.axis, Axis::Horizontal);
+}
+
+fn three_pane_group(factory: &Factory, layout: &mut Layout) -> NodeId {
+    let panes: Vec<_> = (0..3).map(|_| factory.create_pane(layout)).collect();
+    let group = factory.create_proportional(
+        layout,
+        Axis::Horizontal,
+        vec![panes[0], panes[1], panes[2]],
+    );
+    factory
+        .set_proportions(layout, group, vec![2.0, 3.0, 5.0])
+        .unwrap();
+    group
+}
+
+fn four_pane_group(factory: &Factory, layout: &mut Layout) -> NodeId {
+    let panes: Vec<_> = (0..4).map(|_| factory.create_pane(layout)).collect();
+    let group = factory.create_proportional(
+        layout,
+        Axis::Horizontal,
+        vec![panes[0], panes[1], panes[2], panes[3]],
+    );
+    factory
+        .set_proportions(layout, group, vec![1.0, 2.0, 3.0, 4.0])
+        .unwrap();
+    group
+}
+
+fn approx_eq(a: f32, b: f32) {
+    assert!((a - b).abs() < 1e-5, "expected {b}, got {a}");
+}
+
+#[test]
+fn adjust_splitter_middle_only_moves_adjacent_pair() {
+    let factory = Factory;
+    let mut layout = Layout::new();
+    let group = three_pane_group(&factory, &mut layout);
+
+    factory
+        .adjust_splitter(&mut layout, group, 1, 0.4)
+        .unwrap();
+
+    let NodeKind::Proportional(pg) = layout.kind(group).unwrap() else {
+        panic!("expected proportional group");
+    };
+    approx_eq(pg.proportions[0], 2.0 / 10.0);
+    approx_eq(pg.proportions[1], 2.0 / 10.0);
+    approx_eq(pg.proportions[2], 6.0 / 10.0);
+    approx_eq(pg.proportions[1] + pg.proportions[2], 0.8);
+}
+
+#[test]
+fn adjust_splitter_four_pane_keeps_outer_panes_fixed() {
+    let factory = Factory;
+    let mut layout = Layout::new();
+    let group = four_pane_group(&factory, &mut layout);
+
+    factory
+        .adjust_splitter(&mut layout, group, 1, 0.35)
+        .unwrap();
+
+    let NodeKind::Proportional(pg) = layout.kind(group).unwrap() else {
+        panic!("expected proportional group");
+    };
+    approx_eq(pg.proportions[0], 1.0 / 10.0);
+    approx_eq(pg.proportions[3], 4.0 / 10.0);
+    approx_eq(pg.proportions[1], 2.5 / 10.0);
+    approx_eq(pg.proportions[2], 2.5 / 10.0);
+}
+
+#[test]
+fn adjust_splitter_first_divider_only_moves_first_pair() {
+    let factory = Factory;
+    let mut layout = Layout::new();
+    let group = three_pane_group(&factory, &mut layout);
+
+    factory
+        .adjust_splitter(&mut layout, group, 0, 0.3)
+        .unwrap();
+
+    let NodeKind::Proportional(pg) = layout.kind(group).unwrap() else {
+        panic!("expected proportional group");
+    };
+    approx_eq(pg.proportions[2], 5.0 / 10.0);
+    approx_eq(pg.proportions[0], 3.0 / 10.0);
+    approx_eq(pg.proportions[1], 2.0 / 10.0);
 }
