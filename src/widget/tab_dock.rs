@@ -8,49 +8,52 @@ use iced::advanced::widget::{Operation, Widget};
 use iced::advanced::{Clipboard, Renderer as AdvRenderer, Shell};
 use iced::mouse::{self, Cursor};
 use iced::widget::{button, mouse_area, row, text, Space};
-use iced::{Border, Element, Event, Length, Rectangle, Size, Theme};
+use iced::{Color, Element, Event, Length, Rectangle, Size, Theme};
 
-use crate::model::NodeId;
 use crate::manager::DockManager;
+use crate::model::NodeId;
+use crate::style::{close_button_style, tab_button_style, DockStyle};
 use crate::widget::compose;
 use crate::widget::dock::{handle_dock_message, DockWidgetState};
 use crate::widget::message::{DockMessage, TabMessage};
 
-pub const TITLE_BAR_HEIGHT: f32 = 28.0;
-pub const TAB_STRIP_HEIGHT: f32 = 24.0;
-pub const DRAG_THRESHOLD: f32 = 6.0;
-pub const CLOSE_BUTTON_WIDTH: f32 = 36.0;
+fn layout_theme() -> Theme {
+    Theme::Dark
+}
 
-fn drop_zone_rect(bounds: Rectangle, zone: crate::manager::DropZone) -> Rectangle {
+fn drop_zone_rect(bounds: Rectangle, zone: crate::manager::DropZone, edge: f32) -> Rectangle {
     let w = bounds.width;
     let h = bounds.height;
-    const EDGE: f32 = 0.2;
     match zone {
         crate::manager::DropZone::Left => Rectangle {
-            width: w * EDGE,
+            width: w * edge,
             ..bounds
         },
         crate::manager::DropZone::Right => Rectangle {
-            x: bounds.x + w * (1.0 - EDGE),
-            width: w * EDGE,
+            x: bounds.x + w * (1.0 - edge),
+            width: w * edge,
             ..bounds
         },
         crate::manager::DropZone::Top => Rectangle {
-            height: h * EDGE,
+            height: h * edge,
             ..bounds
         },
         crate::manager::DropZone::Bottom => Rectangle {
-            y: bounds.y + h * (1.0 - EDGE),
-            height: h * EDGE,
+            y: bounds.y + h * (1.0 - edge),
+            height: h * edge,
             ..bounds
         },
         crate::manager::DropZone::Center => Rectangle {
-            x: bounds.x + w * EDGE,
-            y: bounds.y + h * EDGE,
-            width: w * (1.0 - 2.0 * EDGE),
-            height: h * (1.0 - 2.0 * EDGE),
+            x: bounds.x + w * edge,
+            y: bounds.y + h * edge,
+            width: w * (1.0 - 2.0 * edge),
+            height: h * (1.0 - 2.0 * edge),
         },
     }
+}
+
+fn pane_inset(style: &DockStyle) -> f32 {
+    style.window.padding + style.window.border.width
 }
 
 #[derive(Debug, Clone)]
@@ -77,6 +80,7 @@ pub struct TabDock<'a, Message> {
     pub tab_strip: Option<Element<'a, Message, Theme, iced::Renderer>>,
     pub content: Element<'a, Message, Theme, iced::Renderer>,
     on_event: Rc<dyn Fn(DockMessage) -> Message>,
+    style: Rc<dyn Fn(&Theme) -> DockStyle>,
 }
 
 impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
@@ -90,10 +94,24 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
         active_tab: NodeId,
         content: Element<'a, Message, Theme, iced::Renderer>,
         on_event: Rc<dyn Fn(DockMessage) -> Message>,
+        style: Rc<dyn Fn(&Theme) -> DockStyle>,
     ) -> Self {
-        let chrome = build_chrome::<Message>(title, can_close, can_drag, active_tab, on_event.clone());
-        let tab_strip =
-            build_tab_strip::<Message>(pane_id, tabs.clone(), active_tab, on_event.clone());
+        let layout_style = (style)(&layout_theme());
+        let chrome = build_chrome::<Message>(
+            &layout_style,
+            title,
+            can_close,
+            can_drag,
+            active_tab,
+            on_event.clone(),
+        );
+        let tab_strip = build_tab_strip::<Message>(
+            &layout_style,
+            pane_id,
+            tabs.clone(),
+            active_tab,
+            on_event.clone(),
+        );
         Self {
             dock_state,
             pane_id,
@@ -104,7 +122,12 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
             tab_strip,
             content,
             on_event,
+            style,
         }
+    }
+
+    fn layout_style(&self) -> DockStyle {
+        (self.style)(&layout_theme())
     }
 
     fn is_dragging(&self, tree: &Tree) -> bool {
@@ -121,13 +144,17 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
 }
 
 fn build_chrome<Message: Clone + 'static>(
+    style: &DockStyle,
     title: String,
     can_close: bool,
     can_drag: bool,
     active_tab: NodeId,
     on_event: Rc<dyn Fn(DockMessage) -> Message>,
 ) -> Element<'static, Message, Theme, iced::Renderer> {
-    let title_label = text(title).size(13);
+    let tb = &style.title_bar;
+    let title_label = text(title)
+        .size(tb.text_size)
+        .color(tb.text_color);
     let drag_strip = mouse_area(Space::new().width(Length::Fill).height(Length::Fill));
     let drag_strip = if can_drag {
         drag_strip.interaction(mouse::Interaction::Grab)
@@ -137,23 +164,28 @@ fn build_chrome<Message: Clone + 'static>(
 
     let close: Element<'_, Message, Theme, iced::Renderer> = if can_close {
         let on_event = on_event.clone();
-        button(text("×").size(14))
-            .padding([2, 8])
+        let cb = &tb.close_button;
+        button(text("×").size(cb.text_size))
+            .padding(cb.padding)
+            .style(close_button_style(cb))
             .on_press_with(move || {
                 (on_event)(DockMessage::Tab(TabMessage::Close { panel: active_tab }))
             })
             .into()
     } else {
-        Space::new().width(Length::Fixed(28.0)).into()
+        Space::new()
+            .width(Length::Fixed(tb.close_button_width))
+            .into()
     };
 
     row![title_label.width(Length::FillPortion(1)), drag_strip, close]
-        .height(Length::Fixed(TITLE_BAR_HEIGHT))
+        .height(Length::Fixed(tb.height))
         .align_y(iced::Alignment::Center)
         .into()
 }
 
 fn build_tab_strip<Message: Clone + 'static>(
+    style: &DockStyle,
     pane_id: NodeId,
     tabs: Vec<TabInfo>,
     active_tab: NodeId,
@@ -162,32 +194,30 @@ fn build_tab_strip<Message: Clone + 'static>(
     if tabs.len() <= 1 {
         return None;
     }
-    let mut strip = row![].spacing(4).padding([2, 4]);
+    let bar = &style.tab_bar;
+    let tab_style = &style.tab;
+    let mut strip = row![]
+        .spacing(bar.spacing)
+        .padding(bar.padding);
     for tab in tabs {
-        let label = text(tab.title.clone()).size(12);
+        let label = text(tab.title.clone())
+            .size(tab_style.text_size)
+            .color(tab_style.inactive_text);
         let on_event = on_event.clone();
         let tab_id = tab.id;
         let is_active = tab.id == active_tab;
-        let btn = if is_active {
-            button(label)
-                .padding([2, 8])
-                .style(button::primary)
-        } else {
-            button(label).padding([2, 8])
-        };
-        let btn = btn.on_press_with(move || {
-            (on_event)(DockMessage::Tab(TabMessage::Select {
-                pane: pane_id,
-                panel: tab_id,
-            }))
-        });
+        let btn = button(label)
+            .padding(tab_style.padding)
+            .style(tab_button_style(tab_style, is_active))
+            .on_press_with(move || {
+                (on_event)(DockMessage::Tab(TabMessage::Select {
+                    pane: pane_id,
+                    panel: tab_id,
+                }))
+            });
         strip = strip.push(btn);
     }
-    Some(
-        strip
-            .height(Length::Fixed(TAB_STRIP_HEIGHT))
-            .into(),
-    )
+    Some(strip.height(Length::Fixed(bar.height)).into())
 }
 
 impl<'a, Message> Widget<Message, Theme, iced::Renderer> for TabDock<'a, Message>
@@ -245,42 +275,42 @@ where
         renderer: &iced::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
+        let style = self.layout_style();
         let max = limits.max();
+        let inset = pane_inset(&style);
+        let inner_w = (max.width - 2.0 * inset).max(0.0);
+        let inner_h = (max.height - 2.0 * inset).max(0.0);
+        let title_h = style.title_bar.height;
         let tab_h = if self.tabs.len() > 1 {
-            TAB_STRIP_HEIGHT
+            style.tab_bar.height
         } else {
             0.0
         };
-        let content_h = (max.height - TITLE_BAR_HEIGHT - tab_h).max(0.0);
+        let content_h = (inner_h - title_h - tab_h).max(0.0);
+        let mut y = inset;
 
-        let chrome_limits = layout::Limits::new(
-            Size::ZERO,
-            Size::new(max.width, TITLE_BAR_HEIGHT),
-        );
+        let chrome_limits = layout::Limits::new(Size::ZERO, Size::new(inner_w, title_h));
         let mut chrome_node =
             compose::child_layout(&mut self.chrome, &mut tree.children[0], renderer, &chrome_limits);
-        chrome_node.move_to_mut((0.0, 0.0));
+        chrome_node.move_to_mut((inset, y));
+        y += title_h;
 
-        let content_limits = layout::Limits::new(
-            Size::ZERO,
-            Size::new(max.width, content_h),
-        );
+        let content_limits = layout::Limits::new(Size::ZERO, Size::new(inner_w, content_h));
         let mut content_node = compose::child_layout(
             &mut self.content,
             &mut tree.children[1],
             renderer,
             &content_limits,
         );
-        content_node.move_to_mut((0.0, TITLE_BAR_HEIGHT));
+        content_node.move_to_mut((inset, y));
+        y += content_h;
 
         let mut nodes = vec![chrome_node, content_node];
+
         if let (Some(tabs), Some(tab_tree)) = (&mut self.tab_strip, tree.children.get_mut(2)) {
-            let tab_limits = layout::Limits::new(
-                Size::ZERO,
-                Size::new(max.width, TAB_STRIP_HEIGHT),
-            );
+            let tab_limits = layout::Limits::new(Size::ZERO, Size::new(inner_w, tab_h));
             let mut tab_node = compose::child_layout(tabs, tab_tree, renderer, &tab_limits);
-            tab_node.move_to_mut((0.0, TITLE_BAR_HEIGHT + content_h));
+            tab_node.move_to_mut((inset, y));
             nodes.push(tab_node);
         }
 
@@ -297,20 +327,19 @@ where
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
-        let palette = theme.extended_palette();
+        let mut dock_style = (self.style)(theme);
+        dock_style.sync_active_tab_with_window();
+
         let pane_bounds = layout.bounds();
+        let window = &dock_style.window;
 
         renderer.fill_quad(
             renderer::Quad {
                 bounds: pane_bounds,
-                border: Border {
-                    width: 1.0,
-                    color: palette.background.weak.color,
-                    radius: 0.0.into(),
-                },
+                border: window.border,
                 ..renderer::Quad::default()
             },
-            palette.background.base.color,
+            window.background,
         );
 
         if let Some(chrome_layout) = layout.children().next() {
@@ -320,8 +349,33 @@ where
                     bounds: chrome_bounds,
                     ..renderer::Quad::default()
                 },
-                palette.background.strong.color,
+                dock_style.title_bar.background,
             );
+            let sep = Rectangle {
+                x: chrome_bounds.x,
+                y: chrome_bounds.y + chrome_bounds.height - 1.0,
+                width: chrome_bounds.width,
+                height: 1.0,
+            };
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds: sep,
+                    ..renderer::Quad::default()
+                },
+                Color::from_rgba(0.0, 0.0, 0.0, 0.35),
+            );
+        }
+
+        if self.tabs.len() > 1 {
+            if let Some(tab_layout) = layout.children().nth(2) {
+                renderer.fill_quad(
+                    renderer::Quad {
+                        bounds: tab_layout.bounds(),
+                        ..renderer::Quad::default()
+                    },
+                    dock_style.tab_bar.background,
+                );
+            }
         }
 
         if let Some(chrome_layout) = layout.children().next() {
@@ -381,13 +435,11 @@ where
                     });
 
                 if let Some(zone) = zone {
-                    let highlight = iced::Color {
-                        a: 0.35,
-                        ..palette.primary.base.color
-                    };
-                    let zone_bounds = drop_zone_rect(bounds, zone);
+                    let highlight = dock_style.drop_overlay.color;
+                    let edge = dock_style.drop_overlay.edge_fraction;
+                    let zone_bounds = drop_zone_rect(bounds, zone, edge);
                     renderer.fill_quad(
-                        iced::advanced::renderer::Quad {
+                        renderer::Quad {
                             bounds: zone_bounds,
                             ..Default::default()
                         },
@@ -409,6 +461,7 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
+        let layout_style = self.layout_style();
         let dragging = self.is_dragging(tree);
         let state = tree.state.downcast_mut::<TabDockState>();
 
@@ -460,12 +513,14 @@ where
 
         if let Some(bar_layout) = layout.children().next() {
             let bar_bounds = bar_layout.bounds();
+            let close_w = layout_style.title_bar.close_button_width;
             let drag_bounds = Rectangle {
                 x: bar_bounds.x,
                 y: bar_bounds.y,
-                width: (bar_bounds.width - CLOSE_BUTTON_WIDTH).max(0.0),
+                width: (bar_bounds.width - close_w).max(0.0),
                 height: bar_bounds.height,
             };
+            let threshold = layout_style.title_bar.drag_threshold;
             match event {
                 Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
                     if self.can_drag {
@@ -479,12 +534,10 @@ where
                 }
                 Event::Mouse(mouse::Event::CursorMoved { .. }) => {
                     if state.drag_pending {
-                        if let (Some(start), Some(pos)) =
-                            (state.drag_start, cursor.position())
-                        {
+                        if let (Some(start), Some(pos)) = (state.drag_start, cursor.position()) {
                             let dx = pos.x - start.x;
                             let dy = pos.y - start.y;
-                            if (dx * dx + dy * dy).sqrt() >= DRAG_THRESHOLD {
+                            if (dx * dx + dy * dy).sqrt() >= threshold {
                                 state.dragging = true;
                                 state.drag_pending = false;
                                 shell.publish((self.on_event)(DockMessage::Tab(
@@ -529,10 +582,9 @@ where
                 if let Some(pos) = cursor.position() {
                     if let Some(content_layout) = layout.children().nth(1) {
                         let bounds = content_layout.bounds();
-                        state.hover_zone =
-                            cursor
-                                .position_over(bounds)
-                                .and_then(|p| DockManager::hit_test_drop_zone(bounds, p));
+                        state.hover_zone = cursor
+                            .position_over(bounds)
+                            .and_then(|p| DockManager::hit_test_drop_zone(bounds, p));
                     }
                     shell.publish((self.on_event)(DockMessage::Tab(TabMessage::DragMoved {
                         cursor: pos,

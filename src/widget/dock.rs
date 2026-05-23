@@ -4,13 +4,15 @@ use std::rc::Rc;
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
-use iced::advanced::{Clipboard, Shell};
+use iced::advanced::{Clipboard, Renderer as AdvRenderer, Shell};
+use iced::advanced::renderer;
 use iced::mouse::{self, Cursor};
 use iced::{Element, Event, Length, Rectangle, Size, Theme};
 
 use crate::factory::Factory;
 use crate::manager::{DockManager, DragSession};
 use crate::model::{ContentKey, Layout as DockLayout, NodeId, NodeKind, Pane};
+use crate::style::DockStyle;
 use crate::widget::message::{DockMessage, TabMessage};
 use crate::widget::split::SplitContainer;
 use crate::widget::tab_dock::{TabDock, TabInfo};
@@ -74,6 +76,7 @@ pub struct Dock<Message> {
     on_event: Rc<dyn Fn(DockMessage) -> Message>,
     external_state: Option<Rc<RefCell<DockWidgetState>>>,
     drag_active: bool,
+    style: Rc<dyn Fn(&Theme) -> DockStyle>,
 }
 
 impl<Message: Clone + 'static> Dock<Message> {
@@ -86,7 +89,13 @@ impl<Message: Clone + 'static> Dock<Message> {
             on_event,
             external_state: None,
             drag_active: false,
+            style: Rc::new(DockStyle::from_theme),
         }
+    }
+
+    pub fn style(mut self, style: impl Fn(&Theme) -> DockStyle + 'static) -> Self {
+        self.style = Rc::new(style);
+        self
     }
 
     pub fn with_state(mut self, state: Rc<RefCell<DockWidgetState>>) -> Self {
@@ -135,6 +144,7 @@ impl<Message: Clone + 'static> Dock<Message> {
                         pg.proportions.clone(),
                         children,
                         on_split,
+                        self.style.clone(),
                     )
                     .into(),
                 )
@@ -188,6 +198,7 @@ impl<Message: Clone + 'static> Dock<Message> {
                 active,
                 content,
                 on_tab,
+                self.style.clone(),
             )
             .into(),
         )
@@ -249,6 +260,7 @@ pub struct DockBuilder<Message> {
     on_event: Option<Rc<dyn Fn(DockMessage) -> Message>>,
     shared_state: Option<Rc<RefCell<DockWidgetState>>>,
     drag_active: bool,
+    style: Option<Rc<dyn Fn(&Theme) -> DockStyle>>,
 }
 
 impl<Message> Default for DockBuilder<Message> {
@@ -258,6 +270,7 @@ impl<Message> Default for DockBuilder<Message> {
             on_event: None,
             shared_state: None,
             drag_active: false,
+            style: None,
         }
     }
 }
@@ -286,6 +299,11 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
         self
     }
 
+    pub fn style(mut self, style: impl Fn(&Theme) -> DockStyle + 'static) -> Self {
+        self.style = Some(Rc::new(style));
+        self
+    }
+
     pub fn build(self) -> Dock<Message> {
         let content = self.content.unwrap_or(|_| iced::widget::text("No content").into());
         let on_event = self
@@ -293,6 +311,9 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
             .unwrap_or_else(|| Rc::new(|_| panic!("dock().on_event(...) required")));
         let mut dock = Dock::new(content, on_event).drag_active(self.drag_active);
         dock.external_state = self.shared_state;
+        if let Some(style) = self.style {
+            dock.style = style;
+        }
         dock
     }
 }
@@ -388,6 +409,15 @@ where
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
+        let dock_style = (self.style)(theme);
+        renderer.fill_quad(
+            renderer::Quad {
+                bounds: layout.bounds(),
+                ..renderer::Quad::default()
+            },
+            dock_style.background.color,
+        );
+
         let Some(child_layout) = layout.children().next() else {
             return;
         };

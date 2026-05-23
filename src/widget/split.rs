@@ -6,19 +6,33 @@ use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
 use iced::advanced::{Clipboard, Renderer as AdvRenderer, Shell};
 use iced::mouse::{self, Cursor};
-use iced::{Border, Color, Element, Event, Length, Rectangle, Size, Theme};
+use iced::{Border, Element, Event, Length, Rectangle, Size, Theme};
 
 use crate::model::{Axis, NodeId};
+use crate::style::DockStyle;
 use crate::widget::compose;
 use crate::widget::message::DockMessage;
 
-pub const SPLITTER_SIZE: f32 = 5.0;
-pub const MIN_PANE_SIZE: f32 = 80.0;
+fn layout_theme() -> Theme {
+    Theme::Dark
+}
 
 #[derive(Default)]
 struct SplitWidgetState {
     splitter_bounds: Vec<Rectangle>,
     drag_splitter: Option<usize>,
+    hovered_splitter: Option<usize>,
+}
+
+fn splitter_under_cursor(
+    cursor_pos: iced::Point,
+    bounds: &[Rectangle],
+    offset: iced::Vector,
+) -> Option<usize> {
+    bounds.iter().enumerate().find_map(|(idx, bounds)| {
+        let abs = *bounds + offset;
+        abs.contains(cursor_pos).then_some(idx)
+    })
 }
 
 pub struct SplitContainer<'a, Message> {
@@ -27,6 +41,7 @@ pub struct SplitContainer<'a, Message> {
     pub proportions: Vec<f32>,
     pub children: Vec<Element<'a, Message, Theme, iced::Renderer>>,
     on_event: Rc<dyn Fn(DockMessage) -> Message>,
+    style: Rc<dyn Fn(&Theme) -> DockStyle>,
 }
 
 impl<'a, Message> SplitContainer<'a, Message> {
@@ -36,6 +51,7 @@ impl<'a, Message> SplitContainer<'a, Message> {
         proportions: Vec<f32>,
         children: Vec<Element<'a, Message, Theme, iced::Renderer>>,
         on_event: Rc<dyn Fn(DockMessage) -> Message>,
+        style: Rc<dyn Fn(&Theme) -> DockStyle>,
     ) -> Self {
         Self {
             group_id,
@@ -43,11 +59,23 @@ impl<'a, Message> SplitContainer<'a, Message> {
             proportions,
             children,
             on_event,
+            style,
         }
+    }
+
+    fn layout_style(&self) -> DockStyle {
+        (self.style)(&layout_theme())
     }
 }
 
-fn compute_pane_sizes(total: f32, proportions: &[f32], count: usize) -> Vec<f32> {
+fn compute_pane_sizes(
+    total: f32,
+    proportions: &[f32],
+    count: usize,
+    splitter_size: f32,
+    splitter_gap: f32,
+    min_pane_size: f32,
+) -> Vec<f32> {
     if count == 0 {
         return Vec::new();
     }
@@ -64,17 +92,18 @@ fn compute_pane_sizes(total: f32, proportions: &[f32], count: usize) -> Vec<f32>
         }
     }
 
-    let splitter_total = SPLITTER_SIZE * (count.saturating_sub(1)) as f32;
+    let between = count.saturating_sub(1) as f32;
+    let splitter_total = (splitter_size + splitter_gap) * between;
     let available = (total - splitter_total).max(0.0);
     if available <= 0.0 {
         return vec![0.0; count];
     }
 
     let mut sizes: Vec<f32> = props.iter().map(|p| p * available).collect();
-    let min_total = MIN_PANE_SIZE * count as f32;
+    let min_total = min_pane_size * count as f32;
     if min_total <= available {
         for size in &mut sizes {
-            *size = size.max(MIN_PANE_SIZE);
+            *size = size.max(min_pane_size);
         }
         let used: f32 = sizes.iter().sum();
         if used > available {
@@ -86,7 +115,7 @@ fn compute_pane_sizes(total: f32, proportions: &[f32], count: usize) -> Vec<f32>
     } else {
         let scale = available / min_total;
         for size in &mut sizes {
-            *size = MIN_PANE_SIZE * scale;
+            *size = min_pane_size * scale;
         }
     }
     sizes
@@ -125,6 +154,11 @@ where
         renderer: &iced::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
+        let dock_style = self.layout_style();
+        let splitter_size = dock_style.splitter.size;
+        let splitter_gap = dock_style.splitter.gap;
+        let min_pane_size = dock_style.splitter.min_pane_size;
+
         let state = tree.state.downcast_mut::<SplitWidgetState>();
         let size = limits.max();
         let count = self.children.len();
@@ -134,23 +168,34 @@ where
         }
 
         let is_horizontal = self.axis == Axis::Horizontal;
-        let main_size = if is_horizontal { size.width } else { size.height };
-        let pane_sizes = compute_pane_sizes(main_size, &self.proportions, count);
+        let main_size = if is_horizontal {
+            size.width
+        } else {
+            size.height
+        };
+        let pane_sizes = compute_pane_sizes(
+            main_size,
+            &self.proportions,
+            count,
+            splitter_size,
+            splitter_gap,
+            min_pane_size,
+        );
 
         let mut children_nodes = Vec::with_capacity(count);
         state.splitter_bounds.clear();
 
         let mut offset = 0.0f32;
         for (i, child) in self.children.iter_mut().enumerate() {
-            let pane_main = pane_sizes.get(i).copied().unwrap_or(MIN_PANE_SIZE);
+            let pane_main = pane_sizes.get(i).copied().unwrap_or(min_pane_size);
             let child_limits = if is_horizontal {
                 layout::Limits::new(
-                    Size::new(MIN_PANE_SIZE, size.height),
+                    Size::new(min_pane_size, size.height),
                     Size::new(pane_main, size.height),
                 )
             } else {
                 layout::Limits::new(
-                    Size::new(size.width, MIN_PANE_SIZE),
+                    Size::new(size.width, min_pane_size),
                     Size::new(size.width, pane_main),
                 )
             };
@@ -166,22 +211,24 @@ where
             children_nodes.push(node);
 
             if i + 1 < count {
+                let hit_w = if is_horizontal {
+                    splitter_size + splitter_gap
+                } else {
+                    size.width
+                };
+                let hit_h = if is_horizontal {
+                    size.height
+                } else {
+                    splitter_size + splitter_gap
+                };
                 let splitter = Rectangle {
                     x: if is_horizontal { offset } else { 0.0 },
                     y: if is_horizontal { 0.0 } else { offset },
-                    width: if is_horizontal {
-                        SPLITTER_SIZE
-                    } else {
-                        size.width
-                    },
-                    height: if is_horizontal {
-                        size.height
-                    } else {
-                        SPLITTER_SIZE
-                    },
+                    width: hit_w,
+                    height: hit_h,
                 };
                 state.splitter_bounds.push(splitter);
-                offset += SPLITTER_SIZE;
+                offset += splitter_size + splitter_gap;
             }
         }
 
@@ -199,20 +246,12 @@ where
         viewport: &Rectangle,
     ) {
         let state = tree.state.downcast_ref::<SplitWidgetState>();
-        let palette = theme.extended_palette();
-        let default_splitter_color = Color {
-            a: 0.6,
-            ..palette.background.weak.text
-        };
-        let hover_splitter_color = Color {
-            a: 0.85,
-            ..palette.primary.weak.color
-        };
+        let dock_style = (self.style)(theme);
+        let split = &dock_style.splitter;
 
         let pos = layout.position();
         let offset = iced::Vector::new(pos.x, pos.y);
         let cursor_pos = cursor.position();
-
         for (i, child_layout) in layout.children().enumerate() {
             if let Some(child) = self.children.get(i) {
                 compose::child_draw(
@@ -228,19 +267,42 @@ where
             }
         }
 
-        for &bounds in &state.splitter_bounds {
+        for (idx, &bounds) in state.splitter_bounds.iter().enumerate() {
             let abs = bounds + offset;
             let hovered = cursor_pos
                 .map(|p| abs.contains(p))
                 .unwrap_or(false);
-            let color = if hovered {
-                hover_splitter_color
+            let dragging_this = state.drag_splitter == Some(idx);
+            let color = if dragging_this {
+                split.drag_color
+            } else if hovered {
+                split.hover_color
             } else {
-                default_splitter_color
+                split.idle_color
+            };
+            if color.a <= 0.0 {
+                continue;
+            }
+            let line = if self.axis == Axis::Horizontal {
+                let w = split.size.max(1.0);
+                Rectangle {
+                    x: abs.x + (abs.width - w) * 0.5,
+                    y: abs.y,
+                    width: w,
+                    height: abs.height,
+                }
+            } else {
+                let h = split.size.max(1.0);
+                Rectangle {
+                    x: abs.x,
+                    y: abs.y + (abs.height - h) * 0.5,
+                    width: abs.width,
+                    height: h,
+                }
             };
             renderer.fill_quad(
                 renderer::Quad {
-                    bounds: abs,
+                    bounds: line,
                     border: Border::default(),
                     ..renderer::Quad::default()
                 },
@@ -289,6 +351,7 @@ where
                         if abs.contains(cursor_pos) {
                             state.drag_splitter = Some(idx);
                             shell.capture_event();
+                            shell.request_redraw();
                             return;
                         }
                     }
@@ -314,11 +377,26 @@ where
                             ratio,
                         }));
                         shell.capture_event();
+                        shell.request_redraw();
+                    }
+                } else {
+                    let new_hover = cursor
+                        .position()
+                        .and_then(|p| splitter_under_cursor(p, &state.splitter_bounds, offset));
+                    if new_hover != state.hovered_splitter {
+                        state.hovered_splitter = new_hover;
+                        shell.request_redraw();
                     }
                 }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-                state.drag_splitter = None;
+                if state.drag_splitter.is_some() {
+                    state.drag_splitter = None;
+                    state.hovered_splitter = cursor.position().and_then(|p| {
+                        splitter_under_cursor(p, &state.splitter_bounds, offset)
+                    });
+                    shell.request_redraw();
+                }
             }
             _ => {}
         }

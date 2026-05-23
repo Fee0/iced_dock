@@ -6,7 +6,7 @@ use std::rc::Rc;
 use iced::widget::{column, container, text};
 use iced::{application, Color, Element, Length, Size, Task, Theme};
 
-use iced_dock::{apply_message, dock, ContentKey, DockMessage, DockWidgetState};
+use iced_dock::{apply_message, dock, ContentKey, DockMessage, DockStyle, DockWidgetState};
 
 fn main() -> iced::Result {
     application(App::default, update, view)
@@ -41,38 +41,46 @@ fn view(app: &App) -> Element<'_, Message> {
             .state(app.dock_state.clone())
             .on_event(Message::Dock)
             .content(panel)
+            .style(|theme| DockStyle::from_theme(theme))
             .build(),
     )
     .width(Length::Fill)
     .height(Length::Fill)
+    .padding(10)
     .into()
 }
 
 fn panel(key: ContentKey) -> Element<'static, Message> {
-    let (label, color) = match key.0 {
-        0 => ("main.rs", Color::from_rgb(0.15, 0.2, 0.35)),
-        1 => ("lib.rs", Color::from_rgb(0.12, 0.28, 0.22)),
-        2 => ("preview", Color::from_rgb(0.25, 0.18, 0.3)),
-        10 => ("Properties", Color::from_rgb(0.22, 0.22, 0.18)),
-        11 => ("Output", Color::from_rgb(0.18, 0.2, 0.25)),
-        12 => ("Explorer", Color::from_rgb(0.2, 0.15, 0.15)),
-        13 => ("Search", Color::from_rgb(0.15, 0.18, 0.28)),
+    let (label, hint) = match key.0 {
+        0 => ("main.rs", "Editor"),
+        1 => ("lib.rs", "Editor"),
+        2 => ("preview", "Preview"),
+        10 => ("Properties", "Sidebar"),
+        11 => ("Output", "Panel"),
+        12 => ("Explorer", "Sidebar"),
+        13 => ("Search", "Sidebar"),
         n => {
             return text(format!("Unknown pane {n}")).into();
         }
     };
 
+    let fg = Color::from_rgb(0.78, 0.78, 0.82);
+    let muted = Color::from_rgb(0.45, 0.45, 0.5);
+
     container(
-        column![text(label).size(20)]
-            .spacing(8)
-            .padding(16),
+        column![
+            text(label).size(16).color(fg),
+            text(hint).size(12).color(muted),
+        ]
+        .spacing(6)
+        .padding([20, 24]),
     )
     .width(Length::Fill)
     .height(Length::Fill)
     .center_x(Length::Fill)
     .center_y(Length::Fill)
-    .style(move |_| container::Style {
-        background: Some(color.into()),
+    .style(|_| container::Style {
+        background: Some(Color::from_rgb(0.145, 0.145, 0.157).into()),
         ..Default::default()
     })
     .into()
