@@ -163,13 +163,13 @@ impl DockStyle {
             tab_bar: TabBarStyle {
                 height: 30.0,
                 background: canvas,
-                spacing: 2.0,
-                padding: [4.0, 6.0],
+                spacing: 0.0,
+                padding: [0.0, 0.0],
             },
             tab: TabStyle {
                 text_size: 12.0,
-                padding: [5.0, 12.0],
-                border_radius: 5.0,
+                padding: [0.0, 10.0],
+                border_radius: 0.0,
                 inactive_background: Color::TRANSPARENT,
                 inactive_text: text_muted,
                 hovered_background: Color::from_rgba(1.0, 1.0, 1.0, 0.06),
@@ -224,11 +224,11 @@ pub fn tab_button_style(
     move |_, status| {
         let (background, text_color, border) = if active {
             (
-                tab.active_background,
+                Color::TRANSPARENT,
                 tab.active_text,
                 Border {
-                    width: 2.0,
-                    color: tab.active_accent,
+                    width: 0.0,
+                    color: Color::TRANSPARENT,
                     radius: tab.border_radius.into(),
                 },
             )

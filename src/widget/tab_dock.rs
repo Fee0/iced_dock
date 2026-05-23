@@ -56,6 +56,61 @@ fn pane_inset(style: &DockStyle) -> f32 {
     style.window.padding + style.window.border.width
 }
 
+fn has_tab_strip(tabs: &[TabInfo]) -> bool {
+    tabs.len() > 1
+}
+
+fn tab_child_index(tabs: &[TabInfo]) -> Option<usize> {
+    has_tab_strip(tabs).then_some(2)
+}
+
+fn active_tab_index(tabs: &[TabInfo], active_tab: NodeId) -> Option<usize> {
+    tabs.iter().position(|tab| tab.id == active_tab)
+}
+
+fn draw_tab_strip_background(
+    tab_layout: &Layout<'_>,
+    active_tab_index: Option<usize>,
+    tab_bar_background: Color,
+    active_background: Color,
+    renderer: &mut iced::Renderer,
+) {
+    let tab_bounds = tab_layout.bounds();
+    renderer.fill_quad(
+        renderer::Quad {
+            bounds: tab_bounds,
+            ..renderer::Quad::default()
+        },
+        tab_bar_background,
+    );
+
+    let Some(active_i) = active_tab_index else {
+        return;
+    };
+    let Some(row_layout) = tab_layout.children().next() else {
+        return;
+    };
+    let Some(active_layout) = row_layout.children().nth(active_i) else {
+        return;
+    };
+
+    let btn_bounds = active_layout.bounds();
+    // Extend 1px upward to cover any subpixel gap with the content above.
+    let fill = Rectangle {
+        x: btn_bounds.x,
+        y: tab_bounds.y - 1.0,
+        width: btn_bounds.width,
+        height: tab_bounds.height + 1.0,
+    };
+    renderer.fill_quad(
+        renderer::Quad {
+            bounds: fill,
+            ..renderer::Quad::default()
+        },
+        active_background,
+    );
+}
+
 #[derive(Debug, Clone)]
 pub struct TabInfo {
     pub id: NodeId,
@@ -209,20 +264,29 @@ fn build_tab_strip<Message: Clone + 'static>(
     style.sync_tab_appearance();
     let bar = &style.tab_bar;
     let tab_style = &style.tab;
-    let bar_background = bar.background;
     let mut strip = row![]
         .spacing(bar.spacing)
         .padding(bar.padding)
-        .width(Length::Fill);
+        .width(Length::Fill)
+        .height(Length::Fixed(bar.height))
+        .align_y(iced::Alignment::Start);
     for tab in tabs {
-        let label = text(tab.title.clone())
-            .size(tab_style.text_size)
-            .color(tab_style.inactive_text);
         let on_event = on_event.clone();
         let tab_id = tab.id;
         let is_active = tab.id == active_tab;
+        let label = container(
+            text(tab.title.clone()).size(tab_style.text_size),
+        )
+        .height(Length::Fill)
+        .center_y(Length::Fill);
         let btn = button(label)
-            .padding(tab_style.padding)
+            .padding(Padding {
+                top: 0.0,
+                bottom: 0.0,
+                left: tab_style.padding[1],
+                right: tab_style.padding[1],
+            })
+            .height(Length::Fixed(bar.height))
             .style(tab_button_style(tab_style, is_active))
             .on_press_with(move || {
                 (on_event)(DockMessage::Tab(TabMessage::Select {
@@ -233,13 +297,9 @@ fn build_tab_strip<Message: Clone + 'static>(
         strip = strip.push(btn);
     }
     Some(
-        container(strip.height(Length::Fixed(bar.height)))
+        container(strip)
             .width(Length::Fill)
             .height(Length::Fixed(bar.height))
-            .style(move |_| container::Style {
-                background: Some(bar_background.into()),
-                ..Default::default()
-            })
             .into(),
     )
 }
@@ -331,9 +391,14 @@ where
 
         let mut nodes = vec![chrome_node, content_node];
 
-        if let (Some(tabs), Some(tab_tree)) = (&mut self.tab_strip, tree.children.get_mut(2)) {
+        if let (Some(tabs), Some(tab_idx)) = (&mut self.tab_strip, tab_child_index(&self.tabs)) {
             let tab_limits = layout::Limits::new(Size::ZERO, Size::new(inner_w, tab_h));
-            let mut tab_node = compose::child_layout(tabs, tab_tree, renderer, &tab_limits);
+            let mut tab_node = compose::child_layout(
+                tabs,
+                &mut tree.children[tab_idx],
+                renderer,
+                &tab_limits,
+            );
             tab_node.move_to_mut((inset, y));
             nodes.push(tab_node);
         }
@@ -390,18 +455,6 @@ where
             );
         }
 
-        if self.tabs.len() > 1 {
-            if let Some(tab_layout) = layout.children().nth(2) {
-                renderer.fill_quad(
-                    renderer::Quad {
-                        bounds: tab_layout.bounds(),
-                        ..renderer::Quad::default()
-                    },
-                    dock_style.tab_bar.background,
-                );
-            }
-        }
-
         if let Some(chrome_layout) = layout.children().next() {
             compose::child_draw(
                 &self.chrome,
@@ -426,8 +479,21 @@ where
                 viewport,
             );
         }
-        if let (Some(tab_layout), Some(tabs)) = (layout.children().nth(2), &self.tab_strip) {
-            if let Some(child_tree) = tree.children.get(2) {
+        if let Some(tab_idx) = tab_child_index(&self.tabs) {
+            if let Some(tab_layout) = layout.children().nth(tab_idx) {
+                draw_tab_strip_background(
+                    &tab_layout,
+                    active_tab_index(&self.tabs, self.active_tab),
+                    dock_style.tab_bar.background,
+                    dock_style.tab.active_background,
+                    renderer,
+                );
+            }
+        }
+        if let (Some(tab_idx), Some(tabs)) = (tab_child_index(&self.tabs), &self.tab_strip) {
+            if let (Some(tab_layout), Some(child_tree)) =
+                (layout.children().nth(tab_idx), tree.children.get(tab_idx))
+            {
                 compose::child_draw(
                     tabs,
                     child_tree,
@@ -519,8 +585,10 @@ where
                 viewport,
             );
         }
-        if let (Some(tab_layout), Some(tabs)) = (layout.children().nth(2), &mut self.tab_strip) {
-            if let Some(child_tree) = tree.children.get_mut(2) {
+        if let (Some(tab_idx), Some(tabs)) = (tab_child_index(&self.tabs), &mut self.tab_strip) {
+            if let (Some(tab_layout), Some(child_tree)) =
+                (layout.children().nth(tab_idx), tree.children.get_mut(tab_idx))
+            {
                 compose::child_update(
                     tabs,
                     child_tree,

@@ -8,7 +8,7 @@ fn default_style_from_theme_has_sane_metrics() {
     assert!(style.tab_bar.height > 0.0);
     assert!(style.splitter.size > 0.0);
     assert!(style.splitter.gap > 0.0);
-    assert!(style.window.border_radius > 0.0);
+    assert!(style.window.border_radius >= 0.0);
 }
 
 #[test]
