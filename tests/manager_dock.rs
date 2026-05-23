@@ -69,28 +69,12 @@ fn vertical_stack_fill_validates() {
     let p_bottom = factory.create_pane(&mut layout);
     factory.add_panel_to_pane(&mut layout, p_top, a).unwrap();
     factory.add_panel_to_pane(&mut layout, p_bottom, b).unwrap();
-    let col = factory.create_proportional(
-        &mut layout,
-        Axis::Vertical,
-        vec![p_top, p_bottom],
-    );
+    let col = factory.create_proportional(&mut layout, Axis::Vertical, vec![p_top, p_bottom]);
     layout.set_root_child(Some(col));
 
     let mgr = DockManager;
-    assert!(mgr.validate(
-        &layout,
-        p_bottom,
-        b,
-        p_top,
-        DockOperation::Fill
-    ));
-    assert!(mgr.validate(
-        &layout,
-        p_top,
-        a,
-        p_bottom,
-        DockOperation::Fill
-    ));
+    assert!(mgr.validate(&layout, p_bottom, b, p_top, DockOperation::Fill));
+    assert!(mgr.validate(&layout, p_top, a, p_bottom, DockOperation::Fill));
 }
 
 #[test]
@@ -161,13 +145,7 @@ fn same_pane_edge_validates_and_executes() {
     layout.set_root_child(Some(pane));
 
     let mgr = DockManager;
-    assert!(mgr.validate(
-        &layout,
-        pane,
-        b,
-        pane,
-        DockOperation::Right
-    ));
+    assert!(mgr.validate(&layout, pane, b, pane, DockOperation::Right));
 
     let session = DragSession {
         source_pane: pane,
@@ -195,11 +173,7 @@ fn cross_pane_edge_split_multi_panel() {
     factory.add_panel_to_pane(&mut layout, p1, a).unwrap();
     factory.add_panel_to_pane(&mut layout, p1, b).unwrap();
     factory.add_panel_to_pane(&mut layout, p2, c).unwrap();
-    let row = factory.create_proportional(
-        &mut layout,
-        Axis::Horizontal,
-        vec![p1, p2],
-    );
+    let row = factory.create_proportional(&mut layout, Axis::Horizontal, vec![p1, p2]);
     layout.set_root_child(Some(row));
 
     let mgr = DockManager;

@@ -1,9 +1,10 @@
 //! Tree mutations for the docking layout.
 
 use crate::model::{
-    Axis, ContentKey, DockOperation, Layout, NodeEntry, NodeId, NodeKind, Panel, Pane,
+    Axis, ContentKey, DockOperation, Layout, NodeEntry, NodeId, NodeKind, Pane, Panel,
     ProportionalGroup,
 };
+use crate::{Error, Result};
 
 /// All structural changes to a [`Layout`].
 #[derive(Debug, Clone, Copy, Default)]
@@ -46,14 +47,9 @@ impl Factory {
         id
     }
 
-    pub fn add_panel_to_pane(
-        &self,
-        layout: &mut Layout,
-        pane: NodeId,
-        panel: NodeId,
-    ) -> Result<(), ()> {
+    pub fn add_panel_to_pane(&self, layout: &mut Layout, pane: NodeId, panel: NodeId) -> Result {
         if !layout.is_leaf(panel) {
-            return Err(());
+            return Err(Error::NotPanel { node: panel });
         }
         if let Some(NodeKind::Pane(ref mut p)) = layout.get_mut(pane).map(|e| &mut e.kind) {
             p.tabs.push(panel);
@@ -61,7 +57,7 @@ impl Factory {
             layout.set_owner(panel, Some(pane));
             Ok(())
         } else {
-            Err(())
+            Err(Error::NotPane { node: pane })
         }
     }
 
@@ -70,7 +66,7 @@ impl Factory {
         layout: &mut Layout,
         source: NodeId,
         target_pane: NodeId,
-    ) -> Result<(), ()> {
+    ) -> Result {
         self.remove_from_parent(layout, source)?;
         self.add_panel_to_pane(layout, target_pane, source)
     }
@@ -80,7 +76,7 @@ impl Factory {
         layout: &mut Layout,
         source_panel: NodeId,
         target_pane: NodeId,
-    ) -> Result<(), ()> {
+    ) -> Result {
         let old_owner = layout.get(source_panel).and_then(|e| e.owner);
         self.move_panel_to_pane(layout, source_panel, target_pane)?;
         if let Some(owner) = old_owner {
@@ -95,17 +91,22 @@ impl Factory {
         pane: NodeId,
         from: usize,
         to: usize,
-    ) -> Result<(), ()> {
+    ) -> Result {
         if let Some(NodeKind::Pane(ref mut p)) = layout.get_mut(pane).map(|e| &mut e.kind) {
             if from < p.tabs.len() && to < p.tabs.len() {
                 let child = p.tabs.remove(from);
                 p.tabs.insert(to, child);
                 Ok(())
             } else {
-                Err(())
+                Err(Error::InvalidTabIndex {
+                    pane,
+                    from,
+                    to,
+                    len: p.tabs.len(),
+                })
             }
         } else {
-            Err(())
+            Err(Error::NotPane { node: pane })
         }
     }
 
@@ -117,9 +118,11 @@ impl Factory {
         }
     }
 
-    pub fn close(&self, layout: &mut Layout, panel: NodeId) -> Result<(), ()> {
-        let owner = layout.get(panel).and_then(|e| e.owner);
-        let owner = owner.ok_or(())?;
+    pub fn close(&self, layout: &mut Layout, panel: NodeId) -> Result {
+        let owner = layout
+            .get(panel)
+            .and_then(|e| e.owner)
+            .ok_or(Error::NoOwner { panel })?;
         self.remove_from_parent(layout, panel)?;
         layout.nodes.remove(panel);
         self.collapse_owner(layout, owner);
@@ -133,18 +136,18 @@ impl Factory {
         source: NodeId,
         target: NodeId,
         op: DockOperation,
-    ) -> Result<(), ()> {
+    ) -> Result {
         if op == DockOperation::Fill {
-            return Err(());
+            return Err(Error::InvalidSplitOperation(op));
         }
-        let axis = Axis::for_operation(op).ok_or(())?;
+        let axis = Axis::for_operation(op).ok_or(Error::InvalidSplitOperation(op))?;
 
         if let Some(old_owner) = layout.get(source).and_then(|e| e.owner) {
             self.remove_from_parent(layout, source)?;
             self.collapse_owner(layout, old_owner);
         }
 
-        let split_target = self.resolve_split_target(layout, target, op)?;
+        let split_target = self.resolve_split_target(layout, target)?;
         let new_leaf_side = self.side_for_operation(op);
 
         if let Some(parent) = layout.get(split_target).and_then(|e| e.owner) {
@@ -191,20 +194,20 @@ impl Factory {
         pane: NodeId,
         panel: NodeId,
         op: DockOperation,
-    ) -> Result<(), ()> {
+    ) -> Result {
         if !op.is_edge() {
-            return Err(());
+            return Err(Error::NotEdgeOperation);
         }
         let tab_count = match layout.kind(pane) {
             Some(NodeKind::Pane(p)) => p.tabs.len(),
-            _ => return Err(()),
+            _ => return Err(Error::NotPane { node: pane }),
         };
 
         if tab_count > 1 {
             let new_pane = self.peel_panel_to_new_pane(layout, panel)?;
             self.split(layout, new_pane, pane, op)
         } else {
-            let axis = Axis::for_operation(op).ok_or(())?;
+            let axis = Axis::for_operation(op).ok_or(Error::InvalidSplitOperation(op))?;
             let after = self.side_for_operation(op);
             let empty_pane = self.create_pane(layout);
             let old_owner = layout.get(pane).and_then(|e| e.owner);
@@ -236,13 +239,13 @@ impl Factory {
         source_panel: NodeId,
         target: NodeId,
         op: DockOperation,
-    ) -> Result<(), ()> {
+    ) -> Result {
         if !op.is_edge() {
-            return Err(());
+            return Err(Error::NotEdgeOperation);
         }
         let tab_count = match layout.kind(source_pane) {
             Some(NodeKind::Pane(p)) => p.tabs.len(),
-            _ => return Err(()),
+            _ => return Err(Error::NotPane { node: source_pane }),
         };
 
         if tab_count > 1 {
@@ -253,24 +256,19 @@ impl Factory {
         }
     }
 
-    fn peel_panel_to_new_pane(&self, layout: &mut Layout, panel: NodeId) -> Result<NodeId, ()> {
+    fn peel_panel_to_new_pane(&self, layout: &mut Layout, panel: NodeId) -> Result<NodeId> {
         let new_pane = self.create_pane(layout);
         self.remove_from_parent(layout, panel)?;
         self.add_panel_to_pane(layout, new_pane, panel)?;
         Ok(new_pane)
     }
 
-    fn resolve_split_target(
-        &self,
-        layout: &Layout,
-        target: NodeId,
-        _op: DockOperation,
-    ) -> Result<NodeId, ()> {
+    fn resolve_split_target(&self, layout: &Layout, target: NodeId) -> Result<NodeId> {
         match layout.kind(target) {
             Some(NodeKind::Pane(_))
             | Some(NodeKind::Proportional(_))
             | Some(NodeKind::Panel(_)) => Ok(target),
-            _ => Err(()),
+            _ => Err(Error::InvalidSplitTarget { node: target }),
         }
     }
 
@@ -285,8 +283,9 @@ impl Factory {
         target: NodeId,
         source: NodeId,
         after: bool,
-    ) -> Result<(), ()> {
-        if let Some(NodeKind::Proportional(ref mut pg)) = layout.get_mut(parent).map(|e| &mut e.kind)
+    ) -> Result {
+        if let Some(NodeKind::Proportional(ref mut pg)) =
+            layout.get_mut(parent).map(|e| &mut e.kind)
         {
             if let Some(idx) = pg.children.iter().position(|&c| c == target) {
                 let insert_at = if after { idx + 1 } else { idx };
@@ -296,8 +295,12 @@ impl Factory {
                 layout.set_owner(source, Some(parent));
                 return Ok(());
             }
+            return Err(Error::ChildNotFound {
+                parent,
+                child: target,
+            });
         }
-        Err(())
+        Err(Error::NotProportional { node: parent })
     }
 
     fn replace_child(
@@ -306,7 +309,7 @@ impl Factory {
         parent: NodeId,
         old_child: NodeId,
         new_child: NodeId,
-    ) -> Result<(), ()> {
+    ) -> Result {
         match layout.kind(parent) {
             Some(NodeKind::Root(_)) => {
                 layout.set_root_child(Some(new_child));
@@ -322,7 +325,10 @@ impl Factory {
                         return Ok(());
                     }
                 }
-                Err(())
+                Err(Error::ChildNotFound {
+                    parent,
+                    child: old_child,
+                })
             }
             Some(NodeKind::Pane(_)) => {
                 if let Some(NodeKind::Pane(ref mut p)) = layout.get_mut(parent).map(|e| &mut e.kind)
@@ -338,14 +344,23 @@ impl Factory {
                         }
                     }
                 }
-                Err(())
+                Err(Error::ChildNotFound {
+                    parent,
+                    child: old_child,
+                })
             }
-            _ => Err(()),
+            _ => Err(Error::InvalidParent {
+                owner: parent,
+                child: old_child,
+            }),
         }
     }
 
-    pub fn remove_from_parent(&self, layout: &mut Layout, child: NodeId) -> Result<(), ()> {
-        let owner = layout.get(child).and_then(|e| e.owner).ok_or(())?;
+    pub fn remove_from_parent(&self, layout: &mut Layout, child: NodeId) -> Result {
+        let owner = layout
+            .get(child)
+            .and_then(|e| e.owner)
+            .ok_or(Error::NoOwner { panel: child })?;
         match layout.kind(owner) {
             Some(NodeKind::Pane(_)) => {
                 if let Some(NodeKind::Pane(ref mut p)) = layout.get_mut(owner).map(|e| &mut e.kind)
@@ -373,7 +388,7 @@ impl Factory {
                 layout.set_owner(child, None);
                 Ok(())
             }
-            _ => Err(()),
+            _ => Err(Error::InvalidParent { owner, child }),
         }
     }
 
@@ -381,15 +396,14 @@ impl Factory {
         if owner == layout.root {
             let empty_child = match layout.kind(layout.root) {
                 Some(NodeKind::Root(r)) => r.child.and_then(|child| {
-                    layout.get(child).map(|e| {
-                        matches!(e.kind, NodeKind::Pane(ref p) if p.tabs.is_empty())
-                    })
+                    layout
+                        .get(child)
+                        .map(|e| matches!(e.kind, NodeKind::Pane(ref p) if p.tabs.is_empty()))
                 }),
                 _ => None,
             };
             if empty_child == Some(true) {
-                if let Some(NodeKind::Root(ref mut r)) =
-                    layout.get_mut(owner).map(|e| &mut e.kind)
+                if let Some(NodeKind::Root(ref mut r)) = layout.get_mut(owner).map(|e| &mut e.kind)
                 {
                     r.child = None;
                 }
@@ -434,7 +448,7 @@ impl Factory {
         layout: &mut Layout,
         group: NodeId,
         proportions: Vec<f32>,
-    ) -> Result<(), ()> {
+    ) -> Result {
         if let Some(NodeKind::Proportional(ref mut pg)) = layout.get_mut(group).map(|e| &mut e.kind)
         {
             if proportions.len() == pg.children.len() {
@@ -442,10 +456,13 @@ impl Factory {
                 pg.normalize_proportions();
                 Ok(())
             } else {
-                Err(())
+                Err(Error::InvalidWeights {
+                    expected: pg.children.len(),
+                    got: proportions.len(),
+                })
             }
         } else {
-            Err(())
+            Err(Error::NotProportional { node: group })
         }
     }
 
@@ -454,7 +471,7 @@ impl Factory {
         layout: &mut Layout,
         group: NodeId,
         split_at: f32,
-    ) -> Result<(), ()> {
+    ) -> Result {
         let ratio = split_at.clamp(0.1, 0.9);
         self.set_proportions(layout, group, vec![ratio, 1.0 - ratio])
     }
@@ -465,12 +482,15 @@ impl Factory {
         group: NodeId,
         splitter_index: usize,
         ratio_before: f32,
-    ) -> Result<(), ()> {
+    ) -> Result {
         if let Some(NodeKind::Proportional(ref mut pg)) = layout.get_mut(group).map(|e| &mut e.kind)
         {
             let n = pg.children.len();
             if splitter_index >= n.saturating_sub(1) {
-                return Err(());
+                return Err(Error::InvalidSplitterIndex {
+                    index: splitter_index,
+                    children: n,
+                });
             }
             let mut props = if pg.proportions.len() == n {
                 pg.proportions.clone()
@@ -479,20 +499,20 @@ impl Factory {
             };
             let total: f32 = props.iter().sum();
             if total <= 0.0 {
-                return Err(());
+                return Err(Error::ZeroTotalWeight);
             }
             let left_fixed: f32 = props[..splitter_index].iter().sum();
             let pair_total = props[splitter_index] + props[splitter_index + 1];
             let min_weight = 0.05 * total;
-            let left = (ratio_before * total - left_fixed)
-                .clamp(min_weight, pair_total - min_weight);
+            let left =
+                (ratio_before * total - left_fixed).clamp(min_weight, pair_total - min_weight);
             props[splitter_index] = left;
             props[splitter_index + 1] = pair_total - left;
             pg.proportions = props;
             pg.normalize_proportions();
             Ok(())
         } else {
-            Err(())
+            Err(Error::NotProportional { node: group })
         }
     }
 }

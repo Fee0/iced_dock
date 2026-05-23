@@ -207,14 +207,8 @@ fn build_chrome<Message: Clone + 'static>(
     on_event: Rc<dyn Fn(DockMessage) -> Message>,
 ) -> Element<'static, Message, Theme, iced::Renderer> {
     let tb = &style.title_bar;
-    let title_label = text(title)
-        .size(tb.text_size)
-        .color(tb.text_color);
-    let mut drag_strip = mouse_area(
-        Space::new()
-            .width(Length::Fill)
-            .height(Length::Fill),
-    );
+    let title_label = text(title).size(tb.text_size).color(tb.text_color);
+    let mut drag_strip = mouse_area(Space::new().width(Length::Fill).height(Length::Fill));
     if can_drag {
         drag_strip = drag_strip.interaction(mouse::Interaction::Grab);
     }
@@ -274,11 +268,9 @@ fn build_tab_strip<Message: Clone + 'static>(
         let on_event = on_event.clone();
         let tab_id = tab.id;
         let is_active = tab.id == active_tab;
-        let label = container(
-            text(tab.title.clone()).size(tab_style.text_size),
-        )
-        .height(Length::Fill)
-        .center_y(Length::Fill);
+        let label = container(text(tab.title.clone()).size(tab_style.text_size))
+            .height(Length::Fill)
+            .center_y(Length::Fill);
         let btn = button(label)
             .padding(Padding {
                 top: 0.0,
@@ -374,8 +366,12 @@ where
         let mut y = inset;
 
         let chrome_limits = layout::Limits::new(Size::ZERO, Size::new(inner_w, title_h));
-        let mut chrome_node =
-            compose::child_layout(&mut self.chrome, &mut tree.children[0], renderer, &chrome_limits);
+        let mut chrome_node = compose::child_layout(
+            &mut self.chrome,
+            &mut tree.children[0],
+            renderer,
+            &chrome_limits,
+        );
         chrome_node.move_to_mut((inset, y));
         y += title_h;
 
@@ -393,12 +389,8 @@ where
 
         if let (Some(tabs), Some(tab_idx)) = (&mut self.tab_strip, tab_child_index(&self.tabs)) {
             let tab_limits = layout::Limits::new(Size::ZERO, Size::new(inner_w, tab_h));
-            let mut tab_node = compose::child_layout(
-                tabs,
-                &mut tree.children[tab_idx],
-                renderer,
-                &tab_limits,
-            );
+            let mut tab_node =
+                compose::child_layout(tabs, &mut tree.children[tab_idx], renderer, &tab_limits);
             tab_node.move_to_mut((inset, y));
             nodes.push(tab_node);
         }
@@ -495,14 +487,7 @@ where
                 (layout.children().nth(tab_idx), tree.children.get(tab_idx))
             {
                 compose::child_draw(
-                    tabs,
-                    child_tree,
-                    renderer,
-                    theme,
-                    style,
-                    tab_layout,
-                    cursor,
-                    viewport,
+                    tabs, child_tree, renderer, theme, style, tab_layout, cursor, viewport,
                 );
             }
         }
@@ -586,18 +571,12 @@ where
             );
         }
         if let (Some(tab_idx), Some(tabs)) = (tab_child_index(&self.tabs), &mut self.tab_strip) {
-            if let (Some(tab_layout), Some(child_tree)) =
-                (layout.children().nth(tab_idx), tree.children.get_mut(tab_idx))
-            {
+            if let (Some(tab_layout), Some(child_tree)) = (
+                layout.children().nth(tab_idx),
+                tree.children.get_mut(tab_idx),
+            ) {
                 compose::child_update(
-                    tabs,
-                    child_tree,
-                    event,
-                    tab_layout,
-                    cursor,
-                    renderer,
-                    clipboard,
-                    shell,
+                    tabs, child_tree, event, tab_layout, cursor, renderer, clipboard, shell,
                     viewport,
                 );
             }

@@ -1,8 +1,8 @@
-use crate::builder::error::LayoutError;
 use crate::builder::index::DockIndex;
 use crate::builder::spec::{validate_tree, LayoutTree, PanelDef, SplitNode, TabsNode};
 use crate::factory::Factory;
 use crate::model::{Layout, NodeId, NodeKind};
+use crate::{Error, Result};
 
 /// Result of compiling a [`LayoutTree`].
 #[derive(Debug, Clone)]
@@ -12,7 +12,7 @@ pub struct BuiltLayout {
 }
 
 /// Compile a declarative [`LayoutTree`] into a runtime [`Layout`] and index.
-pub fn build_tree(tree: &LayoutTree) -> Result<BuiltLayout, LayoutError> {
+pub fn build_tree(tree: &LayoutTree) -> Result<BuiltLayout> {
     validate_tree(tree)?;
     let factory = Factory;
     let mut layout = Layout::new();
@@ -27,7 +27,7 @@ fn compile_node(
     factory: &Factory,
     layout: &mut Layout,
     index: &mut DockIndex,
-) -> Result<NodeId, LayoutError> {
+) -> Result<NodeId> {
     match tree {
         LayoutTree::Tabs(node) => compile_tabs(node, factory, layout, index),
         LayoutTree::Split(node) => compile_split(node, factory, layout, index),
@@ -39,7 +39,7 @@ fn compile_tabs(
     factory: &Factory,
     layout: &mut Layout,
     index: &mut DockIndex,
-) -> Result<NodeId, LayoutError> {
+) -> Result<NodeId> {
     let pane_id = factory.create_pane(layout);
     if let Some(NodeKind::Pane(ref mut pane)) = layout.get_mut(pane_id).map(|e| &mut e.kind) {
         pane.name = node.name.clone();
@@ -51,9 +51,7 @@ fn compile_tabs(
     let mut panel_nodes = Vec::with_capacity(node.panels.len());
     for def in &node.panels {
         let panel_id = insert_panel(factory, layout, index, def)?;
-        factory
-            .add_panel_to_pane(layout, pane_id, panel_id)
-            .map_err(|_| LayoutError::OperationFailed("add_panel_to_pane"))?;
+        factory.add_panel_to_pane(layout, pane_id, panel_id)?;
         panel_nodes.push((def.id.clone(), panel_id));
     }
 
@@ -71,16 +69,14 @@ fn compile_split(
     factory: &Factory,
     layout: &mut Layout,
     index: &mut DockIndex,
-) -> Result<NodeId, LayoutError> {
+) -> Result<NodeId> {
     let mut children = Vec::with_capacity(node.children.len());
     for child in &node.children {
         children.push(compile_node(child, factory, layout, index)?);
     }
     let group_id = factory.create_proportional(layout, node.axis, children);
     if let Some(weights) = &node.weights {
-        factory
-            .set_proportions(layout, group_id, weights.clone())
-            .map_err(|_| LayoutError::OperationFailed("set_proportions"))?;
+        factory.set_proportions(layout, group_id, weights.clone())?;
     }
     Ok(group_id)
 }
@@ -90,7 +86,7 @@ fn insert_panel(
     layout: &mut Layout,
     index: &mut DockIndex,
     def: &PanelDef,
-) -> Result<NodeId, LayoutError> {
+) -> Result<NodeId> {
     let panel_id = factory.insert_panel(layout, def.id.clone(), def.title.clone(), def.content);
     if let Some(NodeKind::Panel(ref mut panel)) = layout.get_mut(panel_id).map(|e| &mut e.kind) {
         panel.can_close = def.can_close;
@@ -107,9 +103,9 @@ pub(crate) fn insert_panel_runtime(
     layout: &mut Layout,
     index: &mut DockIndex,
     def: &PanelDef,
-) -> Result<NodeId, LayoutError> {
+) -> Result<NodeId> {
     if index.panels.contains_key(&def.id) {
-        return Err(LayoutError::DuplicatePanelId(def.id.clone()));
+        return Err(Error::DuplicatePanelId(def.id.clone()));
     }
     insert_panel(factory, layout, index, def)
 }

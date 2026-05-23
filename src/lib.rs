@@ -1,6 +1,7 @@
 //! Docking layout system for iced.
 
 pub mod builder;
+pub mod error;
 pub mod factory;
 pub mod manager;
 pub mod model;
@@ -9,12 +10,13 @@ pub mod widget;
 
 pub use builder::{
     build_tree, horizontal, panel, single, tabs, vertical, BuiltLayout, DockIndex, DockSession,
-    LayoutError, LayoutTree, PanelDef, PaneTarget, SplitNode, TabsNode,
+    LayoutTree, PaneTarget, PanelDef, SplitNode, TabsNode,
 };
+pub use error::{Error, Result};
 pub use factory::Factory;
 pub use manager::{DockManager, DragSession, DropZone};
 pub use model::{
-    Axis, ContentKey, DockOperation, Layout, NodeEntry, NodeId, NodeKind, Panel, Pane,
+    Axis, ContentKey, DockOperation, Layout, NodeEntry, NodeId, NodeKind, Pane, Panel,
     ProportionalGroup,
 };
 pub use style::{

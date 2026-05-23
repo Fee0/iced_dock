@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use iced::advanced::layout::{self, Layout};
+use iced::advanced::renderer;
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
 use iced::advanced::{Clipboard, Renderer as AdvRenderer, Shell};
-use iced::advanced::renderer;
 use iced::mouse::{self, Cursor};
 use iced::{Element, Event, Length, Rectangle, Size, Theme};
 
@@ -29,9 +29,7 @@ pub struct DockWidgetState {
 
 impl DockWidgetState {
     /// Build widget state from a declarative [`LayoutTree`](crate::LayoutTree).
-    pub fn from_tree(
-        tree: crate::LayoutTree,
-    ) -> Result<Self, crate::LayoutError> {
+    pub fn from_tree(tree: crate::LayoutTree) -> crate::Result<Self> {
         let built = crate::builder::build_tree(&tree)?;
         Ok(Self {
             layout: built.layout,
@@ -316,7 +314,9 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
     }
 
     pub fn build(self) -> Dock<Message> {
-        let content = self.content.unwrap_or(|_| iced::widget::text("No content").into());
+        let content = self
+            .content
+            .unwrap_or(|_| iced::widget::text("No content").into());
         let on_event = self
             .on_event
             .unwrap_or_else(|| Rc::new(|_| panic!("dock().on_event(...) required")));

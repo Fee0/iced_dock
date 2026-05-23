@@ -52,8 +52,7 @@ struct App {
 impl App {
     fn new() -> Self {
         Self {
-            dock: DockSession::from_tree(demo_layout())
-                .expect("failed to build demo layout"),
+            dock: DockSession::from_tree(demo_layout()).expect("failed to build demo layout"),
         }
     }
 }

@@ -4,12 +4,12 @@ use std::rc::Rc;
 use crate::builder::compile::{
     build_tree, first_pane, insert_panel_runtime, owning_pane, pane_for_active_panel,
 };
-use crate::builder::error::LayoutError;
 use crate::builder::index::DockIndex;
 use crate::builder::spec::{LayoutTree, PanelDef};
 use crate::factory::Factory;
 use crate::model::{Layout, NodeId};
 use crate::widget::{handle_dock_message, DockMessage, DockWidgetState};
+use crate::{Error, Result};
 
 /// Target pane for opening a new panel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,7 +32,7 @@ pub struct DockSession {
 
 impl DockSession {
     /// Build a session from a declarative layout tree.
-    pub fn from_tree(tree: LayoutTree) -> Result<Self, LayoutError> {
+    pub fn from_tree(tree: LayoutTree) -> Result<Self> {
         let built = build_tree(&tree)?;
         let state = DockWidgetState {
             layout: built.layout,
@@ -80,11 +80,7 @@ impl DockSession {
     }
 
     /// Open a panel in the given pane target and activate it.
-    pub fn open_panel(
-        &self,
-        target: PaneTarget,
-        panel: impl Into<PanelDef>,
-    ) -> Result<(), LayoutError> {
+    pub fn open_panel(&self, target: PaneTarget, panel: impl Into<PanelDef>) -> Result {
         self.ensure_index_fresh();
         let def = panel.into();
         let pane_id = self.resolve_pane(target)?;
@@ -96,9 +92,7 @@ impl DockSession {
         };
         {
             let mut state = self.inner.borrow_mut();
-            factory
-                .add_panel_to_pane(&mut state.layout, pane_id, panel_id)
-                .map_err(|_| LayoutError::OperationFailed("add_panel_to_pane"))?;
+            factory.add_panel_to_pane(&mut state.layout, pane_id, panel_id)?;
             factory.set_active_panel(&mut state.layout, pane_id, panel_id);
             state.layout_dirty = true;
         }
@@ -107,15 +101,15 @@ impl DockSession {
     }
 
     /// Focus a panel by its string id.
-    pub fn focus_panel(&self, panel_id: &str) -> Result<(), LayoutError> {
+    pub fn focus_panel(&self, panel_id: &str) -> Result {
         self.ensure_index_fresh();
         let panel_node = self
             .index
             .borrow()
             .panel_node(panel_id)
-            .ok_or_else(|| LayoutError::UnknownPanel(panel_id.into()))?;
-        let pane_id = owning_pane(&self.inner.borrow().layout, panel_node)
-            .ok_or(LayoutError::InvalidTarget)?;
+            .ok_or_else(|| Error::UnknownPanel(panel_id.into()))?;
+        let pane_id =
+            owning_pane(&self.inner.borrow().layout, panel_node).ok_or(Error::InvalidTarget)?;
         Factory.set_active_panel(&mut self.inner.borrow_mut().layout, pane_id, panel_node);
         *self.last_active_pane.borrow_mut() = Some(pane_id);
         self.inner.borrow_mut().layout_dirty = true;
@@ -123,17 +117,15 @@ impl DockSession {
     }
 
     /// Close a panel by its string id.
-    pub fn close_panel(&self, panel_id: &str) -> Result<(), LayoutError> {
+    pub fn close_panel(&self, panel_id: &str) -> Result {
         self.ensure_index_fresh();
         let panel_node = self
             .index
             .borrow()
             .panel_node(panel_id)
-            .ok_or_else(|| LayoutError::UnknownPanel(panel_id.into()))?;
+            .ok_or_else(|| Error::UnknownPanel(panel_id.into()))?;
         let mut state = self.inner.borrow_mut();
-        Factory
-            .close(&mut state.layout, panel_node)
-            .map_err(|_| LayoutError::OperationFailed("close"))?;
+        Factory.close(&mut state.layout, panel_node)?;
         self.index.borrow_mut().panels.remove(panel_id);
         *self.index_stale.borrow_mut() = true;
         state.layout_dirty = true;
@@ -160,14 +152,14 @@ impl DockSession {
         }
     }
 
-    fn resolve_pane(&self, target: PaneTarget) -> Result<NodeId, LayoutError> {
+    fn resolve_pane(&self, target: PaneTarget) -> Result<NodeId> {
         let layout = &self.inner.borrow().layout;
         match target {
             PaneTarget::Named(name) => self
                 .index
                 .borrow()
                 .pane_node(name)
-                .ok_or_else(|| LayoutError::UnknownPane(name.into())),
+                .ok_or_else(|| Error::UnknownPane(name.into())),
             PaneTarget::Active => (*self.last_active_pane.borrow())
                 .or_else(|| {
                     self.active_panel().and_then(|id| {
@@ -177,8 +169,8 @@ impl DockSession {
                             .and_then(|p| owning_pane(layout, p))
                     })
                 })
-                .ok_or(LayoutError::InvalidTarget),
-            PaneTarget::First => first_pane(layout).ok_or(LayoutError::InvalidTarget),
+                .ok_or(Error::InvalidTarget),
+            PaneTarget::First => first_pane(layout).ok_or(Error::InvalidTarget),
         }
     }
 }

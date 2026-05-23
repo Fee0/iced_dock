@@ -22,13 +22,11 @@
 //! ```
 
 mod compile;
-mod error;
 mod index;
 mod session;
 mod spec;
 
 pub use compile::{build_tree, BuiltLayout};
-pub use error::LayoutError;
 pub use index::DockIndex;
 pub use session::{DockSession, PaneTarget};
 pub use spec::{

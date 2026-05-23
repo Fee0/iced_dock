@@ -2,8 +2,13 @@ use crate::model::NodeId;
 
 #[derive(Debug, Clone)]
 pub enum TabMessage {
-    Select { pane: NodeId, panel: NodeId },
-    Close { panel: NodeId },
+    Select {
+        pane: NodeId,
+        panel: NodeId,
+    },
+    Close {
+        panel: NodeId,
+    },
     DragStarted {
         source_pane: NodeId,
         source_panel: NodeId,

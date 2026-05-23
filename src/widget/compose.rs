@@ -48,7 +48,9 @@ pub fn child_draw<Message>(
 ) where
     Message: Clone,
 {
-    child.as_widget().draw(tree, renderer, theme, style, layout, cursor, viewport);
+    child
+        .as_widget()
+        .draw(tree, renderer, theme, style, layout, cursor, viewport);
 }
 
 pub fn child_mouse_interaction<Message>(

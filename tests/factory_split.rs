@@ -76,11 +76,8 @@ fn same_pane_edge_split_single_panel() {
 
 fn three_pane_group(factory: &Factory, layout: &mut Layout) -> NodeId {
     let panes: Vec<_> = (0..3).map(|_| factory.create_pane(layout)).collect();
-    let group = factory.create_proportional(
-        layout,
-        Axis::Horizontal,
-        vec![panes[0], panes[1], panes[2]],
-    );
+    let group =
+        factory.create_proportional(layout, Axis::Horizontal, vec![panes[0], panes[1], panes[2]]);
     factory
         .set_proportions(layout, group, vec![2.0, 3.0, 5.0])
         .unwrap();
@@ -110,9 +107,7 @@ fn adjust_splitter_middle_only_moves_adjacent_pair() {
     let mut layout = Layout::new();
     let group = three_pane_group(&factory, &mut layout);
 
-    factory
-        .adjust_splitter(&mut layout, group, 1, 0.4)
-        .unwrap();
+    factory.adjust_splitter(&mut layout, group, 1, 0.4).unwrap();
 
     let NodeKind::Proportional(pg) = layout.kind(group).unwrap() else {
         panic!("expected proportional group");
@@ -148,9 +143,7 @@ fn adjust_splitter_first_divider_only_moves_first_pair() {
     let mut layout = Layout::new();
     let group = three_pane_group(&factory, &mut layout);
 
-    factory
-        .adjust_splitter(&mut layout, group, 0, 0.3)
-        .unwrap();
+    factory.adjust_splitter(&mut layout, group, 0, 0.3).unwrap();
 
     let NodeKind::Proportional(pg) = layout.kind(group).unwrap() else {
         panic!("expected proportional group");

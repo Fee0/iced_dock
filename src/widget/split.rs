@@ -200,7 +200,9 @@ where
                 )
             };
             let child_tree = &mut tree.children[i];
-            let mut node = child.as_widget_mut().layout(child_tree, renderer, &child_limits);
+            let mut node = child
+                .as_widget_mut()
+                .layout(child_tree, renderer, &child_limits);
             if is_horizontal {
                 node.move_to_mut((offset, 0.0));
                 offset += node.size().width;
@@ -269,9 +271,7 @@ where
 
         for (idx, &bounds) in state.splitter_bounds.iter().enumerate() {
             let abs = bounds + offset;
-            let hovered = cursor_pos
-                .map(|p| abs.contains(p))
-                .unwrap_or(false);
+            let hovered = cursor_pos.map(|p| abs.contains(p)).unwrap_or(false);
             let dragging_this = state.drag_splitter == Some(idx);
             let color = if dragging_this {
                 split.drag_color
@@ -392,9 +392,9 @@ where
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
                 if state.drag_splitter.is_some() {
                     state.drag_splitter = None;
-                    state.hovered_splitter = cursor.position().and_then(|p| {
-                        splitter_under_cursor(p, &state.splitter_bounds, offset)
-                    });
+                    state.hovered_splitter = cursor
+                        .position()
+                        .and_then(|p| splitter_under_cursor(p, &state.splitter_bounds, offset));
                     shell.request_redraw();
                 }
             }
@@ -462,8 +462,7 @@ where
     }
 }
 
-impl<'a, Message> From<SplitContainer<'a, Message>>
-    for Element<'a, Message, Theme, iced::Renderer>
+impl<'a, Message> From<SplitContainer<'a, Message>> for Element<'a, Message, Theme, iced::Renderer>
 where
     Message: Clone + 'static,
 {

@@ -1,6 +1,6 @@
 use slotmap::{new_key_type, SlotMap};
 
-use super::pane::{Panel, Pane};
+use super::pane::{Pane, Panel};
 use super::ProportionalGroup;
 
 new_key_type! {

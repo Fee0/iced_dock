@@ -4,6 +4,7 @@ use iced::Rectangle;
 
 use crate::factory::Factory;
 use crate::model::{DockOperation, Layout, NodeId, NodeKind};
+use crate::{Error, Result};
 
 /// Drop zone within a target rect (20% edge bands + center).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,9 +93,9 @@ impl DockManager {
         )
     }
 
-    pub fn execute(&self, layout: &mut Layout, session: DragSession) -> Result<(), ()> {
-        let target = session.hover_target.ok_or(())?;
-        let op = session.operation.ok_or(())?;
+    pub fn execute(&self, layout: &mut Layout, session: DragSession) -> Result {
+        let target = session.hover_target.ok_or(Error::MissingHoverTarget)?;
+        let op = session.operation.ok_or(Error::MissingOperation)?;
         if !self.validate(
             layout,
             session.source_pane,
@@ -102,16 +103,14 @@ impl DockManager {
             target,
             op,
         ) {
-            return Err(());
+            return Err(Error::ValidationFailed);
         }
         let factory = Factory;
         if session.source_pane == target && op.is_edge() {
             factory.split_same_pane_edge(layout, target, session.source_panel, op)
         } else {
             match op {
-                DockOperation::Fill => {
-                    factory.dock_fill(layout, session.source_panel, target)
-                }
+                DockOperation::Fill => factory.dock_fill(layout, session.source_panel, target),
                 _ => factory.split_cross_pane_edge(
                     layout,
                     session.source_pane,

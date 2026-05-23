@@ -21,11 +21,7 @@ pub struct PanelDef {
 }
 
 impl PanelDef {
-    pub fn new(
-        id: impl Into<String>,
-        title: impl Into<String>,
-        content: ContentKey,
-    ) -> Self {
+    pub fn new(id: impl Into<String>, title: impl Into<String>, content: ContentKey) -> Self {
         Self {
             id: id.into(),
             title: title.into(),
@@ -130,11 +126,7 @@ impl LayoutTree {
 }
 
 /// Create a panel definition (for use inside [`tabs`]).
-pub fn panel(
-    id: impl Into<String>,
-    title: impl Into<String>,
-    content: ContentKey,
-) -> PanelDef {
+pub fn panel(id: impl Into<String>, title: impl Into<String>, content: ContentKey) -> PanelDef {
     PanelDef::new(id, title, content)
 }
 
@@ -159,7 +151,7 @@ pub fn single(def: PanelDef) -> LayoutTree {
 }
 
 /// Validate a layout tree before compilation.
-pub(crate) fn validate_tree(tree: &LayoutTree) -> Result<(), crate::builder::error::LayoutError> {
+pub(crate) fn validate_tree(tree: &LayoutTree) -> crate::Result {
     let mut panel_ids = std::collections::HashSet::new();
     let mut pane_names = std::collections::HashSet::new();
     validate_node(tree, &mut panel_ids, &mut pane_names)
@@ -169,31 +161,27 @@ fn validate_node(
     tree: &LayoutTree,
     panel_ids: &mut std::collections::HashSet<String>,
     pane_names: &mut std::collections::HashSet<String>,
-) -> Result<(), crate::builder::error::LayoutError> {
+) -> crate::Result {
     match tree {
         LayoutTree::Tabs(node) => {
             if node.panels.is_empty() {
-                return Err(crate::builder::error::LayoutError::EmptyLayout);
+                return Err(crate::Error::EmptyLayout);
             }
             if let Some(name) = &node.name {
                 if !pane_names.insert(name.clone()) {
-                    return Err(crate::builder::error::LayoutError::DuplicatePaneName(
-                        name.clone(),
-                    ));
+                    return Err(crate::Error::DuplicatePaneName(name.clone()));
                 }
             }
             let pane_label = node.name.clone().unwrap_or_else(|| "<unnamed>".into());
             for def in &node.panels {
                 if !panel_ids.insert(def.id.clone()) {
-                    return Err(crate::builder::error::LayoutError::DuplicatePanelId(
-                        def.id.clone(),
-                    ));
+                    return Err(crate::Error::DuplicatePanelId(def.id.clone()));
                 }
             }
             if let Some(active) = &node.active {
                 if !node.panels.iter().any(|p| p.id == *active) {
-                    return Err(crate::builder::error::LayoutError::UnknownActivePanel {
-                        pane: pane_label,
+                    return Err(crate::Error::UnknownActivePanel {
+                        pane_name: pane_label,
                         panel: active.clone(),
                     });
                 }
@@ -202,11 +190,11 @@ fn validate_node(
         }
         LayoutTree::Split(node) => {
             if node.children.is_empty() {
-                return Err(crate::builder::error::LayoutError::EmptyLayout);
+                return Err(crate::Error::EmptyLayout);
             }
             if let Some(weights) = &node.weights {
                 if weights.len() != node.children.len() {
-                    return Err(crate::builder::error::LayoutError::InvalidWeights {
+                    return Err(crate::Error::InvalidWeights {
                         expected: node.children.len(),
                         got: weights.len(),
                     });
