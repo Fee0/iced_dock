@@ -182,3 +182,56 @@ fn same_pane_edge_validates_and_executes() {
     };
     assert_eq!(pg.children.len(), 2);
 }
+
+#[test]
+fn cross_pane_edge_split_multi_panel() {
+    let factory = Factory;
+    let mut layout = Layout::new();
+    let a = factory.insert_panel(&mut layout, "a", "A", ContentKey(0));
+    let b = factory.insert_panel(&mut layout, "b", "B", ContentKey(1));
+    let c = factory.insert_panel(&mut layout, "c", "C", ContentKey(2));
+    let p1 = factory.create_pane(&mut layout);
+    let p2 = factory.create_pane(&mut layout);
+    factory.add_panel_to_pane(&mut layout, p1, a).unwrap();
+    factory.add_panel_to_pane(&mut layout, p1, b).unwrap();
+    factory.add_panel_to_pane(&mut layout, p2, c).unwrap();
+    let row = factory.create_proportional(
+        &mut layout,
+        Axis::Horizontal,
+        vec![p1, p2],
+    );
+    layout.set_root_child(Some(row));
+
+    let mgr = DockManager;
+    let session = DragSession {
+        source_pane: p1,
+        source_panel: b,
+        hover_target: Some(p2),
+        operation: Some(DockOperation::Right),
+    };
+    mgr.execute(&mut layout, session).unwrap();
+
+    let p1_tabs = match layout.kind(p1) {
+        Some(NodeKind::Pane(p)) => p.tabs.clone(),
+        _ => panic!("expected pane"),
+    };
+    assert_eq!(p1_tabs, vec![a]);
+
+    let b_pane = layout.get(b).and_then(|e| e.owner).expect("b owner");
+    assert_ne!(b_pane, p1);
+
+    let p2_tabs = match layout.kind(p2) {
+        Some(NodeKind::Pane(p)) => p.tabs.clone(),
+        _ => panic!("expected pane"),
+    };
+    assert_eq!(p2_tabs, vec![c]);
+
+    let root = layout.root_child().unwrap();
+    let NodeKind::Proportional(pg) = layout.kind(root).unwrap() else {
+        panic!("expected horizontal split root");
+    };
+    assert_eq!(pg.children.len(), 3);
+    assert!(pg.children.contains(&p1));
+    assert!(pg.children.contains(&p2));
+    assert!(pg.children.contains(&b_pane));
+}

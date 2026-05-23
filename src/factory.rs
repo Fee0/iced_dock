@@ -201,9 +201,7 @@ impl Factory {
         };
 
         if tab_count > 1 {
-            let new_pane = self.create_pane(layout);
-            self.remove_from_parent(layout, panel)?;
-            self.add_panel_to_pane(layout, new_pane, panel)?;
+            let new_pane = self.peel_panel_to_new_pane(layout, panel)?;
             self.split(layout, new_pane, pane, op)
         } else {
             let axis = Axis::for_operation(op).ok_or(())?;
@@ -228,6 +226,38 @@ impl Factory {
             layout.set_owner(empty_pane, Some(prop));
             Ok(())
         }
+    }
+
+    /// Edge drop onto a different pane than the drag source.
+    pub fn split_cross_pane_edge(
+        &self,
+        layout: &mut Layout,
+        source_pane: NodeId,
+        source_panel: NodeId,
+        target: NodeId,
+        op: DockOperation,
+    ) -> Result<(), ()> {
+        if !op.is_edge() {
+            return Err(());
+        }
+        let tab_count = match layout.kind(source_pane) {
+            Some(NodeKind::Pane(p)) => p.tabs.len(),
+            _ => return Err(()),
+        };
+
+        if tab_count > 1 {
+            let new_pane = self.peel_panel_to_new_pane(layout, source_panel)?;
+            self.split(layout, new_pane, target, op)
+        } else {
+            self.split(layout, source_pane, target, op)
+        }
+    }
+
+    fn peel_panel_to_new_pane(&self, layout: &mut Layout, panel: NodeId) -> Result<NodeId, ()> {
+        let new_pane = self.create_pane(layout);
+        self.remove_from_parent(layout, panel)?;
+        self.add_panel_to_pane(layout, new_pane, panel)?;
+        Ok(new_pane)
     }
 
     fn resolve_split_target(

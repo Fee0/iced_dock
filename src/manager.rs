@@ -112,7 +112,13 @@ impl DockManager {
                 DockOperation::Fill => {
                     factory.dock_fill(layout, session.source_panel, target)
                 }
-                _ => factory.split(layout, session.source_pane, target, op),
+                _ => factory.split_cross_pane_edge(
+                    layout,
+                    session.source_pane,
+                    session.source_panel,
+                    target,
+                    op,
+                ),
             }
         }
     }
