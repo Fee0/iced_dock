@@ -1,6 +1,6 @@
 use slotmap::{new_key_type, SlotMap};
 
-use super::tab::{DockableMeta, TabGroup};
+use super::pane::{Panel, Pane};
 use super::ProportionalGroup;
 
 new_key_type! {
@@ -20,6 +20,12 @@ pub enum DockOperation {
     Right,
     Top,
     Bottom,
+}
+
+impl DockOperation {
+    pub fn is_edge(self) -> bool {
+        !matches!(self, Self::Fill)
+    }
 }
 
 /// Split orientation.
@@ -54,9 +60,8 @@ pub struct RootState {
 
 #[derive(Debug, Clone)]
 pub enum NodeKind {
-    Document(DockableMeta),
-    Tool(DockableMeta),
-    TabGroup(TabGroup),
+    Panel(Panel),
+    Pane(Pane),
     Proportional(ProportionalGroup),
     Root(RootState),
 }
@@ -103,10 +108,7 @@ impl Layout {
     }
 
     pub fn is_leaf(&self, id: NodeId) -> bool {
-        matches!(
-            self.kind(id),
-            Some(NodeKind::Document(_) | NodeKind::Tool(_))
-        )
+        matches!(self.kind(id), Some(NodeKind::Panel(_)))
     }
 
     pub fn root_child(&self) -> Option<NodeId> {

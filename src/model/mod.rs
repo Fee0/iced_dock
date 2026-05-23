@@ -1,7 +1,7 @@
 mod layout;
+mod pane;
 mod proportional;
-mod tab;
 
 pub use layout::*;
+pub use pane::*;
 pub use proportional::ProportionalGroup;
-pub use tab::*;

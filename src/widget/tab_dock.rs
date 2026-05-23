@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use iced::advanced::layout::{self, Layout};
@@ -12,6 +13,7 @@ use iced::{Border, Element, Event, Length, Rectangle, Size, Theme};
 use crate::model::NodeId;
 use crate::manager::DockManager;
 use crate::widget::compose;
+use crate::widget::dock::{handle_dock_message, DockWidgetState};
 use crate::widget::message::{DockMessage, TabMessage};
 
 pub const TITLE_BAR_HEIGHT: f32 = 28.0;
@@ -66,43 +68,55 @@ struct TabDockState {
 }
 
 pub struct TabDock<'a, Message> {
-    pub group_id: NodeId,
+    dock_state: Rc<RefCell<DockWidgetState>>,
+    pub pane_id: NodeId,
     pub can_drag: bool,
     pub tabs: Vec<TabInfo>,
     pub active_tab: NodeId,
     pub chrome: Element<'a, Message, Theme, iced::Renderer>,
     pub tab_strip: Option<Element<'a, Message, Theme, iced::Renderer>>,
     pub content: Element<'a, Message, Theme, iced::Renderer>,
-    pub drag_active: bool,
     on_event: Rc<dyn Fn(DockMessage) -> Message>,
 }
 
 impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
     pub fn new(
-        group_id: NodeId,
+        dock_state: Rc<RefCell<DockWidgetState>>,
+        pane_id: NodeId,
         title: String,
         can_close: bool,
         can_drag: bool,
         tabs: Vec<TabInfo>,
         active_tab: NodeId,
         content: Element<'a, Message, Theme, iced::Renderer>,
-        drag_active: bool,
         on_event: Rc<dyn Fn(DockMessage) -> Message>,
     ) -> Self {
         let chrome = build_chrome::<Message>(title, can_close, can_drag, active_tab, on_event.clone());
         let tab_strip =
-            build_tab_strip::<Message>(group_id, tabs.clone(), active_tab, on_event.clone());
+            build_tab_strip::<Message>(pane_id, tabs.clone(), active_tab, on_event.clone());
         Self {
-            group_id,
+            dock_state,
+            pane_id,
             can_drag,
             tabs,
             active_tab,
             chrome,
             tab_strip,
             content,
-            drag_active,
             on_event,
         }
+    }
+
+    fn is_dragging(&self, tree: &Tree) -> bool {
+        self.dock_state.borrow().drag.is_some()
+            || tree.state.downcast_ref::<TabDockState>().dragging
+    }
+
+    fn register_drop_target(&self, bounds: Rectangle) {
+        self.dock_state
+            .borrow_mut()
+            .drop_targets
+            .push((self.pane_id, bounds));
     }
 }
 
@@ -126,7 +140,7 @@ fn build_chrome<Message: Clone + 'static>(
         button(text("×").size(14))
             .padding([2, 8])
             .on_press_with(move || {
-                (on_event)(DockMessage::Tab(TabMessage::Close { tab: active_tab }))
+                (on_event)(DockMessage::Tab(TabMessage::Close { panel: active_tab }))
             })
             .into()
     } else {
@@ -140,7 +154,7 @@ fn build_chrome<Message: Clone + 'static>(
 }
 
 fn build_tab_strip<Message: Clone + 'static>(
-    group_id: NodeId,
+    pane_id: NodeId,
     tabs: Vec<TabInfo>,
     active_tab: NodeId,
     on_event: Rc<dyn Fn(DockMessage) -> Message>,
@@ -163,8 +177,8 @@ fn build_tab_strip<Message: Clone + 'static>(
         };
         let btn = btn.on_press_with(move || {
             (on_event)(DockMessage::Tab(TabMessage::Select {
-                group: group_id,
-                tab: tab_id,
+                pane: pane_id,
+                panel: tab_id,
             }))
         });
         strip = strip.push(btn);
@@ -339,35 +353,46 @@ where
                 compose::child_draw(
                     tabs,
                     child_tree,
-                        renderer,
-                        theme,
-                        style,
-                        tab_layout,
-                        cursor,
-                        viewport,
+                    renderer,
+                    theme,
+                    style,
+                    tab_layout,
+                    cursor,
+                    viewport,
                 );
             }
         }
 
-        if self.drag_active || tree.state.downcast_ref::<TabDockState>().dragging {
+        let drag_session = self.dock_state.borrow().drag;
+        let show_overlay = self.is_dragging(tree);
+
+        if show_overlay {
             if let Some(content_layout) = layout.children().nth(1) {
                 let bounds = content_layout.bounds();
-                if let Some(point) = cursor.position_over(bounds) {
-                    if let Some(zone) = DockManager::hit_test_drop_zone(bounds, point) {
-                        let palette = theme.extended_palette();
-                        let highlight = iced::Color {
-                            a: 0.35,
-                            ..palette.primary.base.color
-                        };
-                        let zone_bounds = drop_zone_rect(bounds, zone);
-                        renderer.fill_quad(
-                            iced::advanced::renderer::Quad {
-                                bounds: zone_bounds,
-                                ..Default::default()
-                            },
-                            highlight,
-                        );
-                    }
+                let zone = drag_session
+                    .filter(|s| s.hover_target == Some(self.pane_id))
+                    .and_then(|s| s.operation)
+                    .and_then(|_| cursor.position())
+                    .and_then(|point| DockManager::hit_test_drop_zone(bounds, point))
+                    .or_else(|| {
+                        cursor
+                            .position_over(bounds)
+                            .and_then(|point| DockManager::hit_test_drop_zone(bounds, point))
+                    });
+
+                if let Some(zone) = zone {
+                    let highlight = iced::Color {
+                        a: 0.35,
+                        ..palette.primary.base.color
+                    };
+                    let zone_bounds = drop_zone_rect(bounds, zone);
+                    renderer.fill_quad(
+                        iced::advanced::renderer::Quad {
+                            bounds: zone_bounds,
+                            ..Default::default()
+                        },
+                        highlight,
+                    );
                 }
             }
         }
@@ -384,7 +409,12 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
+        let dragging = self.is_dragging(tree);
         let state = tree.state.downcast_mut::<TabDockState>();
+
+        if let Some(content_layout) = layout.children().nth(1) {
+            self.register_drop_target(content_layout.bounds());
+        }
 
         if let Some(chrome_layout) = layout.children().next() {
             compose::child_update(
@@ -417,18 +447,17 @@ where
                 compose::child_update(
                     tabs,
                     child_tree,
-                        event,
-                        tab_layout,
-                        cursor,
-                        renderer,
-                        clipboard,
-                        shell,
-                        viewport,
+                    event,
+                    tab_layout,
+                    cursor,
+                    renderer,
+                    clipboard,
+                    shell,
+                    viewport,
                 );
             }
         }
 
-        // Drag threshold on title bar region (middle third via layout)
         if let Some(bar_layout) = layout.children().next() {
             let bar_bounds = bar_layout.bounds();
             let drag_bounds = Rectangle {
@@ -444,7 +473,6 @@ where
                             if drag_bounds.contains(pos) {
                                 state.drag_pending = true;
                                 state.drag_start = Some(pos);
-                                shell.capture_event();
                             }
                         }
                     }
@@ -461,11 +489,11 @@ where
                                 state.drag_pending = false;
                                 shell.publish((self.on_event)(DockMessage::Tab(
                                     TabMessage::DragStarted {
-                                        source_group: self.group_id,
-                                        source_tab: self.active_tab,
+                                        source_pane: self.pane_id,
+                                        source_panel: self.active_tab,
                                     },
                                 )));
-                                shell.capture_event();
+                                shell.request_redraw();
                             }
                         }
                     }
@@ -473,48 +501,43 @@ where
                 Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
                     state.drag_pending = false;
                     state.drag_start = None;
+                    let was_dragging = state.dragging;
                     state.dragging = false;
+
+                    if was_dragging || self.dock_state.borrow().drag.is_some() {
+                        if let Some(pos) = cursor.position() {
+                            shell.publish((self.on_event)(DockMessage::Tab(
+                                TabMessage::DragEnded { cursor: pos },
+                            )));
+                        } else {
+                            let _ = handle_dock_message(
+                                &mut self.dock_state.borrow_mut(),
+                                DockMessage::Tab(TabMessage::DragCancelled),
+                            );
+                        }
+                        shell.invalidate_layout();
+                        shell.invalidate_widgets();
+                        shell.request_redraw();
+                    }
                 }
                 _ => {}
             }
         }
 
-        if state.dragging || self.drag_active {
+        if dragging {
             if let Event::Mouse(mouse::Event::CursorMoved { .. }) = event {
-                if let Some(content_layout) = layout.children().nth(1) {
-                    let bounds = content_layout.bounds();
-                    if let Some(point) = cursor.position_over(bounds) {
-                        state.hover_zone = DockManager::hit_test_drop_zone(bounds, point);
-                        if let Some(zone) = state.hover_zone {
-                            shell.publish((self.on_event)(DockMessage::Tab(TabMessage::DragMoved {
-                                target: self.group_id,
-                                zone,
-                            })));
-                        }
-                    } else {
-                        state.hover_zone = None;
+                if let Some(pos) = cursor.position() {
+                    if let Some(content_layout) = layout.children().nth(1) {
+                        let bounds = content_layout.bounds();
+                        state.hover_zone =
+                            cursor
+                                .position_over(bounds)
+                                .and_then(|p| DockManager::hit_test_drop_zone(bounds, p));
                     }
-                    shell.capture_event();
-                }
-            }
-            if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) = event {
-                let drop_zone = layout.children().nth(1).and_then(|content_layout| {
-                    let bounds = content_layout.bounds();
-                    cursor
-                        .position_over(bounds)
-                        .and_then(|point| DockManager::hit_test_drop_zone(bounds, point))
-                });
-                state.hover_zone = None;
-                state.dragging = false;
-
-                if self.drag_active {
-                    if let Some(zone) = drop_zone {
-                        shell.publish((self.on_event)(DockMessage::Tab(TabMessage::DragEnded {
-                            target: self.group_id,
-                            zone,
-                        })));
-                    }
-                    shell.capture_event();
+                    shell.publish((self.on_event)(DockMessage::Tab(TabMessage::DragMoved {
+                        cursor: pos,
+                    })));
+                    shell.request_redraw();
                 }
             }
         }

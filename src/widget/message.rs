@@ -1,21 +1,18 @@
-use crate::manager::DropZone;
 use crate::model::NodeId;
 
 #[derive(Debug, Clone)]
 pub enum TabMessage {
-    Select { group: NodeId, tab: NodeId },
-    Close { tab: NodeId },
+    Select { pane: NodeId, panel: NodeId },
+    Close { panel: NodeId },
     DragStarted {
-        source_group: NodeId,
-        source_tab: NodeId,
+        source_pane: NodeId,
+        source_panel: NodeId,
     },
     DragMoved {
-        target: NodeId,
-        zone: DropZone,
+        cursor: iced::Point,
     },
     DragEnded {
-        target: NodeId,
-        zone: DropZone,
+        cursor: iced::Point,
     },
     DragCancelled,
 }

@@ -1,12 +1,15 @@
 //! Demo: complex IDE layout with splitters, tabs, and drag-dock.
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use iced::widget::{column, container, text};
 use iced::{application, Color, Element, Length, Size, Task, Theme};
 
-use iced_dock::{dock, ContentKey, DockMessage};
+use iced_dock::{apply_message, dock, ContentKey, DockMessage, DockWidgetState};
 
 fn main() -> iced::Result {
-    application(|| ((), Task::none()), update, view)
+    application(App::default, update, view)
         .title("iced_dock — minimal")
         .theme(Theme::Dark)
         .window(iced::window::Settings {
@@ -16,19 +19,26 @@ fn main() -> iced::Result {
         .run()
 }
 
+#[derive(Default)]
+struct App {
+    dock_state: Rc<RefCell<DockWidgetState>>,
+}
+
 #[derive(Debug, Clone)]
 enum Message {
     Dock(DockMessage),
 }
 
-fn update(_: &mut (), message: Message) -> Task<Message> {
-    let Message::Dock(_) = message;
+fn update(app: &mut App, message: Message) -> Task<Message> {
+    let Message::Dock(msg) = message;
+    let _ = apply_message(&app.dock_state, msg);
     Task::none()
 }
 
-fn view(_: &()) -> Element<'_, Message> {
+fn view(app: &App) -> Element<'_, Message> {
     container(
         dock::<Message>()
+            .state(app.dock_state.clone())
             .on_event(Message::Dock)
             .content(panel)
             .build(),

@@ -8,9 +8,10 @@ pub mod widget;
 pub use factory::Factory;
 pub use manager::{DockManager, DragSession, DropZone};
 pub use model::{
-    Axis, ContentKey, DockOperation, DockableMeta, Layout, NodeEntry, NodeId, NodeKind,
-    ProportionalGroup, TabGroup,
+    Axis, ContentKey, DockOperation, Layout, NodeEntry, NodeId, NodeKind, Panel, Pane,
+    ProportionalGroup,
 };
 pub use widget::{
-    apply_message, dock, handle_dock_message, Dock, DockMessage, DockWidgetState, TabMessage,
+    apply_message, dock, finish_drag, handle_dock_message, Dock, DockMessage, DockWidgetState,
+    TabMessage,
 };

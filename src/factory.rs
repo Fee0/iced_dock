@@ -1,8 +1,8 @@
 //! Tree mutations for the docking layout.
 
 use crate::model::{
-    Axis, ContentKey, DockOperation, DockableMeta, Layout, NodeEntry, NodeId, NodeKind,
-    ProportionalGroup, TabGroup,
+    Axis, ContentKey, DockOperation, Layout, NodeEntry, NodeId, NodeKind, Panel, Pane,
+    ProportionalGroup,
 };
 
 /// All structural changes to a [`Layout`].
@@ -10,7 +10,7 @@ use crate::model::{
 pub struct Factory;
 
 impl Factory {
-    pub fn insert_document(
+    pub fn insert_panel(
         &self,
         layout: &mut Layout,
         id: impl Into<String>,
@@ -18,27 +18,14 @@ impl Factory {
         content: ContentKey,
     ) -> NodeId {
         layout.nodes.insert(NodeEntry {
-            kind: NodeKind::Document(DockableMeta::new(id, title, content)),
+            kind: NodeKind::Panel(Panel::new(id, title, content)),
             owner: None,
         })
     }
 
-    pub fn insert_tool(
-        &self,
-        layout: &mut Layout,
-        id: impl Into<String>,
-        title: impl Into<String>,
-        content: ContentKey,
-    ) -> NodeId {
+    pub fn create_pane(&self, layout: &mut Layout) -> NodeId {
         layout.nodes.insert(NodeEntry {
-            kind: NodeKind::Tool(DockableMeta::new(id, title, content)),
-            owner: None,
-        })
-    }
-
-    pub fn create_tab_group(&self, layout: &mut Layout) -> NodeId {
-        layout.nodes.insert(NodeEntry {
-            kind: NodeKind::TabGroup(TabGroup::new()),
+            kind: NodeKind::Pane(Pane::new()),
             owner: None,
         })
     }
@@ -59,60 +46,60 @@ impl Factory {
         id
     }
 
-    pub fn add_to_tab_group(
+    pub fn add_panel_to_pane(
         &self,
         layout: &mut Layout,
-        group: NodeId,
-        leaf: NodeId,
+        pane: NodeId,
+        panel: NodeId,
     ) -> Result<(), ()> {
-        if !layout.is_leaf(leaf) {
+        if !layout.is_leaf(panel) {
             return Err(());
         }
-        if let Some(NodeKind::TabGroup(ref mut g)) = layout.get_mut(group).map(|e| &mut e.kind) {
-            g.children.push(leaf);
-            g.active = Some(leaf);
-            layout.set_owner(leaf, Some(group));
+        if let Some(NodeKind::Pane(ref mut p)) = layout.get_mut(pane).map(|e| &mut e.kind) {
+            p.tabs.push(panel);
+            p.active = Some(panel);
+            layout.set_owner(panel, Some(pane));
             Ok(())
         } else {
             Err(())
         }
     }
 
-    pub fn move_tab_to_group(
+    pub fn move_panel_to_pane(
         &self,
         layout: &mut Layout,
         source: NodeId,
-        target_group: NodeId,
+        target_pane: NodeId,
     ) -> Result<(), ()> {
         self.remove_from_parent(layout, source)?;
-        self.add_to_tab_group(layout, target_group, source)
+        self.add_panel_to_pane(layout, target_pane, source)
     }
 
     pub fn dock_fill(
         &self,
         layout: &mut Layout,
-        source_leaf: NodeId,
-        target_group: NodeId,
+        source_panel: NodeId,
+        target_pane: NodeId,
     ) -> Result<(), ()> {
-        let old_owner = layout.get(source_leaf).and_then(|e| e.owner);
-        self.move_tab_to_group(layout, source_leaf, target_group)?;
+        let old_owner = layout.get(source_panel).and_then(|e| e.owner);
+        self.move_panel_to_pane(layout, source_panel, target_pane)?;
         if let Some(owner) = old_owner {
             self.collapse_owner(layout, owner);
         }
         Ok(())
     }
 
-    pub fn reorder_tab(
+    pub fn reorder_panel(
         &self,
         layout: &mut Layout,
-        group: NodeId,
+        pane: NodeId,
         from: usize,
         to: usize,
     ) -> Result<(), ()> {
-        if let Some(NodeKind::TabGroup(ref mut g)) = layout.get_mut(group).map(|e| &mut e.kind) {
-            if from < g.children.len() && to < g.children.len() {
-                let child = g.children.remove(from);
-                g.children.insert(to, child);
+        if let Some(NodeKind::Pane(ref mut p)) = layout.get_mut(pane).map(|e| &mut e.kind) {
+            if from < p.tabs.len() && to < p.tabs.len() {
+                let child = p.tabs.remove(from);
+                p.tabs.insert(to, child);
                 Ok(())
             } else {
                 Err(())
@@ -122,27 +109,24 @@ impl Factory {
         }
     }
 
-    pub fn set_active_tab(&self, layout: &mut Layout, group: NodeId, leaf: NodeId) {
-        if let Some(NodeKind::TabGroup(ref mut g)) = layout.get_mut(group).map(|e| &mut e.kind) {
-            if g.children.contains(&leaf) {
-                g.active = Some(leaf);
+    pub fn set_active_panel(&self, layout: &mut Layout, pane: NodeId, panel: NodeId) {
+        if let Some(NodeKind::Pane(ref mut p)) = layout.get_mut(pane).map(|e| &mut e.kind) {
+            if p.tabs.contains(&panel) {
+                p.active = Some(panel);
             }
         }
     }
 
-    pub fn close(&self, layout: &mut Layout, leaf: NodeId) -> Result<(), ()> {
-        let owner = layout.get(leaf).and_then(|e| e.owner);
+    pub fn close(&self, layout: &mut Layout, panel: NodeId) -> Result<(), ()> {
+        let owner = layout.get(panel).and_then(|e| e.owner);
         let owner = owner.ok_or(())?;
-        self.remove_from_parent(layout, leaf)?;
-        layout.nodes.remove(leaf);
+        self.remove_from_parent(layout, panel)?;
+        layout.nodes.remove(panel);
         self.collapse_owner(layout, owner);
         Ok(())
     }
 
-    /// Split `target` and place `source` beside it.
-    ///
-    /// `source` is a tab group node (the whole pane). Title-bar drags pass `source_group`,
-    /// so edge drops relocate every tab in that group, not only the active tab.
+    /// Split `target` and place `source` pane beside it.
     pub fn split(
         &self,
         layout: &mut Layout,
@@ -155,11 +139,9 @@ impl Factory {
         }
         let axis = Axis::for_operation(op).ok_or(())?;
 
-        // Remove source from its current parent first
-        let old_owner = layout.get(source).and_then(|e| e.owner);
-        self.remove_from_parent(layout, source)?;
-        if let Some(owner) = old_owner {
-            self.collapse_owner(layout, owner);
+        if let Some(old_owner) = layout.get(source).and_then(|e| e.owner) {
+            self.remove_from_parent(layout, source)?;
+            self.collapse_owner(layout, old_owner);
         }
 
         let split_target = self.resolve_split_target(layout, target, op)?;
@@ -179,7 +161,6 @@ impl Factory {
             }
         }
 
-        // Wrap target in new two-child proportional
         let old_owner = layout.get(split_target).and_then(|e| e.owner);
         let prop = self.create_proportional(
             layout,
@@ -203,6 +184,52 @@ impl Factory {
         Ok(())
     }
 
+    /// Edge drop on the same pane as the drag source.
+    pub fn split_same_pane_edge(
+        &self,
+        layout: &mut Layout,
+        pane: NodeId,
+        panel: NodeId,
+        op: DockOperation,
+    ) -> Result<(), ()> {
+        if !op.is_edge() {
+            return Err(());
+        }
+        let tab_count = match layout.kind(pane) {
+            Some(NodeKind::Pane(p)) => p.tabs.len(),
+            _ => return Err(()),
+        };
+
+        if tab_count > 1 {
+            let new_pane = self.create_pane(layout);
+            self.remove_from_parent(layout, panel)?;
+            self.add_panel_to_pane(layout, new_pane, panel)?;
+            self.split(layout, new_pane, pane, op)
+        } else {
+            let axis = Axis::for_operation(op).ok_or(())?;
+            let after = self.side_for_operation(op);
+            let empty_pane = self.create_pane(layout);
+            let old_owner = layout.get(pane).and_then(|e| e.owner);
+
+            let children = if after {
+                vec![pane, empty_pane]
+            } else {
+                vec![empty_pane, pane]
+            };
+            let prop = self.create_proportional(layout, axis, children);
+
+            if let Some(owner) = old_owner {
+                self.replace_child(layout, owner, pane, prop)?;
+                layout.set_owner(prop, Some(owner));
+            } else {
+                layout.set_root_child(Some(prop));
+            }
+            layout.set_owner(pane, Some(prop));
+            layout.set_owner(empty_pane, Some(prop));
+            Ok(())
+        }
+    }
+
     fn resolve_split_target(
         &self,
         layout: &Layout,
@@ -210,20 +237,15 @@ impl Factory {
         _op: DockOperation,
     ) -> Result<NodeId, ()> {
         match layout.kind(target) {
-            Some(NodeKind::TabGroup(_))
+            Some(NodeKind::Pane(_))
             | Some(NodeKind::Proportional(_))
-            | Some(NodeKind::Document(_))
-            | Some(NodeKind::Tool(_)) => Ok(target),
+            | Some(NodeKind::Panel(_)) => Ok(target),
             _ => Err(()),
         }
     }
 
     fn side_for_operation(&self, op: DockOperation) -> bool {
-        // true = new pane is second (right/bottom)
-        matches!(
-            op,
-            DockOperation::Right | DockOperation::Bottom
-        )
+        matches!(op, DockOperation::Right | DockOperation::Bottom)
     }
 
     fn insert_into_proportional(
@@ -272,15 +294,14 @@ impl Factory {
                 }
                 Err(())
             }
-            Some(NodeKind::TabGroup(_)) => {
-                if let Some(NodeKind::TabGroup(ref mut g)) =
-                    layout.get_mut(parent).map(|e| &mut e.kind)
+            Some(NodeKind::Pane(_)) => {
+                if let Some(NodeKind::Pane(ref mut p)) = layout.get_mut(parent).map(|e| &mut e.kind)
                 {
-                    for c in &mut g.children {
-                        if *c == old_child {
-                            *c = new_child;
-                            if g.active == Some(old_child) {
-                                g.active = Some(new_child);
+                    for t in &mut p.tabs {
+                        if *t == old_child {
+                            *t = new_child;
+                            if p.active == Some(old_child) {
+                                p.active = Some(new_child);
                             }
                             layout.set_owner(new_child, Some(parent));
                             return Ok(());
@@ -296,13 +317,12 @@ impl Factory {
     pub fn remove_from_parent(&self, layout: &mut Layout, child: NodeId) -> Result<(), ()> {
         let owner = layout.get(child).and_then(|e| e.owner).ok_or(())?;
         match layout.kind(owner) {
-            Some(NodeKind::TabGroup(_)) => {
-                if let Some(NodeKind::TabGroup(ref mut g)) =
-                    layout.get_mut(owner).map(|e| &mut e.kind)
+            Some(NodeKind::Pane(_)) => {
+                if let Some(NodeKind::Pane(ref mut p)) = layout.get_mut(owner).map(|e| &mut e.kind)
                 {
-                    g.children.retain(|&c| c != child);
-                    if g.active == Some(child) {
-                        g.active = g.children.last().copied();
+                    p.tabs.retain(|&c| c != child);
+                    if p.active == Some(child) {
+                        p.active = p.tabs.last().copied();
                     }
                 }
                 layout.set_owner(child, None);
@@ -331,9 +351,9 @@ impl Factory {
         if owner == layout.root {
             let empty_child = match layout.kind(layout.root) {
                 Some(NodeKind::Root(r)) => r.child.and_then(|child| {
-                    layout
-                        .get(child)
-                        .map(|e| matches!(e.kind, NodeKind::TabGroup(ref g) if g.children.is_empty()))
+                    layout.get(child).map(|e| {
+                        matches!(e.kind, NodeKind::Pane(ref p) if p.tabs.is_empty())
+                    })
                 }),
                 _ => None,
             };
@@ -348,7 +368,7 @@ impl Factory {
         }
 
         let should_collapse = match layout.kind(owner) {
-            Some(NodeKind::TabGroup(g)) => g.children.is_empty(),
+            Some(NodeKind::Pane(p)) => p.tabs.is_empty(),
             Some(NodeKind::Proportional(pg)) => pg.children.len() <= 1,
             _ => false,
         };
@@ -372,7 +392,6 @@ impl Factory {
                 layout.set_root_child(None);
                 layout.nodes.remove(owner);
             } else {
-                // Empty TabGroup inside a Proportional (or other non-root parent).
                 let _ = self.remove_from_parent(layout, owner);
                 layout.nodes.remove(owner);
                 self.collapse_owner(layout, go);
@@ -459,22 +478,22 @@ impl Factory {
         }
     }
 
-    /// IDE-style 5–6 pane bootstrap layout (fixed demo content keys).
+    /// IDE-style bootstrap layout (fixed demo content keys).
     pub fn complex_ide_layout(&self, layout: &mut Layout) -> Result<(), ()> {
-        let d_main = self.insert_document(layout, "main", "main.rs", ContentKey(0));
-        let d_lib = self.insert_document(layout, "lib", "lib.rs", ContentKey(1));
-        let doc_group1 = self.create_tab_group(layout);
-        self.add_to_tab_group(layout, doc_group1, d_main)?;
-        self.add_to_tab_group(layout, doc_group1, d_lib)?;
+        let p_main = self.insert_panel(layout, "main", "main.rs", ContentKey(0));
+        let p_lib = self.insert_panel(layout, "lib", "lib.rs", ContentKey(1));
+        let pane_left_top = self.create_pane(layout);
+        self.add_panel_to_pane(layout, pane_left_top, p_main)?;
+        self.add_panel_to_pane(layout, pane_left_top, p_lib)?;
 
-        let d_prev = self.insert_document(layout, "preview", "preview", ContentKey(2));
-        let doc_group2 = self.create_tab_group(layout);
-        self.add_to_tab_group(layout, doc_group2, d_prev)?;
+        let p_prev = self.insert_panel(layout, "preview", "preview", ContentKey(2));
+        let pane_left_bot = self.create_pane(layout);
+        self.add_panel_to_pane(layout, pane_left_bot, p_prev)?;
 
         let left_col = self.create_proportional(
             layout,
             Axis::Vertical,
-            vec![doc_group1, doc_group2],
+            vec![pane_left_top, pane_left_bot],
         );
         if let Some(NodeKind::Proportional(ref mut pg)) =
             layout.get_mut(left_col).map(|e| &mut e.kind)
@@ -482,22 +501,22 @@ impl Factory {
             pg.proportions = vec![0.55, 0.45];
         }
 
-        let t_prop = self.insert_tool(layout, "props", "Properties", ContentKey(10));
-        let t_out = self.insert_tool(layout, "output", "Output", ContentKey(11));
-        let tool_group1 = self.create_tab_group(layout);
-        self.add_to_tab_group(layout, tool_group1, t_prop)?;
-        self.add_to_tab_group(layout, tool_group1, t_out)?;
+        let p_prop = self.insert_panel(layout, "props", "Properties", ContentKey(10));
+        let p_out = self.insert_panel(layout, "output", "Output", ContentKey(11));
+        let pane_right_top = self.create_pane(layout);
+        self.add_panel_to_pane(layout, pane_right_top, p_prop)?;
+        self.add_panel_to_pane(layout, pane_right_top, p_out)?;
 
-        let t_exp = self.insert_tool(layout, "explorer", "Explorer", ContentKey(12));
-        let t_srch = self.insert_tool(layout, "search", "Search", ContentKey(13));
-        let tool_group2 = self.create_tab_group(layout);
-        self.add_to_tab_group(layout, tool_group2, t_exp)?;
-        self.add_to_tab_group(layout, tool_group2, t_srch)?;
+        let p_exp = self.insert_panel(layout, "explorer", "Explorer", ContentKey(12));
+        let p_srch = self.insert_panel(layout, "search", "Search", ContentKey(13));
+        let pane_right_bot = self.create_pane(layout);
+        self.add_panel_to_pane(layout, pane_right_bot, p_exp)?;
+        self.add_panel_to_pane(layout, pane_right_bot, p_srch)?;
 
         let right_col = self.create_proportional(
             layout,
             Axis::Vertical,
-            vec![tool_group1, tool_group2],
+            vec![pane_right_top, pane_right_bot],
         );
         if let Some(NodeKind::Proportional(ref mut pg)) =
             layout.get_mut(right_col).map(|e| &mut e.kind)

@@ -10,7 +10,7 @@ use iced::{Element, Event, Length, Rectangle, Size, Theme};
 
 use crate::factory::Factory;
 use crate::manager::{DockManager, DragSession};
-use crate::model::{ContentKey, Layout as DockLayout, NodeId, NodeKind, TabGroup};
+use crate::model::{ContentKey, Layout as DockLayout, NodeId, NodeKind, Pane};
 use crate::widget::message::{DockMessage, TabMessage};
 use crate::widget::split::SplitContainer;
 use crate::widget::tab_dock::{TabDock, TabInfo};
@@ -20,6 +20,9 @@ use crate::widget::tab_dock::{TabDock, TabInfo};
 pub struct DockWidgetState {
     pub layout: DockLayout,
     pub drag: Option<DragSession>,
+    pub drop_targets: Vec<(NodeId, Rectangle)>,
+    /// Set when the layout tree changes and the cached widget root must rebuild.
+    pub layout_dirty: bool,
 }
 
 impl Default for DockWidgetState {
@@ -31,8 +34,33 @@ impl Default for DockWidgetState {
         Self {
             layout,
             drag: None,
+            drop_targets: Vec::new(),
+            layout_dirty: false,
         }
     }
+}
+
+/// End an active drag at `cursor`, applying a drop when valid.
+pub fn finish_drag(state: &mut DockWidgetState, cursor: Option<iced::Point>) -> bool {
+    let Some(cursor) = cursor else {
+        let had_drag = state.drag.is_some();
+        state.drag = None;
+        return had_drag;
+    };
+
+    let targets = state.drop_targets.clone();
+    let Some(session) = state.drag.take() else {
+        return false;
+    };
+
+    let mut session = session;
+    DockManager::update_drag_hover(&mut session, cursor, &targets);
+    let mut changed = false;
+    if DockManager.execute(&mut state.layout, session).is_ok() {
+        state.layout_dirty = true;
+        changed = true;
+    }
+    changed
 }
 
 /// Tree state: layout data + cached root element (must match `tree.children`).
@@ -84,7 +112,6 @@ impl<Message: Clone + 'static> Dock<Message> {
         &self,
         holder: &Rc<RefCell<DockWidgetState>>,
         layout: &DockLayout,
-        global_drag_active: bool,
         node: NodeId,
     ) -> Option<Element<'static, Message, Theme, iced::Renderer>> {
         match layout.kind(node)? {
@@ -92,7 +119,7 @@ impl<Message: Clone + 'static> Dock<Message> {
                 let children: Vec<_> = pg
                     .children
                     .iter()
-                    .filter_map(|&c| self.build_node(holder, layout, global_drag_active, c))
+                    .filter_map(|&c| self.build_node(holder, layout, c))
                     .collect();
                 if children.is_empty() {
                     return None;
@@ -112,39 +139,34 @@ impl<Message: Clone + 'static> Dock<Message> {
                     .into(),
                 )
             }
-            NodeKind::TabGroup(g) => {
-                self.build_tab_group(holder, layout, global_drag_active, node, g)
-            }
-            NodeKind::Document(_) | NodeKind::Tool(_) => None,
+            NodeKind::Pane(p) => self.build_pane(holder, layout, node, p),
+            NodeKind::Panel(_) => None,
             NodeKind::Root(_) => layout
                 .root_child()
-                .and_then(|c| self.build_node(holder, layout, global_drag_active, c)),
+                .and_then(|c| self.build_node(holder, layout, c)),
         }
     }
 
-    fn build_tab_group(
+    fn build_pane(
         &self,
         holder: &Rc<RefCell<DockWidgetState>>,
         layout: &DockLayout,
-        global_drag_active: bool,
-        group_id: NodeId,
-        group: &TabGroup,
+        pane_id: NodeId,
+        pane: &Pane,
     ) -> Option<Element<'static, Message, Theme, iced::Renderer>> {
-        let active = group.active.or_else(|| group.children.first().copied())?;
+        let active = pane.active.or_else(|| pane.tabs.first().copied())?;
         let entry = layout.get(active)?;
         let (title, can_close, can_drag, content_key) = match &entry.kind {
-            NodeKind::Document(m) | NodeKind::Tool(m) => {
-                (m.title.clone(), m.can_close, m.can_drag, m.content)
-            }
+            NodeKind::Panel(m) => (m.title.clone(), m.can_close, m.can_drag, m.content),
             _ => return None,
         };
-        let tabs: Vec<TabInfo> = group
-            .children
+        let tabs: Vec<TabInfo> = pane
+            .tabs
             .iter()
             .filter_map(|&id| {
                 let e = layout.get(id)?;
                 let title = match &e.kind {
-                    NodeKind::Document(m) | NodeKind::Tool(m) => m.title.clone(),
+                    NodeKind::Panel(m) => m.title.clone(),
                     _ => return None,
                 };
                 Some(TabInfo { id, title })
@@ -157,14 +179,14 @@ impl<Message: Clone + 'static> Dock<Message> {
         let on_tab = Rc::new(move |msg: DockMessage| Self::wrap_event(&h, &on_event, msg));
         Some(
             TabDock::new(
-                group_id,
+                holder.clone(),
+                pane_id,
                 title,
                 can_close,
                 can_drag,
                 tabs,
                 active,
                 content,
-                global_drag_active,
                 on_tab,
             )
             .into(),
@@ -176,9 +198,8 @@ impl<Message: Clone + 'static> Dock<Message> {
         holder: &Rc<RefCell<DockWidgetState>>,
     ) -> Option<Element<'static, Message, Theme, iced::Renderer>> {
         let state = holder.borrow();
-        let global_drag_active = self.drag_active || state.drag.is_some();
         let root = state.layout.root_child()?;
-        self.build_node(holder, &state.layout, global_drag_active, root)
+        self.build_node(holder, &state.layout, root)
     }
 
     /// Rebuild cached root element and reconcile `tree.children`.
@@ -303,6 +324,19 @@ where
     }
 
     fn diff(&self, tree: &mut Tree) {
+        let dirty = tree
+            .state
+            .downcast_ref::<DockTreeHolder<Message>>()
+            .dock_state
+            .borrow()
+            .layout_dirty;
+        if dirty {
+            tree.state
+                .downcast_ref::<DockTreeHolder<Message>>()
+                .dock_state
+                .borrow_mut()
+                .layout_dirty = false;
+        }
         self.sync_root(tree);
     }
 
@@ -319,6 +353,13 @@ where
         renderer: &iced::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
+        let dock_state = tree
+            .state
+            .downcast_ref::<DockTreeHolder<Message>>()
+            .dock_state
+            .clone();
+        dock_state.borrow_mut().drop_targets.clear();
+
         if tree.children.is_empty() {
             self.sync_root(tree);
         }
@@ -377,6 +418,12 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
+        let dock_state = tree
+            .state
+            .downcast_ref::<DockTreeHolder<Message>>()
+            .dock_state
+            .clone();
+
         let Some(child_layout) = layout.children().next() else {
             return;
         };
@@ -404,18 +451,31 @@ where
         }
 
         if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) = event {
-            let dock_state = tree
-                .state
-                .downcast_ref::<DockTreeHolder<Message>>()
-                .dock_state
-                .clone();
             if dock_state.borrow().drag.is_some() {
-                let _ = handle_dock_message_impl(
-                    &mut dock_state.borrow_mut(),
-                    DockMessage::Tab(TabMessage::DragCancelled),
-                );
-                self.sync_root(tree);
+                let changed = finish_drag(&mut dock_state.borrow_mut(), cursor.position());
+                if changed {
+                    shell.invalidate_layout();
+                    shell.invalidate_widgets();
+                }
+                shell.request_redraw();
             }
+        }
+
+        if let Event::Mouse(mouse::Event::CursorMoved { .. }) = event {
+            if dock_state.borrow().drag.is_some() {
+                if let Some(pos) = cursor.position() {
+                    let targets = dock_state.borrow().drop_targets.clone();
+                    if let Some(ref mut session) = dock_state.borrow_mut().drag {
+                        DockManager::update_drag_hover(session, pos, &targets);
+                    }
+                    shell.request_redraw();
+                }
+            }
+        }
+
+        if dock_state.borrow().layout_dirty {
+            dock_state.borrow_mut().layout_dirty = false;
+            self.sync_root(tree);
         }
     }
 
@@ -492,45 +552,42 @@ pub fn handle_dock_message(state: &mut DockWidgetState, msg: DockMessage) -> boo
 
 fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bool {
     let factory = Factory;
-    let manager = DockManager;
     let mut changed = false;
 
     match msg {
         DockMessage::Tab(tab_msg) => match tab_msg {
-            TabMessage::Select { group, tab } => {
-                factory.set_active_tab(&mut state.layout, group, tab);
+            TabMessage::Select { pane, panel } => {
+                factory.set_active_panel(&mut state.layout, pane, panel);
+                state.layout_dirty = true;
                 changed = true;
             }
-            TabMessage::Close { tab } => {
-                if factory.close(&mut state.layout, tab).is_ok() {
+            TabMessage::Close { panel } => {
+                if factory.close(&mut state.layout, panel).is_ok() {
+                    state.layout_dirty = true;
                     changed = true;
                 }
             }
             TabMessage::DragStarted {
-                source_group,
-                source_tab,
+                source_pane,
+                source_panel,
             } => {
-                state.drag = Some(DragSession::new(source_group, source_tab));
+                state.drag = Some(DragSession::new(source_pane, source_panel));
                 changed = true;
             }
-            TabMessage::DragMoved { target, zone } => {
-                if let Some(ref mut session) = state.drag {
-                    session.hover_target = Some(target);
-                    session.operation = Some(zone.to_operation());
+            TabMessage::DragEnded { cursor } => {
+                if finish_drag(state, Some(cursor)) {
+                    changed = true;
                 }
             }
-            TabMessage::DragEnded { target, zone } => {
-                if let Some(session) = state.drag.take() {
-                    let mut session = session;
-                    session.hover_target = Some(target);
-                    session.operation = Some(zone.to_operation());
-                    if manager.execute(&mut state.layout, session).is_ok() {
-                        changed = true;
-                    }
+            TabMessage::DragMoved { cursor } => {
+                let targets = state.drop_targets.clone();
+                if let Some(ref mut session) = state.drag {
+                    DockManager::update_drag_hover(session, cursor, &targets);
                 }
             }
             TabMessage::DragCancelled => {
                 state.drag = None;
+                state.layout_dirty = true;
                 changed = true;
             }
         },
@@ -543,6 +600,7 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
                 .adjust_splitter(&mut state.layout, group, splitter_index, ratio)
                 .is_ok()
             {
+                state.layout_dirty = true;
                 changed = true;
             }
         }
