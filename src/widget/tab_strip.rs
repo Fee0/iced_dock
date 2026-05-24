@@ -146,18 +146,15 @@ fn build_tabs_row<Message: Clone + 'static>(
             (tab_style.inactive_background, tab_style.inactive_text)
         };
         let border_radius = tab_style.border_radius;
-        let label = mouse_area(
-            container(text(tab.title.clone()).size(tab_style.text_size).color(text_color))
-                .padding(Padding {
-                    top: tab_style.padding[0],
-                    bottom: tab_style.padding[0],
-                    left: tab_style.padding[1],
-                    right: tab_style.padding[1],
-                })
-                .height(Length::Fill)
-                .center_y(Length::Fill)
-                .style(move |_| tab_label_container_style(label_bg, border_radius)),
-        );
+        let label = container(text(tab.title.clone()).size(tab_style.text_size).color(text_color))
+            .padding(Padding {
+                top: tab_style.padding[0],
+                bottom: tab_style.padding[0],
+                left: tab_style.padding[1],
+                right: tab_style.padding[1],
+            })
+            .height(Length::Fill)
+            .center_y(Length::Fill);
         let close: Element<'_, Message, Theme, iced::Renderer> = if tab.can_close {
             button(text("×").size(cb.text_size))
                 .padding(cb.padding)
@@ -171,31 +168,31 @@ fn build_tabs_row<Message: Clone + 'static>(
                 .width(Length::Fixed(bar.close_button_width))
                 .into()
         };
-        let tab_cell = row![label, close]
+        let tab_row = row![label, close]
             .height(Length::Fixed(bar.height))
             .align_y(iced::Alignment::Center);
+        // Every tab uses the same widget tree (mouse_area → container → row) so iced can
+        // diff safely when the active tab changes. Active tabs use a transparent fill here;
+        // the selected background is drawn in `TabStrip::draw`.
+        let tab_cell = mouse_area(
+            container(tab_row).style(move |_| tab_label_container_style(label_bg, border_radius)),
+        );
         strip = strip.push(tab_cell);
     }
     strip.into()
 }
 
-fn tab_label_bounds(tab_layout: &Layout<'_>) -> Option<Rectangle> {
-    Some(tab_layout.children().next()?.bounds())
-}
-
-fn hit_test_tab_label(
+fn hit_test_tab(
     row_layout: &Layout<'_>,
     tabs: &[TabInfo],
     scroll_offset: f32,
     pos: iced::Point,
 ) -> Option<NodeId> {
+    let adjusted = iced::Point::new(pos.x + scroll_offset, pos.y);
     for (i, tab) in tabs.iter().enumerate() {
         let tab_layout = row_layout.children().nth(i)?;
-        if let Some(label_bounds) = tab_label_bounds(&tab_layout) {
-            let adjusted = iced::Point::new(pos.x + scroll_offset, pos.y);
-            if label_bounds.contains(adjusted) {
-                return Some(tab.id);
-            }
+        if tab_layout.bounds().contains(adjusted) {
+            return Some(tab.id);
         }
     }
     None
@@ -632,7 +629,7 @@ where
         let hovered = if over_tab_bar {
             cursor_pos.and_then(|pos| {
                 layout.children().next().and_then(|row_layout| {
-                    hit_test_tab_label(
+                    hit_test_tab(
                         &row_layout,
                         &self.tabs,
                         state.scroll_offset,
@@ -715,7 +712,7 @@ where
                     if let (Some(pos), Some(row_layout)) =
                         (cursor_pos, layout.children().next())
                     {
-                        if let Some(tab_id) = hit_test_tab_label(
+                        if let Some(tab_id) = hit_test_tab(
                             &row_layout,
                             &self.tabs,
                             state.scroll_offset,
