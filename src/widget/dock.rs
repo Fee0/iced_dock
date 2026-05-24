@@ -49,18 +49,19 @@ impl DockWidgetState {
             self.layout_dirty = false;
         }
     }
-}
 
-impl DockWidgetState {
     /// Build widget state from a declarative [`LayoutTree`](crate::LayoutTree).
     pub fn from_tree(tree: crate::LayoutTree) -> crate::Result<Self> {
-        let built = crate::builder::build_tree(&tree)?;
-        let focused_pane = crate::builder::first_pane(&built.layout);
+        let built = crate::builder::compile::build_tree(&tree)?;
+        let focused_pane = crate::builder::compile::first_pane(&built.layout);
         Ok(Self::from_built(built, focused_pane))
     }
 
     /// Build widget state from a compiled layout.
-    pub fn from_built(built: crate::builder::BuiltLayout, focused_pane: Option<NodeId>) -> Self {
+    pub fn from_built(
+        built: crate::builder::compile::BuiltLayout,
+        focused_pane: Option<NodeId>,
+    ) -> Self {
         Self {
             layout: built.layout,
             index: built.index,
@@ -143,7 +144,6 @@ pub struct Dock<Message> {
     content: Rc<dyn Fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>>,
     on_event: Rc<dyn Fn(DockEvent) -> Message>,
     external_state: Option<Rc<RefCell<DockWidgetState>>>,
-    drag_active: bool,
     style: Rc<dyn Fn(&Theme) -> DockStyle>,
     tab_bar_scrollbar_hide_delay: iced::time::Duration,
     tab_bar_show_scrollbar: bool,
@@ -158,7 +158,6 @@ impl<Message: Clone + 'static> Dock<Message> {
             content,
             on_event,
             external_state: None,
-            drag_active: false,
             style: Rc::new(DockStyle::from_theme),
             tab_bar_scrollbar_hide_delay: iced::time::Duration::from_secs(1),
             tab_bar_show_scrollbar: true,
@@ -172,11 +171,6 @@ impl<Message: Clone + 'static> Dock<Message> {
 
     pub fn with_state(mut self, state: Rc<RefCell<DockWidgetState>>) -> Self {
         self.external_state = Some(state);
-        self
-    }
-
-    pub fn drag_active(mut self, active: bool) -> Self {
-        self.drag_active = active;
         self
     }
 
@@ -203,12 +197,9 @@ impl<Message: Clone + 'static> Dock<Message> {
         action: DockAction,
     ) -> Message {
         let mut state = holder.borrow_mut();
-        let changed = dispatch_action(&mut state, action.clone());
-        if changed && state.layout_dirty {
-            state.sync_index();
-        }
         let event = action_to_event(&state.layout, &state.index, &action)
             .unwrap_or(DockEvent::LayoutChanged);
+        dispatch_action(&mut state, action);
         (on_event)(event)
     }
 
@@ -354,7 +345,6 @@ pub struct DockBuilder<Message> {
     content: Option<Rc<dyn Fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>>>,
     on_event: Option<Rc<dyn Fn(DockEvent) -> Message>>,
     shared_state: Option<Rc<RefCell<DockWidgetState>>>,
-    drag_active: bool,
     style: Option<Rc<dyn Fn(&Theme) -> DockStyle>>,
     min_pane_width: Option<f32>,
     min_pane_height: Option<f32>,
@@ -368,7 +358,6 @@ impl<Message> Default for DockBuilder<Message> {
             content: None,
             on_event: None,
             shared_state: None,
-            drag_active: false,
             style: None,
             min_pane_width: None,
             min_pane_height: None,
@@ -398,11 +387,6 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
 
     pub fn state(mut self, state: Rc<RefCell<DockWidgetState>>) -> Self {
         self.shared_state = Some(state);
-        self
-    }
-
-    pub fn drag_active(mut self, active: bool) -> Self {
-        self.drag_active = active;
         self
     }
 
@@ -457,7 +441,7 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
         let on_event = self
             .on_event
             .unwrap_or_else(|| Rc::new(|_| panic!("dock().on_event(...) required")));
-        let mut dock = Dock::new(content, on_event).drag_active(self.drag_active);
+        let mut dock = Dock::new(content, on_event);
         dock.external_state = self.shared_state;
         let base_style = self
             .style
@@ -655,35 +639,6 @@ where
                     shell,
                     viewport,
                 );
-            }
-        }
-
-        if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) = event {
-            if dock_state.borrow().drag.is_some() {
-                let changed = finish_drag(&mut dock_state.borrow_mut(), cursor.position());
-                if changed {
-                    shell.invalidate_layout();
-                    shell.invalidate_widgets();
-                }
-                shell.request_redraw();
-            }
-        }
-
-        if let Event::Mouse(mouse::Event::CursorMoved { .. }) = event {
-            if dock_state.borrow().drag.is_some() {
-                if let Some(pos) = cursor.position() {
-                    let drop_targets = dock_state.borrow().drop_targets.clone();
-                    let tab_bar_targets = dock_state.borrow().tab_bar_targets.clone();
-                    if let Some(ref mut session) = dock_state.borrow_mut().drag {
-                        DockManager::update_drag_hover_full(
-                            session,
-                            pos,
-                            &drop_targets,
-                            &tab_bar_targets,
-                        );
-                    }
-                    shell.request_redraw();
-                }
             }
         }
 

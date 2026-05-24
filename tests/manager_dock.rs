@@ -1,5 +1,4 @@
-use iced_dock::factory::Factory;
-use iced_dock::manager::{DockManager, DragSession, DropZone, TabBarTarget};
+use iced_dock::unstable::{DockManager, DragSession, DropZone, Factory, TabBarTarget};
 use iced_dock::model::{Axis, ContentKey, DockOperation, Layout, NodeKind};
 
 #[test]

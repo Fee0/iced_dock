@@ -182,7 +182,6 @@ dock::<Message>()
     .min_pane_height(120.0)
     .tab_bar_show_scrollbar(false)
     .tab_bar_scrollbar_hide_delay(Duration::from_secs(1))
-    .drag_active(false)
     .build()
 ```
 

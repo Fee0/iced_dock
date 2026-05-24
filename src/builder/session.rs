@@ -115,12 +115,11 @@ impl DockSession {
         let panel_node = self
             .panel_node(panel_id)
             .ok_or_else(|| Error::UnknownPanel(panel_id.into()))?;
-        let mut state = self.inner.borrow_mut();
-        Factory.close(&mut state.layout, panel_node)?;
-        state.index.panels.remove(panel_id);
-        state.layout_dirty = true;
-        state.sync_index();
-        Ok(())
+        if self.dispatch(DockAction::Tab(TabAction::Close { panel: panel_node })) {
+            Ok(())
+        } else {
+            Err(Error::NoOwner { panel: panel_node })
+        }
     }
 
     /// All known panel ids.

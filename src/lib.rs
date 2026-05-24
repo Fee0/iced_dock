@@ -25,7 +25,9 @@
 
 pub mod builder;
 pub mod error;
+#[doc(hidden)]
 pub mod factory;
+#[doc(hidden)]
 pub mod manager;
 pub mod model;
 pub mod prelude;

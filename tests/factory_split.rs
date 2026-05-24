@@ -1,4 +1,4 @@
-use iced_dock::factory::Factory;
+use iced_dock::unstable::Factory;
 use iced_dock::model::{Axis, ContentKey, DockOperation, Layout, NodeId, NodeKind};
 
 #[test]

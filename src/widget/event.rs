@@ -74,7 +74,7 @@ fn tab_action_to_event(layout: &Layout, index: &DockIndex, action: &TabAction) -
     }
 }
 
-pub fn panel_id(layout: &Layout, index: &DockIndex, panel: NodeId) -> Option<String> {
+pub(crate) fn panel_id(layout: &Layout, index: &DockIndex, panel: NodeId) -> Option<String> {
     index
         .panels
         .iter()
@@ -87,26 +87,9 @@ pub fn panel_id(layout: &Layout, index: &DockIndex, panel: NodeId) -> Option<Str
         })
 }
 
-pub fn pane_name(layout: &Layout, pane: NodeId) -> Option<String> {
+fn pane_name(layout: &Layout, pane: NodeId) -> Option<String> {
     match layout.kind(pane)? {
         NodeKind::Pane(p) => p.name.clone(),
         _ => None,
-    }
-}
-
-/// Whether applying this action can change the layout tree structure.
-#[allow(dead_code)]
-pub fn action_is_structural(action: &DockAction) -> bool {
-    match action {
-        DockAction::Tab(tab) => matches!(
-            tab,
-            TabAction::Close { .. }
-                | TabAction::DragEnded { .. }
-                | TabAction::DragCancelled
-                | TabAction::DragStarted { .. }
-        ),
-        DockAction::PaneFocused { panel: Some(_), .. } => true,
-        DockAction::PaneFocused { panel: None, .. } => false,
-        DockAction::SplitDrag { .. } => true,
     }
 }
