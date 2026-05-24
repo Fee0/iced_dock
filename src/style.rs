@@ -151,7 +151,7 @@ impl DockStyle {
             window: WindowStyle {
                 background: pane,
                 border: Border {
-                    width: 0.0,
+                    width: 1.0,
                     color: border,
                     radius: radius.into(),
                 },
