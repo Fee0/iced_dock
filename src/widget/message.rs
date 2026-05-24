@@ -28,7 +28,8 @@ pub enum DockMessage {
     SplitDrag {
         group: NodeId,
         splitter_index: usize,
-        ratio: f32,
+        /// Fraction of the adjacent pair's space allocated to the left/top pane.
+        pair_ratio: f32,
     },
     LayoutChanged,
 }

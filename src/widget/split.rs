@@ -22,6 +22,9 @@ struct SplitWidgetState {
     splitter_bounds: Vec<Rectangle>,
     drag_splitter: Option<usize>,
     hovered_splitter: Option<usize>,
+    drag_start_cursor: f32,
+    drag_start_left_size: f32,
+    drag_start_right_size: f32,
 }
 
 fn splitter_under_cursor(
@@ -33,6 +36,14 @@ fn splitter_under_cursor(
         let abs = *bounds + offset;
         abs.contains(cursor_pos).then_some(idx)
     })
+}
+
+fn pane_main_size(child_layout: &Layout<'_>, is_horizontal: bool) -> f32 {
+    if is_horizontal {
+        child_layout.bounds().width
+    } else {
+        child_layout.bounds().height
+    }
 }
 
 pub struct SplitContainer<'a, Message> {
@@ -99,26 +110,13 @@ fn compute_pane_sizes(
         return vec![0.0; count];
     }
 
-    let mut sizes: Vec<f32> = props.iter().map(|p| p * available).collect();
     let min_total = min_pane_size * count as f32;
-    if min_total <= available {
-        for size in &mut sizes {
-            *size = size.max(min_pane_size);
-        }
-        let used: f32 = sizes.iter().sum();
-        if used > available {
-            let scale = available / used;
-            for size in &mut sizes {
-                *size *= scale;
-            }
-        }
-    } else {
+    if min_total > available {
         let scale = available / min_total;
-        for size in &mut sizes {
-            *size = min_pane_size * scale;
-        }
+        return vec![min_pane_size * scale; count];
     }
-    sizes
+
+    props.iter().map(|p| p * available).collect()
 }
 
 impl<'a, Message> Widget<Message, Theme, iced::Renderer> for SplitContainer<'a, Message>
@@ -188,15 +186,17 @@ where
         let mut offset = 0.0f32;
         for (i, child) in self.children.iter_mut().enumerate() {
             let pane_main = pane_sizes.get(i).copied().unwrap_or(min_pane_size);
+            let limit_min = min_pane_size.min(pane_main);
+            let limit_max = pane_main.max(min_pane_size);
             let child_limits = if is_horizontal {
                 layout::Limits::new(
-                    Size::new(min_pane_size, size.height),
-                    Size::new(pane_main, size.height),
+                    Size::new(limit_min, size.height),
+                    Size::new(limit_max, size.height),
                 )
             } else {
                 layout::Limits::new(
-                    Size::new(size.width, min_pane_size),
-                    Size::new(size.width, pane_main),
+                    Size::new(size.width, limit_min),
+                    Size::new(size.width, limit_max),
                 )
             };
             let child_tree = &mut tree.children[i];
@@ -343,15 +343,29 @@ where
 
         let pos = layout.position();
         let offset = iced::Vector::new(pos.x, pos.y);
+        let min_pane_size = self.layout_style().splitter.min_pane_size;
+
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
                 if let Some(cursor_pos) = cursor.position() {
                     for (idx, bounds) in state.splitter_bounds.iter().enumerate() {
                         let abs = *bounds + offset;
                         if abs.contains(cursor_pos) {
-                            state.drag_splitter = Some(idx);
-                            shell.capture_event();
-                            shell.request_redraw();
+                            let children: Vec<_> = layout.children().collect();
+                            if let (Some(left), Some(right)) =
+                                (children.get(idx), children.get(idx + 1))
+                            {
+                                state.drag_splitter = Some(idx);
+                                state.drag_start_cursor = if is_horizontal {
+                                    cursor_pos.x
+                                } else {
+                                    cursor_pos.y
+                                };
+                                state.drag_start_left_size = pane_main_size(left, is_horizontal);
+                                state.drag_start_right_size = pane_main_size(right, is_horizontal);
+                                shell.capture_event();
+                                shell.request_redraw();
+                            }
                             return;
                         }
                     }
@@ -360,21 +374,25 @@ where
             Event::Mouse(mouse::Event::CursorMoved { .. }) => {
                 if let Some(idx) = state.drag_splitter {
                     if let Some(cursor_pos) = cursor.position() {
-                        let total = if is_horizontal {
-                            layout.bounds().width
+                        let cursor_main = if is_horizontal {
+                            cursor_pos.x
                         } else {
-                            layout.bounds().height
+                            cursor_pos.y
                         };
-                        let rel = if is_horizontal {
-                            (cursor_pos.x - layout.bounds().x) / total
+                        let delta = cursor_main - state.drag_start_cursor;
+                        let pair_total =
+                            state.drag_start_left_size + state.drag_start_right_size;
+                        let new_left = (state.drag_start_left_size + delta)
+                            .clamp(min_pane_size, pair_total - min_pane_size);
+                        let pair_ratio = if pair_total > 0.0 {
+                            new_left / pair_total
                         } else {
-                            (cursor_pos.y - layout.bounds().y) / total
+                            0.5
                         };
-                        let ratio = rel.clamp(0.15, 0.85);
                         shell.publish((self.on_event)(DockMessage::SplitDrag {
                             group: self.group_id,
                             splitter_index: idx,
-                            ratio,
+                            pair_ratio,
                         }));
                         shell.capture_event();
                         shell.request_redraw();
@@ -468,5 +486,56 @@ where
 {
     fn from(widget: SplitContainer<'a, Message>) -> Self {
         Element::new(widget)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compute_pane_sizes;
+
+    fn approx_eq(a: f32, b: f32) {
+        assert!((a - b).abs() < 1e-3, "expected {b}, got {a}");
+    }
+
+    #[test]
+    fn compute_pane_sizes_outer_panes_unchanged_when_pair_resizes() {
+        let total = 500.0;
+        let count = 4;
+        let splitter_size = 0.5;
+        let splitter_gap = 10.0;
+        let min_pane_size = 80.0;
+
+        let baseline = compute_pane_sizes(
+            total,
+            &[0.1, 0.2, 0.3, 0.4],
+            count,
+            splitter_size,
+            splitter_gap,
+            min_pane_size,
+        );
+        let after_pair_resize = compute_pane_sizes(
+            total,
+            &[0.1, 0.35, 0.15, 0.4],
+            count,
+            splitter_size,
+            splitter_gap,
+            min_pane_size,
+        );
+
+        approx_eq(baseline[0], after_pair_resize[0]);
+        approx_eq(baseline[3], after_pair_resize[3]);
+        assert!(after_pair_resize[1] > baseline[1]);
+        assert!(after_pair_resize[2] < baseline[2]);
+    }
+
+    #[test]
+    fn compute_pane_sizes_uniform_scale_when_container_too_small() {
+        let sizes = compute_pane_sizes(200.0, &[0.25, 0.25, 0.25, 0.25], 4, 0.5, 10.0, 80.0);
+        assert_eq!(sizes.len(), 4);
+        let sum: f32 = sizes.iter().sum();
+        approx_eq(sum, 200.0 - (0.5 + 10.0) * 3.0);
+        for size in sizes {
+            assert!(size < 80.0);
+        }
     }
 }

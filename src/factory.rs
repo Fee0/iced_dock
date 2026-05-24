@@ -481,7 +481,7 @@ impl Factory {
         layout: &mut Layout,
         group: NodeId,
         splitter_index: usize,
-        ratio_before: f32,
+        pair_ratio: f32,
     ) -> Result {
         if let Some(NodeKind::Proportional(ref mut pg)) = layout.get_mut(group).map(|e| &mut e.kind)
         {
@@ -497,15 +497,12 @@ impl Factory {
             } else {
                 vec![1.0; n]
             };
-            let total: f32 = props.iter().sum();
-            if total <= 0.0 {
+            let pair_total = props[splitter_index] + props[splitter_index + 1];
+            if pair_total <= 0.0 {
                 return Err(Error::ZeroTotalWeight);
             }
-            let left_fixed: f32 = props[..splitter_index].iter().sum();
-            let pair_total = props[splitter_index] + props[splitter_index + 1];
-            let min_weight = 0.05 * total;
-            let left =
-                (ratio_before * total - left_fixed).clamp(min_weight, pair_total - min_weight);
+            let min_weight = 0.05 * pair_total;
+            let left = (pair_ratio * pair_total).clamp(min_weight, pair_total - min_weight);
             props[splitter_index] = left;
             props[splitter_index + 1] = pair_total - left;
             pg.proportions = props;

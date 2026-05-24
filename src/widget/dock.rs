@@ -640,10 +640,10 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
         DockMessage::SplitDrag {
             group,
             splitter_index,
-            ratio,
+            pair_ratio,
         } => {
             if factory
-                .adjust_splitter(&mut state.layout, group, splitter_index, ratio)
+                .adjust_splitter(&mut state.layout, group, splitter_index, pair_ratio)
                 .is_ok()
             {
                 state.layout_dirty = true;
