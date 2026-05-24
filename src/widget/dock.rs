@@ -709,7 +709,6 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
                 source_pane,
                 source_panel,
             } => {
-                factory.set_active_panel(&mut state.layout, source_pane, source_panel);
                 state.drag = Some(DragSession::new(source_pane, source_panel));
                 state.layout_dirty = true;
                 changed = true;
