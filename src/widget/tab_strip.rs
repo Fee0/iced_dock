@@ -10,7 +10,7 @@ use iced::mouse::{self, Cursor};
 use iced::widget::{button, container, mouse_area, row, text, Space};
 use iced::window;
 use iced::{
-    Color, Element, Event, Length, Padding, Rectangle, Size, Theme, Vector,
+    Border, Color, Element, Event, Length, Padding, Rectangle, Size, Theme, Vector,
 };
 
 use crate::model::NodeId;
@@ -34,6 +34,7 @@ struct TabStripState {
     drag_start: Option<iced::Point>,
     dragging: bool,
     pressed_tab: Option<NodeId>,
+    hovered_tab: Option<NodeId>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -61,7 +62,8 @@ impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
         hide_delay: iced::time::Duration,
     ) -> Self {
         let layout_style = (style)(&Theme::Dark);
-        let tabs_row = build_tabs_row(&layout_style, &tabs, active_tab, on_event.clone());
+        let tabs_row =
+            build_tabs_row(&layout_style, &tabs, active_tab, None, on_event.clone());
         Self {
             pane_id,
             tabs,
@@ -82,17 +84,46 @@ impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
     fn active_tab_index(&self) -> Option<usize> {
         self.tabs.iter().position(|tab| tab.id == self.active_tab)
     }
+
+    fn rebuild_tabs_row(&mut self, theme: &Theme, hovered_tab: Option<NodeId>) {
+        let style = self.layout_style(theme);
+        self.tabs_row = build_tabs_row(
+            &style,
+            &self.tabs,
+            self.active_tab,
+            hovered_tab,
+            self.on_event.clone(),
+        );
+    }
+}
+
+const TAB_ACCENT_HEIGHT: f32 = 2.0;
+
+fn tab_label_container_style(background: Color, border_radius: f32) -> container::Style {
+    container::Style {
+        background: if background.a > 0.0 {
+            Some(iced::Background::Color(background))
+        } else {
+            None
+        },
+        border: Border {
+            radius: border_radius.into(),
+            ..Border::default()
+        },
+        ..container::Style::default()
+    }
 }
 
 fn build_tabs_row<Message: Clone + 'static>(
     style: &DockStyle,
     tabs: &[TabInfo],
     active_tab: NodeId,
+    hovered_tab: Option<NodeId>,
     on_event: Rc<dyn Fn(DockMessage) -> Message>,
 ) -> Element<'static, Message, Theme, iced::Renderer> {
     let bar = &style.tab_bar;
     let tab_style = &style.tab;
-    let cb = &style.title_bar.close_button;
+    let cb = &bar.close_button;
     let mut strip = row![]
         .spacing(bar.spacing)
         .padding(bar.padding)
@@ -103,21 +134,26 @@ fn build_tabs_row<Message: Clone + 'static>(
         let on_event = on_event.clone();
         let tab_id = tab.id;
         let is_active = tab.id == active_tab;
-        let text_color = if is_active {
-            tab_style.active_text
+        let is_hovered = hovered_tab == Some(tab_id);
+        let (label_bg, text_color) = if is_active {
+            (Color::TRANSPARENT, tab_style.active_text)
+        } else if is_hovered {
+            (tab_style.hovered_background, tab_style.hovered_text)
         } else {
-            tab_style.inactive_text
+            (tab_style.inactive_background, tab_style.inactive_text)
         };
+        let border_radius = tab_style.border_radius;
         let label = mouse_area(
             container(text(tab.title.clone()).size(tab_style.text_size).color(text_color))
                 .padding(Padding {
-                    top: 0.0,
-                    bottom: 0.0,
+                    top: tab_style.padding[0],
+                    bottom: tab_style.padding[0],
                     left: tab_style.padding[1],
                     right: tab_style.padding[1],
                 })
                 .height(Length::Fill)
-                .center_y(Length::Fill),
+                .center_y(Length::Fill)
+                .style(move |_| tab_label_container_style(label_bg, border_radius)),
         );
         let close: Element<'_, Message, Theme, iced::Renderer> = if tab.can_close {
             button(text("×").size(cb.text_size))
@@ -129,7 +165,7 @@ fn build_tabs_row<Message: Clone + 'static>(
                 .into()
         } else {
             Space::new()
-                .width(Length::Fixed(style.title_bar.close_button_width))
+                .width(Length::Fixed(bar.close_button_width))
                 .into()
         };
         let tab_cell = row![label, close]
@@ -513,6 +549,22 @@ where
                             },
                             dock_style.tab.active_background,
                         );
+                        let accent_y = (tab_bounds.y + tab_bounds.height
+                            - scrollbar_band
+                            - TAB_ACCENT_HEIGHT)
+                            .max(btn_bounds.y);
+                        renderer.fill_quad(
+                            renderer::Quad {
+                                bounds: Rectangle {
+                                    x: btn_bounds.x,
+                                    y: accent_y,
+                                    width: btn_bounds.width,
+                                    height: TAB_ACCENT_HEIGHT,
+                                },
+                                ..renderer::Quad::default()
+                            },
+                            dock_style.tab.active_accent,
+                        );
                     }
                 }
                 let content_cursor =
@@ -580,6 +632,29 @@ where
 
         let cursor_pos = cursor.position();
         let over_tab_bar = cursor_over_tab_bar(tab_bounds, cursor);
+
+        let hovered = if over_tab_bar {
+            cursor_pos.and_then(|pos| {
+                layout.children().next().and_then(|row_layout| {
+                    hit_test_tab_label(
+                        &row_layout,
+                        &self.tabs,
+                        state.scroll_offset,
+                        pos,
+                    )
+                })
+            })
+        } else {
+            None
+        };
+        if hovered != state.hovered_tab {
+            state.hovered_tab = hovered;
+            self.rebuild_tabs_row(&Theme::Dark, hovered);
+            if !tree.children.is_empty() {
+                tree.children[0].diff(&self.tabs_row);
+            }
+            shell.request_redraw();
+        }
 
         if let Event::Window(window::Event::RedrawRequested(now)) = event {
             if let Some(deadline) = state.hide_at {

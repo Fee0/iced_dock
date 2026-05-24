@@ -4,13 +4,13 @@ use iced_dock::{constant, DockStyle};
 #[test]
 fn default_style_from_theme_has_sane_metrics() {
     let style = DockStyle::from_theme(&Theme::Dark);
-    assert!(style.title_bar.height > 0.0);
     assert!(style.tab_bar.height > 0.0);
     assert!(style.tab_bar.drag_threshold > 0.0);
     assert!(style.tab_bar.scrollbar_height > 0.0);
+    assert!(style.tab_bar.close_button_width > 0.0);
     assert!(style.splitter.size > 0.0);
     assert!(style.splitter.gap > 0.0);
-    assert!(style.window.border_radius >= 0.0);
+    assert!(style.window.border.width >= 0.0);
 }
 
 #[test]
@@ -25,7 +25,7 @@ fn active_tab_matches_window_background() {
 fn constant_style_helper() {
     let custom = DockStyle::default();
     let resolved = constant(custom.clone())(&Theme::Light);
-    assert_eq!(resolved.title_bar.height, custom.title_bar.height);
+    assert_eq!(resolved.tab_bar.height, custom.tab_bar.height);
 }
 
 #[test]

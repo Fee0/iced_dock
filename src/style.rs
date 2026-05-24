@@ -1,4 +1,4 @@
-//! Styling for dock chrome: title bars, tabs, panes, splitters, and drop overlays.
+//! Styling for dock chrome: tabs, panes, splitters, and drop overlays.
 
 use iced::widget::button;
 use iced::{Background, Border, Color, Theme};
@@ -10,8 +10,6 @@ pub struct DockStyle {
     pub background: DockBackgroundStyle,
     /// Pane / window chrome (border, padding, fill).
     pub window: WindowStyle,
-    /// Title bar at the top of each pane.
-    pub title_bar: TitleBarStyle,
     /// Tab strip when a pane has multiple tabs.
     pub tab_bar: TabBarStyle,
     /// Individual tab appearance.
@@ -34,22 +32,9 @@ pub struct WindowStyle {
     pub background: Color,
     pub border: Border,
     pub padding: f32,
-    pub border_radius: f32,
 }
 
-/// Title bar metrics and colors.
-#[derive(Debug, Clone)]
-pub struct TitleBarStyle {
-    pub height: f32,
-    pub background: Color,
-    pub text_color: Color,
-    pub text_size: f32,
-    pub close_button_width: f32,
-    pub close_button: CloseButtonStyle,
-    pub drag_threshold: f32,
-}
-
-/// Close control on the title bar (ghost style, not primary).
+/// Close control on each tab.
 #[derive(Debug, Clone)]
 pub struct CloseButtonStyle {
     pub text_size: f32,
@@ -67,9 +52,13 @@ pub struct TabBarStyle {
     pub height: f32,
     pub background: Color,
     pub spacing: f32,
+    /// Outer padding of the tab row: `[vertical, horizontal]`.
     pub padding: [f32; 2],
     /// Minimum pointer movement before a tab label press becomes a dock drag.
     pub drag_threshold: f32,
+    /// Width reserved for the close control (or spacer when a tab cannot close).
+    pub close_button_width: f32,
+    pub close_button: CloseButtonStyle,
     /// Height of the floating horizontal scrollbar thumb when tabs overflow.
     pub scrollbar_height: f32,
     /// Scrollbar thumb color when the tab bar is hovered.
@@ -78,10 +67,11 @@ pub struct TabBarStyle {
     pub scrollbar_thumb_hovered: Color,
 }
 
-/// Individual tab button colors and padding.
+/// Individual tab label colors and padding.
 #[derive(Debug, Clone)]
 pub struct TabStyle {
     pub text_size: f32,
+    /// Label padding: `[vertical, horizontal]`.
     pub padding: [f32; 2],
     pub border_radius: f32,
     pub inactive_background: Color,
@@ -91,6 +81,7 @@ pub struct TabStyle {
     /// Matches [`WindowStyle::background`] for the active tab.
     pub active_background: Color,
     pub active_text: Color,
+    /// Bottom accent on the active tab.
     pub active_accent: Color,
 }
 
@@ -129,17 +120,19 @@ impl Default for DockStyle {
 }
 
 impl DockStyle {
-    /// Build a cohesive, IDE-inspired dark style from the iced theme.
+    /// Default dock chrome; uses the built-in [`Self::modern_dark`] palette.
+    ///
+    /// The `theme` argument is accepted for API compatibility with iced's `.style(|theme| …)`
+    /// pattern but does not remap dock colors yet.
     pub fn from_theme(theme: &Theme) -> Self {
         let _ = theme;
         Self::modern_dark()
     }
 
-    /// VS Code–inspired dark palette with rounded panes and subtle chrome.
+    /// VS Code–inspired dark palette with flat panes and subtle chrome.
     pub fn modern_dark() -> Self {
         let canvas = Color::from_rgb(0.094, 0.094, 0.106); // #18181b
         let pane = Color::from_rgb(0.145, 0.145, 0.157); // #252528
-        let chrome_top = Color::from_rgb(0.133, 0.133, 0.145); // #222225
         let border = Color::from_rgb(0.2, 0.2, 0.22);
         let text = Color::from_rgb(0.82, 0.82, 0.85);
         let text_muted = Color::from_rgb(0.55, 0.55, 0.58);
@@ -156,24 +149,6 @@ impl DockStyle {
                     radius: radius.into(),
                 },
                 padding: 0.0,
-                border_radius: radius,
-            },
-            title_bar: TitleBarStyle {
-                height: 32.0,
-                background: chrome_top,
-                text_color: text,
-                text_size: 12.5,
-                close_button_width: 40.0,
-                close_button: CloseButtonStyle {
-                    text_size: 15.0,
-                    padding: [4.0, 10.0],
-                    text_color: text_muted,
-                    background: Color::TRANSPARENT,
-                    hovered_background: Color::from_rgb(0.85, 0.25, 0.28),
-                    hovered_text: Color::WHITE,
-                    border_radius: 4.0,
-                },
-                drag_threshold: 6.0,
             },
             tab_bar: TabBarStyle {
                 height: 30.0,
@@ -181,6 +156,16 @@ impl DockStyle {
                 spacing: 0.0,
                 padding: [0.0, 0.0],
                 drag_threshold: 6.0,
+                close_button_width: 40.0,
+                close_button: CloseButtonStyle {
+                    text_size: 15.0,
+                    padding: [0.0, 10.0],
+                    text_color: text_muted,
+                    background: Color::TRANSPARENT,
+                    hovered_background: Color::from_rgb(0.85, 0.25, 0.28),
+                    hovered_text: Color::WHITE,
+                    border_radius: 4.0,
+                },
                 scrollbar_height: 4.0,
                 scrollbar_thumb: Color::from_rgba(1.0, 1.0, 1.0, 0.28),
                 scrollbar_thumb_hovered: Color::from_rgba(1.0, 1.0, 1.0, 0.45),
@@ -242,72 +227,12 @@ impl DockStyle {
     }
 }
 
-impl SplitterStyle {
-    /// Set the minimum pane width (see [`SplitterStyle::min_pane_width`]).
-    pub fn with_min_pane_width(mut self, min_pane_width: f32) -> Self {
-        self.min_pane_width = min_pane_width.max(1.0);
-        self
-    }
-
-    /// Set the minimum pane height (see [`SplitterStyle::min_pane_height`]).
-    pub fn with_min_pane_height(mut self, min_pane_height: f32) -> Self {
-        self.min_pane_height = min_pane_height.max(1.0);
-        self
-    }
-}
-
 /// Wrap a fixed [`DockStyle`] for use with [`crate::dock`]'s `.style(...)` builder.
 pub fn constant(style: DockStyle) -> impl Fn(&Theme) -> DockStyle {
     move |_| style.clone()
 }
 
-/// Build an iced [`button::Style`] for a dock tab.
-pub fn tab_button_style(
-    tab: &TabStyle,
-    active: bool,
-) -> impl Fn(&Theme, button::Status) -> button::Style + Clone {
-    let tab = tab.clone();
-    move |_, status| {
-        let (background, text_color, border) = if active {
-            (
-                Color::TRANSPARENT,
-                tab.active_text,
-                Border {
-                    width: 0.0,
-                    color: Color::TRANSPARENT,
-                    radius: tab.border_radius.into(),
-                },
-            )
-        } else {
-            let (bg, text) = match status {
-                button::Status::Hovered => (tab.hovered_background, tab.hovered_text),
-                _ => (tab.inactive_background, tab.inactive_text),
-            };
-            (
-                bg,
-                text,
-                Border {
-                    width: 0.0,
-                    color: Color::TRANSPARENT,
-                    radius: tab.border_radius.into(),
-                },
-            )
-        };
-        button::Style {
-            background: if background.a > 0.0 {
-                Some(Background::Color(background))
-            } else {
-                None
-            },
-            text_color,
-            border,
-            shadow: Default::default(),
-            snap: false,
-        }
-    }
-}
-
-/// Ghost close button for the title bar.
+/// Ghost close button for tab close controls.
 pub fn close_button_style(
     close: &CloseButtonStyle,
 ) -> impl Fn(&Theme, button::Status) -> button::Style + Clone {

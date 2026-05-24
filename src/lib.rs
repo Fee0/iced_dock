@@ -26,8 +26,8 @@ pub use model::{
     ProportionalGroup,
 };
 pub use style::{
-    close_button_style, constant, tab_button_style, CloseButtonStyle, DockBackgroundStyle,
-    DockStyle, DropOverlayStyle, SplitterStyle, TabBarStyle, TabStyle, TitleBarStyle, WindowStyle,
+    close_button_style, constant, CloseButtonStyle, DockBackgroundStyle, DockStyle,
+    DropOverlayStyle, SplitterStyle, TabBarStyle, TabStyle, WindowStyle,
 };
 pub use widget::{
     apply_message, dock, finish_drag, handle_dock_message, Dock, DockMessage, DockWidgetState,
