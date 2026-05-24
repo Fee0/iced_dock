@@ -7,7 +7,7 @@ fn default_style_from_theme_has_sane_metrics() {
     assert!(style.tab_bar.height > 0.0);
     assert!(style.tab_bar.drag_threshold > 0.0);
     assert!(style.tab_bar.scrollbar_height > 0.0);
-    assert!(style.tab_bar.close_button_width > 0.0);
+    assert!(style.tab_bar.close_button.size > 0.0);
     assert!(style.splitter.size > 0.0);
     assert!(style.splitter.gap > 0.0);
     assert!(style.window.border.width >= 0.0);

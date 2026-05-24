@@ -156,21 +156,33 @@ fn build_tabs_row<Message: Clone + 'static>(
             .height(Length::Fill)
             .center_y(Length::Fill);
         let close: Element<'_, Message, Theme, iced::Renderer> = if tab.can_close {
-            button(text("×").size(cb.text_size))
-                .padding(cb.padding)
-                .style(close_button_style(cb))
+            button(
+                container(text("×").size(cb.text_size))
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .align_x(iced::Alignment::Center)
+                    .align_y(iced::Alignment::Center),
+            )
+            .padding(Padding::ZERO)
+            .width(Length::Fixed(cb.size))
+            .height(Length::Fixed(cb.size))
+            .style(close_button_style(cb))
                 .on_press_with(move || {
                     (on_event)(DockMessage::Tab(TabMessage::Close { panel: tab_id }))
                 })
                 .into()
         } else {
             Space::new()
-                .width(Length::Fixed(bar.close_button_width))
+                .width(Length::Fixed(cb.size + cb.margin_right))
                 .into()
         };
-        let tab_row = row![label, close]
-            .height(Length::Fixed(bar.height))
-            .align_y(iced::Alignment::Center);
+        let tab_row = row![
+            label,
+            close,
+            Space::new().width(Length::Fixed(cb.margin_right))
+        ]
+        .height(Length::Fixed(bar.height))
+        .align_y(iced::Alignment::Center);
         // Every tab uses the same widget tree (mouse_area → container → row) so iced can
         // diff safely when the active tab changes. Active tabs use a transparent fill here;
         // the selected background is drawn in `TabStrip::draw`.

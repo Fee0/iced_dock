@@ -38,6 +38,10 @@ pub struct WindowStyle {
 #[derive(Debug, Clone)]
 pub struct CloseButtonStyle {
     pub text_size: f32,
+    /// Square width and height of the close control.
+    pub size: f32,
+    /// Space between the close control and the right edge of the tab.
+    pub margin_right: f32,
     pub padding: [f32; 2],
     pub text_color: Color,
     pub background: Color,
@@ -56,8 +60,6 @@ pub struct TabBarStyle {
     pub padding: [f32; 2],
     /// Minimum pointer movement before a tab label press becomes a dock drag.
     pub drag_threshold: f32,
-    /// Width reserved for the close control (or spacer when a tab cannot close).
-    pub close_button_width: f32,
     pub close_button: CloseButtonStyle,
     /// Height of the floating horizontal scrollbar thumb when tabs overflow.
     pub scrollbar_height: f32,
@@ -156,15 +158,16 @@ impl DockStyle {
                 spacing: 0.0,
                 padding: [0.0, 0.0],
                 drag_threshold: 6.0,
-                close_button_width: 40.0,
                 close_button: CloseButtonStyle {
                     text_size: 15.0,
-                    padding: [4.0, 10.0],
+                    size: 20.0,
+                    margin_right: 6.0,
+                    padding: [0.0, 0.0],
                     text_color: text_muted,
                     background: Color::TRANSPARENT,
                     hovered_background: Color::from_rgb(0.85, 0.25, 0.28),
                     hovered_text: Color::WHITE,
-                    border_radius: 4.0,
+                    border_radius: 3.0,
                 },
                 scrollbar_height: 4.0,
                 scrollbar_thumb: Color::from_rgba(1.0, 1.0, 1.0, 0.28),
