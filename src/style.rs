@@ -136,7 +136,7 @@ impl DockStyle {
             window: WindowStyle {
                 background: pane,
                 border: Border {
-                    width: 1.0,
+                    width: 0.0,
                     color: border,
                     radius: radius.into(),
                 },
@@ -182,7 +182,7 @@ impl DockStyle {
                 size: 0.5,
                 gap: 10.0,
                 min_pane_size: 80.0,
-                idle_color: Color::TRANSPARENT,
+                idle_color: Color::from_rgba(0.2, 0.2, 0.2, 0.99),
                 hover_color: Color::from_rgba(0.99, 0.99, 0.99, 0.99),
                 drag_color: Color::from_rgba(0.99, 0.99, 0.99, 0.99),
             },
