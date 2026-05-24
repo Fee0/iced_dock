@@ -42,6 +42,12 @@ fn idle_splitter_is_transparent_by_default() {
 }
 
 #[test]
+fn modern_dark_has_focused_border() {
+    let style = DockStyle::from_theme(&Theme::Dark);
+    assert!(style.window.focused_border.is_some());
+}
+
+#[test]
 fn with_min_pane_width_and_height_update_splitter_style() {
     let style = DockStyle::from_theme(&Theme::Dark)
         .with_min_pane_width(120.0)

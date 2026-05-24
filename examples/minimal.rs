@@ -1,11 +1,12 @@
 //! Demo: complex IDE layout with splitters, tabs, and drag-dock.
 
+use iced::keyboard::{self, Key, Modifiers};
 use iced::widget::{column, container, text};
-use iced::{application, Color, Element, Length, Size, Task, Theme};
+use iced::{application, Color, Element, Length, Size, Subscription, Task, Theme};
 
 use iced_dock::{
-    dock, horizontal, panel as tab, tabs, vertical, ContentKey, DockMessage, DockSession,
-    DockStyle, LayoutTree,
+    adjacent_pane, dock, horizontal, pane_bounds_map, panel as tab, tabs, vertical, ContentKey,
+    Direction, DockMessage, DockSession, DockStyle, LayoutTree,
 };
 
 fn demo_layout() -> LayoutTree {
@@ -44,6 +45,7 @@ fn main() -> iced::Result {
     application(App::new, update, view)
         .title("iced_dock — minimal")
         .theme(Theme::Dark)
+        .subscription(subscription)
         .window(iced::window::Settings {
             size: Size::new(1200.0, 800.0),
             ..Default::default()
@@ -66,11 +68,42 @@ impl App {
 #[derive(Debug, Clone)]
 enum Message {
     Dock(DockMessage),
+    FocusAdjacent(Direction),
+}
+
+fn subscription(_app: &App) -> Subscription<Message> {
+    keyboard::listen().filter_map(|event| {
+        let keyboard::Event::KeyPressed { key, modifiers, .. } = event else {
+            return None;
+        };
+        if !modifiers.contains(Modifiers::CTRL) {
+            return None;
+        }
+        let direction = match key {
+            Key::Named(keyboard::key::Named::ArrowLeft) => Direction::Left,
+            Key::Named(keyboard::key::Named::ArrowRight) => Direction::Right,
+            Key::Named(keyboard::key::Named::ArrowUp) => Direction::Up,
+            Key::Named(keyboard::key::Named::ArrowDown) => Direction::Down,
+            _ => return None,
+        };
+        Some(Message::FocusAdjacent(direction))
+    })
 }
 
 fn update(app: &mut App, message: Message) -> Task<Message> {
-    let Message::Dock(msg) = message;
-    let _ = app.dock.apply_message(msg);
+    match message {
+        Message::Dock(msg) => {
+            let _ = app.dock.apply_message(msg);
+        }
+        Message::FocusAdjacent(direction) => {
+            if let Some(pane) = app.dock.focused_pane() {
+                let bounds = pane_bounds_map(&app.dock.state().borrow().pane_bounds);
+                if let Some(adjacent) = adjacent_pane(pane, direction, &bounds) {
+                    let _ = app.dock.focus_pane(adjacent);
+                }
+            }
+        }
+    }
     Task::none()
 }
 
@@ -101,7 +134,7 @@ fn view(app: &App) -> Element<'_, Message> {
 
 fn panel(key: ContentKey) -> Element<'static, Message> {
     let (label, hint) = match key.0 {
-        0 => ("main.rs", "Editor"),
+        0 => ("main.rs", "Editor — click to focus pane, Ctrl+Arrow to move focus"),
         1 => ("lib.rs", "Editor"),
         2 => ("preview", "Preview"),
         10 => ("Properties", "Sidebar"),

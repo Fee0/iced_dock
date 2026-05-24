@@ -7,6 +7,7 @@ use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
 use iced::advanced::{Clipboard, Renderer as AdvRenderer, Shell};
 use iced::mouse::{self, Cursor};
+use iced::touch;
 use iced::{Element, Event, Length, Rectangle, Size, Theme};
 
 use crate::manager::{DockManager, TabBarTarget};
@@ -160,6 +161,13 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
             scroll_offset,
         });
     }
+
+    fn register_pane_bounds(&self, bounds: Rectangle) {
+        self.dock_state
+            .borrow_mut()
+            .pane_bounds
+            .push((self.pane_id, bounds));
+    }
 }
 
 impl<'a, Message> Widget<Message, Theme, iced::Renderer> for TabDock<'a, Message>
@@ -250,11 +258,17 @@ where
 
         let pane_bounds = layout.bounds();
         let window = &dock_style.window;
+        let is_focused = self.dock_state.borrow().focused_pane == Some(self.pane_id);
+        let border = if is_focused {
+            window.focused_border.unwrap_or(window.border)
+        } else {
+            window.border
+        };
 
         renderer.fill_quad(
             renderer::Quad {
                 bounds: pane_bounds,
-                border: window.border,
+                border,
                 ..renderer::Quad::default()
             },
             window.background,
@@ -338,6 +352,11 @@ where
         viewport: &Rectangle,
     ) {
         let dragging = self.is_dragging(tree);
+        self.register_pane_bounds(layout.bounds());
+
+        let is_picked = self.dock_state.borrow().drag.is_some_and(|session| {
+            session.source_pane == self.pane_id
+        });
 
         if let Some(content_layout) = layout.children().nth(1) {
             self.register_drop_target(content_layout.bounds());
@@ -394,17 +413,36 @@ where
             tab_strip::set_suppress_hover(&mut tree.children[0], false);
         }
         if let Some(content_layout) = layout.children().nth(1) {
-            compose::child_update(
-                &mut self.content,
-                &mut tree.children[1],
-                event,
-                content_layout,
-                cursor,
-                renderer,
-                clipboard,
-                shell,
-                viewport,
-            );
+            if !is_picked {
+                compose::child_update(
+                    &mut self.content,
+                    &mut tree.children[1],
+                    event,
+                    content_layout,
+                    cursor,
+                    renderer,
+                    clipboard,
+                    shell,
+                    viewport,
+                );
+            }
+
+            if !dragging {
+                match event {
+                    Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+                    | Event::Touch(touch::Event::FingerPressed { .. }) => {
+                        let bounds = content_layout.bounds();
+                        if cursor.position_over(bounds).is_some() {
+                            shell.capture_event();
+                            shell.publish((self.on_event)(DockMessage::PaneFocused {
+                                pane: self.pane_id,
+                                panel: Some(self.active_tab),
+                            }));
+                        }
+                    }
+                    _ => {}
+                }
+            }
         }
 
         if matches!(

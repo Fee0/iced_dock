@@ -112,7 +112,7 @@ pub(crate) fn insert_panel_runtime(
 }
 
 /// Resolve the first pane in preorder tree walk.
-pub(crate) fn first_pane(layout: &Layout) -> Option<NodeId> {
+pub fn first_pane(layout: &Layout) -> Option<NodeId> {
     let root = layout.root_child()?;
     first_pane_walk(layout, root)
 }
@@ -133,24 +133,24 @@ fn first_pane_walk(layout: &Layout, node: NodeId) -> Option<NodeId> {
 }
 
 /// Find the pane that owns a panel node.
-pub(crate) fn owning_pane(layout: &Layout, panel: NodeId) -> Option<NodeId> {
+pub fn owning_pane(layout: &Layout, panel: NodeId) -> Option<NodeId> {
     layout.get(panel).and_then(|e| e.owner)
 }
 
-/// Active panel id string, if any pane has an active tab.
-pub(crate) fn active_panel_id(layout: &Layout, index: &DockIndex) -> Option<String> {
-    for (id, node_id) in &index.panels {
-        let owner = layout.get(*node_id)?.owner?;
-        if let Some(NodeKind::Pane(pane)) = layout.kind(owner) {
-            if pane.active == Some(*node_id) {
-                return Some(id.clone());
-            }
-        }
-    }
-    None
-}
-
-/// Pane id for the pane whose active tab matches `panel_node`.
-pub(crate) fn pane_for_active_panel(layout: &Layout, panel_node: NodeId) -> Option<NodeId> {
-    owning_pane(layout, panel_node)
+/// Active panel id string in a specific pane.
+pub(crate) fn active_panel_in_pane(
+    layout: &Layout,
+    index: &DockIndex,
+    pane: NodeId,
+) -> Option<String> {
+    let NodeKind::Pane(pane_state) = layout.kind(pane)? else {
+        return None;
+    };
+    let active = pane_state
+        .active
+        .or_else(|| pane_state.tabs.first().copied())?;
+    index
+        .panels
+        .iter()
+        .find_map(|(id, node_id)| (*node_id == active).then(|| id.clone()))
 }

@@ -24,6 +24,10 @@ pub struct DockWidgetState {
     pub drag: Option<DragSession>,
     pub drop_targets: Vec<(NodeId, Rectangle)>,
     pub tab_bar_targets: Vec<TabBarTarget>,
+    /// Absolute bounds of each visible pane, collected each layout pass.
+    pub pane_bounds: Vec<(NodeId, Rectangle)>,
+    /// Pane that last received user focus (tab click or content click).
+    pub focused_pane: Option<NodeId>,
     /// Set when the layout tree changes and the cached widget root must rebuild.
     pub layout_dirty: bool,
 }
@@ -32,11 +36,14 @@ impl DockWidgetState {
     /// Build widget state from a declarative [`LayoutTree`](crate::LayoutTree).
     pub fn from_tree(tree: crate::LayoutTree) -> crate::Result<Self> {
         let built = crate::builder::build_tree(&tree)?;
+        let focused_pane = crate::builder::first_pane(&built.layout);
         Ok(Self {
             layout: built.layout,
             drag: None,
             drop_targets: Vec::new(),
             tab_bar_targets: Vec::new(),
+            pane_bounds: Vec::new(),
+            focused_pane,
             layout_dirty: true,
         })
     }
@@ -49,6 +56,8 @@ impl Default for DockWidgetState {
             drag: None,
             drop_targets: Vec::new(),
             tab_bar_targets: Vec::new(),
+            pane_bounds: Vec::new(),
+            focused_pane: None,
             layout_dirty: false,
         }
     }
@@ -501,6 +510,7 @@ where
             .clone();
         dock_state.borrow_mut().drop_targets.clear();
         dock_state.borrow_mut().tab_bar_targets.clear();
+        dock_state.borrow_mut().pane_bounds.clear();
 
         if tree.children.is_empty() {
             self.sync_root(tree);
@@ -720,6 +730,7 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
         DockMessage::Tab(tab_msg) => match tab_msg {
             TabMessage::Select { pane, panel } => {
                 factory.set_active_panel(&mut state.layout, pane, panel);
+                state.focused_pane = Some(pane);
                 state.layout_dirty = true;
                 changed = true;
             }
@@ -760,6 +771,12 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
                 changed = true;
             }
         },
+        DockMessage::PaneFocused { pane, .. } => {
+            if state.focused_pane != Some(pane) {
+                state.focused_pane = Some(pane);
+                changed = true;
+            }
+        }
         DockMessage::SplitDrag {
             group,
             splitter_index,

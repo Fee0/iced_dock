@@ -26,7 +26,7 @@ mod index;
 mod session;
 mod spec;
 
-pub use compile::{build_tree, BuiltLayout};
+pub use compile::{build_tree, first_pane, owning_pane, BuiltLayout};
 pub use index::DockIndex;
 pub use session::{DockSession, PaneTarget};
 pub use spec::{

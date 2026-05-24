@@ -11,12 +11,13 @@ pub mod error;
 pub mod factory;
 pub mod manager;
 pub mod model;
+pub mod spatial;
 pub mod style;
 pub mod widget;
 
 pub use builder::{
-    build_tree, horizontal, panel, single, tabs, vertical, BuiltLayout, DockIndex, DockSession,
-    LayoutTree, PaneTarget, PanelDef, SplitNode, TabsNode,
+    build_tree, first_pane, horizontal, owning_pane, panel, single, tabs, vertical, BuiltLayout,
+    DockIndex, DockSession, LayoutTree, PaneTarget, PanelDef, SplitNode, TabsNode,
 };
 pub use error::{Error, Result};
 pub use factory::Factory;
@@ -25,6 +26,7 @@ pub use model::{
     Axis, ContentKey, DockOperation, Layout, NodeEntry, NodeId, NodeKind, Pane, Panel,
     ProportionalGroup,
 };
+pub use spatial::{adjacent_pane, pane_bounds_map, Direction};
 pub use style::{
     close_button_style, constant, CloseButtonStyle, DockBackgroundStyle, DockStyle,
     DropOverlayStyle, SplitterStyle, TabBarStyle, TabStyle, WindowStyle,

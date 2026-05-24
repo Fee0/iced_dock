@@ -25,6 +25,12 @@ pub enum TabMessage {
 #[derive(Debug, Clone)]
 pub enum DockMessage {
     Tab(TabMessage),
+    /// User clicked into a pane's content area (or app requested pane focus).
+    PaneFocused {
+        pane: NodeId,
+        /// The pane's currently active tab, if any.
+        panel: Option<NodeId>,
+    },
     SplitDrag {
         group: NodeId,
         splitter_index: usize,

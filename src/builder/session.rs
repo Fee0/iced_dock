@@ -2,12 +2,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::builder::compile::{
-    build_tree, first_pane, insert_panel_runtime, owning_pane, pane_for_active_panel,
+    active_panel_in_pane, build_tree, first_pane, insert_panel_runtime, owning_pane,
 };
 use crate::builder::index::DockIndex;
 use crate::builder::spec::{LayoutTree, PanelDef};
 use crate::factory::Factory;
-use crate::model::{Layout, NodeId};
+use crate::model::{NodeId, NodeKind};
 use crate::widget::{handle_dock_message, DockMessage, DockWidgetState};
 use crate::{Error, Result};
 
@@ -26,7 +26,6 @@ pub enum PaneTarget {
 pub struct DockSession {
     inner: Rc<RefCell<DockWidgetState>>,
     index: RefCell<DockIndex>,
-    last_active_pane: RefCell<Option<NodeId>>,
     index_stale: RefCell<bool>,
 }
 
@@ -34,22 +33,19 @@ impl DockSession {
     /// Build a session from a declarative layout tree.
     pub fn from_tree(tree: LayoutTree) -> Result<Self> {
         let built = build_tree(&tree)?;
+        let focused_pane = first_pane(&built.layout);
         let state = DockWidgetState {
             layout: built.layout,
             drag: None,
             drop_targets: Vec::new(),
             tab_bar_targets: Vec::new(),
+            pane_bounds: Vec::new(),
+            focused_pane,
             layout_dirty: true,
         };
-        let last_active_pane = built
-            .index
-            .panels
-            .values()
-            .find_map(|&panel| pane_for_active_panel(&state.layout, panel));
         Ok(Self {
             inner: Rc::new(RefCell::new(state)),
             index: RefCell::new(built.index),
-            last_active_pane: RefCell::new(last_active_pane),
             index_stale: RefCell::new(false),
         })
     }
@@ -61,21 +57,12 @@ impl DockSession {
 
     /// Apply a dock message and refresh internal indexes when the layout changes.
     pub fn apply_message(&self, msg: DockMessage) -> bool {
-        let selected_pane = match &msg {
-            DockMessage::Tab(crate::widget::TabMessage::Select { pane, .. }) => Some(*pane),
-            _ => None,
-        };
         let changed = {
             let mut state = self.inner.borrow_mut();
             handle_dock_message(&mut state, msg)
         };
-        if changed {
-            if self.inner.borrow().layout_dirty {
-                *self.index_stale.borrow_mut() = true;
-            }
-            if let Some(pane) = selected_pane {
-                *self.last_active_pane.borrow_mut() = Some(pane);
-            }
+        if changed && self.inner.borrow().layout_dirty {
+            *self.index_stale.borrow_mut() = true;
         }
         changed
     }
@@ -96,8 +83,8 @@ impl DockSession {
             factory.add_panel_to_pane(&mut state.layout, pane_id, panel_id)?;
             factory.set_active_panel(&mut state.layout, pane_id, panel_id);
             state.layout_dirty = true;
+            state.focused_pane = Some(pane_id);
         }
-        *self.last_active_pane.borrow_mut() = Some(pane_id);
         Ok(())
     }
 
@@ -112,7 +99,7 @@ impl DockSession {
         let pane_id =
             owning_pane(&self.inner.borrow().layout, panel_node).ok_or(Error::InvalidTarget)?;
         Factory.set_active_panel(&mut self.inner.borrow_mut().layout, pane_id, panel_node);
-        *self.last_active_pane.borrow_mut() = Some(pane_id);
+        self.inner.borrow_mut().focused_pane = Some(pane_id);
         self.inner.borrow_mut().layout_dirty = true;
         Ok(())
     }
@@ -139,10 +126,26 @@ impl DockSession {
         self.index.borrow().panel_ids().cloned().collect()
     }
 
-    /// Currently focused panel id, if any.
+    /// Pane that last received focus, if any.
+    pub fn focused_pane(&self) -> Option<NodeId> {
+        self.inner.borrow().focused_pane
+    }
+
+    /// Focus a pane by id (does not change the active tab).
+    pub fn focus_pane(&self, pane: NodeId) -> Result {
+        if !matches!(self.inner.borrow().layout.kind(pane), Some(NodeKind::Pane(_))) {
+            return Err(Error::InvalidTarget);
+        }
+        self.inner.borrow_mut().focused_pane = Some(pane);
+        Ok(())
+    }
+
+    /// Currently focused panel id (active tab in the focused pane), if any.
     pub fn active_panel(&self) -> Option<String> {
         self.ensure_index_fresh();
-        active_panel_id(&self.inner.borrow().layout, &self.index.borrow())
+        let state = self.inner.borrow();
+        let pane = state.focused_pane?;
+        active_panel_in_pane(&state.layout, &self.index.borrow(), pane)
     }
 
     fn ensure_index_fresh(&self) {
@@ -154,30 +157,20 @@ impl DockSession {
     }
 
     fn resolve_pane(&self, target: PaneTarget) -> Result<NodeId> {
-        let layout = &self.inner.borrow().layout;
         match target {
             PaneTarget::Named(name) => self
                 .index
                 .borrow()
                 .pane_node(name)
                 .ok_or_else(|| Error::UnknownPane(name.into())),
-            PaneTarget::Active => (*self.last_active_pane.borrow())
-                .or_else(|| {
-                    self.active_panel().and_then(|id| {
-                        self.index
-                            .borrow()
-                            .panel_node(&id)
-                            .and_then(|p| owning_pane(layout, p))
-                    })
-                })
+            PaneTarget::Active => self
+                .inner
+                .borrow()
+                .focused_pane
                 .ok_or(Error::InvalidTarget),
-            PaneTarget::First => first_pane(layout).ok_or(Error::InvalidTarget),
+            PaneTarget::First => first_pane(&self.inner.borrow().layout).ok_or(Error::InvalidTarget),
         }
     }
-}
-
-fn active_panel_id(layout: &Layout, index: &DockIndex) -> Option<String> {
-    crate::builder::compile::active_panel_id(layout, index)
 }
 
 impl std::fmt::Debug for DockSession {

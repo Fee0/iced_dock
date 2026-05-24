@@ -31,6 +31,8 @@ pub struct DockBackgroundStyle {
 pub struct WindowStyle {
     pub background: Color,
     pub border: Border,
+    /// Border drawn when this pane has focus. Falls back to [`Self::border`] when `None`.
+    pub focused_border: Option<Border>,
     pub padding: f32,
 }
 
@@ -152,6 +154,11 @@ impl DockStyle {
                     color: border,
                     radius: radius.into(),
                 },
+                focused_border: Some(Border {
+                    width: 1.0,
+                    color: accent,
+                    radius: radius.into(),
+                }),
                 padding: 0.0,
             },
             tab_bar: TabBarStyle {
