@@ -1,4 +1,5 @@
 use iced_dock::unstable::{DockManager, DragSession, DropZone, Factory, TabBarTarget};
+use iced_dock::DockStyle;
 use iced_dock::model::{Axis, ContentKey, DockOperation, Layout, NodeKind};
 
 #[test]
@@ -17,6 +18,25 @@ fn fill_accepts_panel_into_other_pane() {
 }
 
 #[test]
+fn hit_test_respects_custom_edge_fraction() {
+    let bounds = iced::Rectangle {
+        x: 0.0,
+        y: 0.0,
+        width: 100.0,
+        height: 100.0,
+    };
+    let edge = DockStyle::modern_dark().drop_overlay.edge_fraction;
+    assert_eq!(
+        DockManager::hit_test_drop_zone(bounds, iced::Point::new(15.0, 50.0), edge),
+        Some(DropZone::Left)
+    );
+    assert_eq!(
+        DockManager::hit_test_drop_zone(bounds, iced::Point::new(15.0, 50.0), 0.1),
+        Some(DropZone::Center)
+    );
+}
+
+#[test]
 fn hit_test_center_zone() {
     let bounds = iced::Rectangle {
         x: 0.0,
@@ -24,7 +44,7 @@ fn hit_test_center_zone() {
         width: 100.0,
         height: 100.0,
     };
-    let zone = DockManager::hit_test_drop_zone(bounds, iced::Point::new(50.0, 50.0));
+    let zone = DockManager::hit_test_drop_zone(bounds, iced::Point::new(50.0, 50.0), 0.2);
     assert_eq!(zone, Some(DropZone::Center));
 }
 
@@ -54,7 +74,7 @@ fn hit_test_pane_prefers_smallest() {
             },
         ),
     ];
-    let hit = DockManager::hit_test_pane(iced::Point::new(75.0, 75.0), &targets);
+    let hit = DockManager::hit_test_pane(iced::Point::new(75.0, 75.0), &targets, 0.2);
     assert_eq!(hit.map(|(id, _)| id), Some(p2));
 }
 
@@ -122,6 +142,7 @@ fn cross_pane_fill_via_execute() {
         hover_target: Some(p2),
         operation: Some(DockOperation::Fill),
         tab_insert: None,
+        drop_edge_fraction: 0.2,
     };
     mgr.execute(&mut layout, session).unwrap();
 
@@ -153,6 +174,7 @@ fn same_pane_edge_validates_and_executes() {
         hover_target: Some(pane),
         operation: Some(DockOperation::Right),
         tab_insert: None,
+        drop_edge_fraction: 0.2,
     };
     mgr.execute(&mut layout, session).unwrap();
 
@@ -184,6 +206,7 @@ fn cross_pane_edge_split_multi_panel() {
         hover_target: Some(p2),
         operation: Some(DockOperation::Right),
         tab_insert: None,
+        drop_edge_fraction: 0.2,
     };
     mgr.execute(&mut layout, session).unwrap();
 
@@ -266,6 +289,7 @@ fn same_pane_tab_reorder_via_execute_tab_insert() {
         hover_target: None,
         operation: None,
         tab_insert: None,
+        drop_edge_fraction: 0.2,
     };
     DockManager
         .execute_tab_insert(&mut layout, session, pane, 0)
@@ -297,6 +321,7 @@ fn cross_pane_tab_insert_at_index_zero() {
         hover_target: None,
         operation: None,
         tab_insert: None,
+        drop_edge_fraction: 0.2,
     };
     DockManager
         .execute_tab_insert(&mut layout, session, p2, 0)
@@ -315,7 +340,7 @@ fn tab_bar_insert_takes_priority_over_content_hover() {
     let factory = Factory;
     let mut layout = Layout::new();
     let pane = factory.create_pane(&mut layout);
-    let mut session = DragSession::new(pane, pane);
+    let mut session = DragSession::new(pane, pane, 0.2);
     let drop_targets = [(
         pane,
         iced::Rectangle {

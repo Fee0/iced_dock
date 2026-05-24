@@ -14,6 +14,7 @@ pub enum TabAction {
     DragStarted {
         source_pane: NodeId,
         source_panel: NodeId,
+        drop_edge_fraction: f32,
     },
     DragMoved {
         cursor: iced::Point,

@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use iced::advanced::layout::{self, Layout};
@@ -54,6 +55,8 @@ pub struct TabStrip<'a, Message> {
     style: Rc<dyn Fn(&Theme) -> DockStyle>,
     hide_delay: iced::time::Duration,
     show_scrollbar: bool,
+    /// Last theme from [`Widget::draw`]; used in layout/update where iced does not pass theme.
+    layout_theme: RefCell<Theme>,
 }
 
 impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
@@ -68,7 +71,7 @@ impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
     ) -> Self {
         let layout_style = (style)(&Theme::Dark);
         let tabs_row =
-            build_tabs_row(&layout_style, &tabs, active_tab, None, on_event.clone());
+            build_tabs_row(&layout_style, &tabs, active_tab, None, None, on_event.clone());
         Self {
             pane_id,
             tabs,
@@ -78,7 +81,12 @@ impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
             style,
             hide_delay,
             show_scrollbar,
+            layout_theme: RefCell::new(Theme::Dark),
         }
+    }
+
+    fn resolved_theme(&self) -> Theme {
+        self.layout_theme.borrow().clone()
     }
 
     fn layout_style(&self, theme: &Theme) -> DockStyle {
@@ -91,19 +99,43 @@ impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
         self.tabs.iter().position(|tab| tab.id == self.active_tab)
     }
 
-    fn rebuild_tabs_row(&mut self, theme: &Theme, hovered_tab: Option<NodeId>) {
+    fn rebuild_tabs_row(
+        &mut self,
+        theme: &Theme,
+        hovered_tab: Option<NodeId>,
+        pressed_tab: Option<NodeId>,
+    ) {
         let style = self.layout_style(theme);
         self.tabs_row = build_tabs_row(
             &style,
             &self.tabs,
             self.active_tab,
             hovered_tab,
+            pressed_tab,
             self.on_event.clone(),
         );
     }
+
+    fn refresh_tabs_row(
+        &mut self,
+        tree: &mut Tree,
+        theme: &Theme,
+        hovered_tab: Option<NodeId>,
+        pressed_tab: Option<NodeId>,
+    ) {
+        self.rebuild_tabs_row(theme, hovered_tab, pressed_tab);
+        if !tree.children.is_empty() {
+            tree.children[0].diff(&self.tabs_row);
+        }
+    }
 }
 
-const TAB_ACCENT_HEIGHT: f32 = 2.0;
+fn visual_pressed_tab(state: &TabStripState) -> Option<NodeId> {
+    if state.dragging {
+        return None;
+    }
+    state.pressed_tab
+}
 
 fn tab_label_container_style(background: Color, border_radius: f32) -> container::Style {
     container::Style {
@@ -125,6 +157,7 @@ fn build_tabs_row<Message: Clone + 'static>(
     tabs: &[TabInfo],
     active_tab: NodeId,
     hovered_tab: Option<NodeId>,
+    pressed_tab: Option<NodeId>,
     on_event: Rc<dyn Fn(DockAction) -> Message>,
 ) -> Element<'static, Message, Theme, iced::Renderer> {
     let bar = &style.tab_bar;
@@ -141,8 +174,15 @@ fn build_tabs_row<Message: Clone + 'static>(
         let tab_id = tab.id;
         let is_active = tab.id == active_tab;
         let is_hovered = hovered_tab == Some(tab_id);
+        let is_pressed = pressed_tab == Some(tab_id);
         let (label_bg, text_color) = if is_active {
-            (Color::TRANSPARENT, tab_style.active_text)
+            if is_pressed {
+                (Color::TRANSPARENT, tab_style.pressed_text)
+            } else {
+                (Color::TRANSPARENT, tab_style.active_text)
+            }
+        } else if is_pressed {
+            (tab_style.pressed_background, tab_style.pressed_text)
         } else if is_hovered {
             (tab_style.hovered_background, tab_style.hovered_text)
         } else {
@@ -160,7 +200,13 @@ fn build_tabs_row<Message: Clone + 'static>(
             .center_y(Length::Fill);
         let close: Element<'_, Message, Theme, iced::Renderer> = if tab.can_close {
             button(
-                container(text("×").size(cb.text_size))
+                container(text(cb.label.clone()).size(cb.text_size))
+                    .padding(Padding {
+                        top: cb.padding[0],
+                        bottom: cb.padding[0],
+                        left: cb.padding[1],
+                        right: cb.padding[1],
+                    })
                     .width(Length::Fill)
                     .height(Length::Fill)
                     .align_x(iced::Alignment::Center)
@@ -222,12 +268,10 @@ fn close_button_bounds(tab_bounds: Rectangle, close: &CloseButtonStyle) -> Recta
     }
 }
 
-const INSERT_MARKER_WIDTH: f32 = 3.0;
-
-fn insert_marker_color(drop_color: Color) -> Color {
+fn insert_marker_color(drop: &crate::style::DropOverlayStyle) -> Color {
     Color {
-        a: drop_color.a.max(0.65),
-        ..drop_color
+        a: drop.color.a.max(drop.insert_marker_min_alpha),
+        ..drop.color
     }
 }
 
@@ -269,12 +313,14 @@ pub(crate) fn insert_marker_rect_layout(
     tab_bounds: Rectangle,
     insert_x: &[f32],
     index: usize,
+    marker_width: f32,
 ) -> Option<Rectangle> {
     let layout_x = *insert_x.get(index)?;
+    let width = marker_width.max(1.0);
     Some(Rectangle {
-        x: layout_x - INSERT_MARKER_WIDTH / 2.0,
+        x: layout_x - width / 2.0,
         y: tab_bounds.y,
-        width: INSERT_MARKER_WIDTH,
+        width,
         height: tab_bounds.height,
     })
 }
@@ -357,7 +403,7 @@ fn scrollbar_metrics(
     };
 
     let ratio = viewport_width / content_width;
-    let thumb_width = (track.width * ratio).max(2.0);
+    let thumb_width = (track.width * ratio).max(bar.scrollbar_thumb_min_width);
     let travel = (track.width - thumb_width).max(0.0);
     let thumb_x = if travel > 0.0 {
         track.x + (scroll_offset / max_offset) * travel
@@ -408,6 +454,7 @@ fn draw_scrollbar(
 
 /// Horizontal scroll delta for the tab row (vertical wheel scrolls horizontally).
 fn scroll_delta_x(delta: mouse::ScrollDelta, shift: bool) -> f32 {
+    const WHEEL_LINES: f32 = 60.0;
     match delta {
         mouse::ScrollDelta::Lines { x, y } => {
             let (x, y) = if cfg!(target_os = "macos") && shift {
@@ -420,7 +467,7 @@ fn scroll_delta_x(delta: mouse::ScrollDelta, shift: bool) -> f32 {
             } else {
                 Vector::new(y, x)
             };
-            -movement.y * 60.0
+            -movement.y * WHEEL_LINES
         }
         mouse::ScrollDelta::Pixels { x, y } => -(x + y),
     }
@@ -579,7 +626,7 @@ where
         renderer: &iced::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let style = self.layout_style(&Theme::Dark);
+        let style = self.layout_style(&self.resolved_theme());
         let bar_height = style.tab_bar.height;
         let max = limits.max();
         let viewport_width = max.width;
@@ -617,8 +664,11 @@ where
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
+        *self.layout_theme.borrow_mut() = theme.clone();
         let dock_style = self.layout_style(theme);
         let bar = &dock_style.tab_bar;
+        let tab_style = &dock_style.tab;
+        let drop_overlay = &dock_style.drop_overlay;
         let state = tree.state.downcast_ref::<TabStripState>();
         let tab_bounds = layout.bounds();
         let Some(row_layout) = layout.children().next() else {
@@ -637,19 +687,23 @@ where
             bar.background,
         );
 
-        let sep = Rectangle {
-            x: tab_bounds.x,
-            y: tab_bounds.y + tab_bounds.height - 1.0,
-            width: tab_bounds.width,
-            height: 1.0,
-        };
-        renderer.fill_quad(
-            renderer::Quad {
-                bounds: sep,
-                ..renderer::Quad::default()
-            },
-            Color::from_rgba(0.0, 0.0, 0.0, 0.35),
-        );
+        if let Some(sep) = &bar.separator {
+            if sep.height > 0.0 && sep.color.a > 0.0 {
+                let bounds = Rectangle {
+                    x: tab_bounds.x,
+                    y: tab_bounds.y + tab_bounds.height - sep.height,
+                    width: tab_bounds.width,
+                    height: sep.height,
+                };
+                renderer.fill_quad(
+                    renderer::Quad {
+                        bounds,
+                        ..renderer::Quad::default()
+                    },
+                    sep.color,
+                );
+            }
+        }
 
         let translation = Vector::new(scroll_offset, 0.0);
 
@@ -671,19 +725,22 @@ where
                             },
                             dock_style.tab.active_background,
                         );
-                        let accent_y = tab_bounds.y + tab_bounds.height - TAB_ACCENT_HEIGHT;
-                        renderer.fill_quad(
-                            renderer::Quad {
-                                bounds: Rectangle {
-                                    x: btn_bounds.x,
-                                    y: accent_y,
-                                    width: btn_bounds.width,
-                                    height: TAB_ACCENT_HEIGHT,
+                        let accent_h = tab_style.active_accent_height.max(0.0);
+                        if accent_h > 0.0 {
+                            let accent_y = tab_bounds.y + tab_bounds.height - accent_h;
+                            renderer.fill_quad(
+                                renderer::Quad {
+                                    bounds: Rectangle {
+                                        x: btn_bounds.x,
+                                        y: accent_y,
+                                        width: btn_bounds.width,
+                                        height: accent_h,
+                                    },
+                                    ..renderer::Quad::default()
                                 },
-                                ..renderer::Quad::default()
-                            },
-                            dock_style.tab.active_accent,
-                        );
+                                tab_style.active_accent,
+                            );
+                        }
                     }
                 }
                 let content_cursor =
@@ -705,15 +762,18 @@ where
 
                 if let Some(index) = state.insert_marker_index {
                     let insert_x = build_insert_x(&row_layout);
-                    if let Some(marker) =
-                        insert_marker_rect_layout(tab_bounds, &insert_x, index)
-                    {
+                    if let Some(marker) = insert_marker_rect_layout(
+                        tab_bounds,
+                        &insert_x,
+                        index,
+                        drop_overlay.insert_marker_width,
+                    ) {
                         renderer.fill_quad(
                             renderer::Quad {
                                 bounds: marker,
                                 ..renderer::Quad::default()
                             },
-                            insert_marker_color(dock_style.drop_overlay.color),
+                            insert_marker_color(drop_overlay),
                         );
                     }
                 }
@@ -755,22 +815,22 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        let state = tree.state.downcast_mut::<TabStripState>();
         let tab_bounds = layout.bounds();
-        let max_offset = max_scroll_offset(state.content_width, state.viewport_width);
-        let dock_style = self.layout_style(&Theme::Dark);
+        let theme = self.resolved_theme();
+        let dock_style = self.layout_style(&theme);
         let bar = &dock_style.tab_bar;
         let threshold = bar.drag_threshold;
-
         let cursor_pos = cursor.position();
         let over_tab_bar = cursor_over_tab_bar(tab_bounds, cursor);
+        let mut row_refresh: Option<(Option<NodeId>, Option<NodeId>)> = None;
+
+        {
+        let state = tree.state.downcast_mut::<TabStripState>();
+        let max_offset = max_scroll_offset(state.content_width, state.viewport_width);
 
         if state.suppress_hover && state.hovered_tab.is_some() {
             state.hovered_tab = None;
-            self.rebuild_tabs_row(&Theme::Dark, None);
-            if !tree.children.is_empty() {
-                tree.children[0].diff(&self.tabs_row);
-            }
+            row_refresh = Some((None, visual_pressed_tab(state)));
             shell.request_redraw();
         }
 
@@ -792,10 +852,7 @@ where
         };
         if hovered != state.hovered_tab {
             state.hovered_tab = hovered;
-            self.rebuild_tabs_row(&Theme::Dark, hovered);
-            if !tree.children.is_empty() {
-                tree.children[0].diff(&self.tabs_row);
-            }
+            row_refresh = Some((hovered, visual_pressed_tab(state)));
             shell.request_redraw();
         }
 
@@ -886,6 +943,8 @@ where
                                     state.drag_pending = true;
                                     state.drag_start = Some(pos);
                                 }
+                                    row_refresh = Some((state.hovered_tab, Some(tab_id)));
+                                    shell.request_redraw();
                                 captured_label = true;
                             }
                         }
@@ -921,10 +980,14 @@ where
                             if let Some(panel) = state.pressed_tab {
                                 state.dragging = true;
                                 state.drag_pending = false;
+                                row_refresh = Some((state.hovered_tab, None));
+                                let drop_edge_fraction =
+                                    self.layout_style(&theme).drop_overlay.edge_fraction;
                                 shell.publish((self.on_event)(DockAction::Tab(
                                     TabAction::DragStarted {
                                         source_pane: self.pane_id,
                                         source_panel: panel,
+                                        drop_edge_fraction,
                                     },
                                 )));
                                 shell.request_redraw();
@@ -945,9 +1008,11 @@ where
                 state.dragging = false;
 
                 if was_dragging {
+                    row_refresh = Some((state.hovered_tab, None));
                     shell.request_redraw();
                     captured_label = true;
                 } else if let Some(panel) = pressed {
+                    row_refresh = Some((state.hovered_tab, None));
                     shell.publish((self.on_event)(DockAction::Tab(TabAction::Select {
                         pane: self.pane_id,
                         panel,
@@ -1019,6 +1084,11 @@ where
             self.show_scrollbar,
             shell,
         );
+        }
+
+        if let Some((hovered, pressed)) = row_refresh {
+            self.refresh_tabs_row(tree, &theme, hovered, pressed);
+        }
     }
 
     fn mouse_interaction(
@@ -1041,7 +1111,7 @@ where
         }
 
         let tab_bounds = layout.bounds();
-        let dock_style = self.layout_style(&Theme::Dark);
+        let dock_style = self.layout_style(&self.resolved_theme());
         if self.show_scrollbar {
             if let Some(metrics) = scrollbar_metrics(
                 tab_bounds,

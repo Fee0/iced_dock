@@ -45,6 +45,6 @@ pub use model::{ContentKey, Layout};
 pub use spatial::{adjacent_pane, pane_bounds_map, Direction};
 pub use style::{
     close_button_style, constant, CloseButtonStyle, DockBackgroundStyle, DockStyle,
-    DropOverlayStyle, SplitterStyle, TabBarStyle, TabStyle, WindowStyle,
+    DropOverlayStyle, SplitterStyle, TabBarSeparatorStyle, TabBarStyle, TabStyle, WindowStyle,
 };
 pub use widget::{dock, Dock, DockAction, DockEvent, DockWidgetState, TabAction};

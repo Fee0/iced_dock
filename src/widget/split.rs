@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use iced::advanced::layout::{self, Layout};
@@ -12,10 +13,6 @@ use crate::model::{Axis, NodeId};
 use crate::style::DockStyle;
 use crate::widget::compose;
 use crate::widget::action::DockAction;
-
-fn layout_theme() -> Theme {
-    Theme::Dark
-}
 
 #[derive(Default)]
 struct SplitWidgetState {
@@ -53,6 +50,7 @@ pub struct SplitContainer<'a, Message> {
     pub children: Vec<Element<'a, Message, Theme, iced::Renderer>>,
     on_event: Rc<dyn Fn(DockAction) -> Message>,
     style: Rc<dyn Fn(&Theme) -> DockStyle>,
+    layout_theme: RefCell<Theme>,
 }
 
 impl<'a, Message> SplitContainer<'a, Message> {
@@ -71,11 +69,16 @@ impl<'a, Message> SplitContainer<'a, Message> {
             children,
             on_event,
             style,
+            layout_theme: RefCell::new(Theme::Dark),
         }
     }
 
-    fn layout_style(&self) -> DockStyle {
-        (self.style)(&layout_theme())
+    fn resolved_theme(&self) -> Theme {
+        self.layout_theme.borrow().clone()
+    }
+
+    fn layout_style(&self, theme: &Theme) -> DockStyle {
+        (self.style)(theme)
     }
 }
 
@@ -205,7 +208,7 @@ where
         renderer: &iced::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let dock_style = self.layout_style();
+        let dock_style = self.layout_style(&self.resolved_theme());
         let splitter_size = dock_style.splitter.size;
         let splitter_gap = dock_style.splitter.gap;
         let is_horizontal = self.axis == Axis::Horizontal;
@@ -302,8 +305,9 @@ where
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
+        *self.layout_theme.borrow_mut() = theme.clone();
         let state = tree.state.downcast_ref::<SplitWidgetState>();
-        let dock_style = (self.style)(theme);
+        let dock_style = self.layout_style(theme);
         let split = &dock_style.splitter;
 
         let pos = layout.position();
@@ -398,10 +402,11 @@ where
 
         let pos = layout.position();
         let offset = iced::Vector::new(pos.x, pos.y);
+        let layout_style = self.layout_style(&self.resolved_theme());
         let min_pane_main = if is_horizontal {
-            self.layout_style().splitter.min_pane_width
+            layout_style.splitter.min_pane_width
         } else {
-            self.layout_style().splitter.min_pane_height
+            layout_style.splitter.min_pane_height
         };
 
         match event {

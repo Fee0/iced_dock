@@ -753,8 +753,13 @@ pub fn dispatch_action(state: &mut DockWidgetState, action: DockAction) -> bool 
             TabAction::DragStarted {
                 source_pane,
                 source_panel,
+                drop_edge_fraction,
             } => {
-                state.drag = Some(DragSession::new(source_pane, source_panel));
+                state.drag = Some(DragSession::new(
+                    source_pane,
+                    source_panel,
+                    drop_edge_fraction,
+                ));
                 state.layout_dirty = true;
                 changed = true;
             }

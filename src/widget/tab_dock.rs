@@ -18,10 +18,6 @@ use crate::widget::action::{DockAction, TabAction};
 use crate::widget::dock::DockWidgetState;
 use crate::widget::tab_strip::{self, TabStrip};
 
-fn layout_theme() -> Theme {
-    Theme::Dark
-}
-
 fn drop_zone_rect(bounds: Rectangle, zone: crate::manager::DropZone, edge: f32) -> Rectangle {
     let w = bounds.width;
     let h = bounds.height;
@@ -94,6 +90,7 @@ pub struct TabDock<'a, Message> {
     style: Rc<dyn Fn(&Theme) -> DockStyle>,
     tab_bar_scrollbar_hide_delay: iced::time::Duration,
     tab_bar_show_scrollbar: bool,
+    layout_theme: RefCell<Theme>,
 }
 
 impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
@@ -129,11 +126,16 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
             style,
             tab_bar_scrollbar_hide_delay,
             tab_bar_show_scrollbar,
+            layout_theme: RefCell::new(Theme::Dark),
         }
     }
 
-    fn layout_style(&self) -> DockStyle {
-        (self.style)(&layout_theme())
+    fn resolved_theme(&self) -> Theme {
+        self.layout_theme.borrow().clone()
+    }
+
+    fn layout_style(&self, theme: &Theme) -> DockStyle {
+        (self.style)(theme)
     }
 
     fn is_dragging(&self, tree: &Tree) -> bool {
@@ -209,7 +211,7 @@ where
         renderer: &iced::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let style = self.layout_style();
+        let style = self.layout_style(&self.resolved_theme());
         let max = limits.max();
         let inset = pane_inset(&style);
         let inner_w = (max.width - 2.0 * inset).max(0.0);
@@ -254,8 +256,9 @@ where
         viewport: &Rectangle,
     ) {
         self.register_pane_bounds(layout.bounds());
+        *self.layout_theme.borrow_mut() = theme.clone();
 
-        let mut dock_style = (self.style)(theme);
+        let mut dock_style = self.layout_style(theme);
         dock_style.sync_tab_appearance();
 
         let pane_bounds = layout.bounds();
@@ -315,12 +318,22 @@ where
                         drag_session
                             .and_then(|s| s.operation)
                             .and_then(|_| cursor.position())
-                            .and_then(|point| DockManager::hit_test_drop_zone(bounds, point))
+                            .and_then(|point| {
+                                DockManager::hit_test_drop_zone(
+                                    bounds,
+                                    point,
+                                    dock_style.drop_overlay.edge_fraction,
+                                )
+                            })
                             .or_else(|| {
                                 cursor
                                     .position_over(bounds)
                                     .and_then(|point| {
-                                        DockManager::hit_test_drop_zone(bounds, point)
+                                        DockManager::hit_test_drop_zone(
+                                            bounds,
+                                            point,
+                                            dock_style.drop_overlay.edge_fraction,
+                                        )
                                     })
                             })
                     })

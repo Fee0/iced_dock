@@ -39,11 +39,14 @@ pub struct WindowStyle {
 /// Close control on each tab.
 #[derive(Debug, Clone)]
 pub struct CloseButtonStyle {
+    /// Label shown on the close control (default `"×"`).
+    pub label: String,
     pub text_size: f32,
     /// Square width and height of the close control.
     pub size: f32,
     /// Space between the close control and the right edge of the tab.
     pub margin_right: f32,
+    /// Inner padding of the close control: `[vertical, horizontal]`.
     pub padding: [f32; 2],
     pub text_color: Color,
     pub background: Color,
@@ -63,12 +66,23 @@ pub struct TabBarStyle {
     /// Minimum pointer movement before a tab label press becomes a dock drag.
     pub drag_threshold: f32,
     pub close_button: CloseButtonStyle,
+    /// Line drawn along the bottom of the tab strip; `None` disables it.
+    pub separator: Option<TabBarSeparatorStyle>,
     /// Height of the floating horizontal scrollbar thumb when tabs overflow.
     pub scrollbar_height: f32,
+    /// Minimum width of the scrollbar thumb.
+    pub scrollbar_thumb_min_width: f32,
     /// Scrollbar thumb color when the tab bar is hovered.
     pub scrollbar_thumb: Color,
     /// Scrollbar thumb color while the thumb is hovered or dragged.
     pub scrollbar_thumb_hovered: Color,
+}
+
+/// Bottom edge line on the tab strip.
+#[derive(Debug, Clone)]
+pub struct TabBarSeparatorStyle {
+    pub color: Color,
+    pub height: f32,
 }
 
 /// Individual tab label colors and padding.
@@ -82,11 +96,15 @@ pub struct TabStyle {
     pub inactive_text: Color,
     pub hovered_background: Color,
     pub hovered_text: Color,
+    pub pressed_background: Color,
+    pub pressed_text: Color,
     /// Matches [`WindowStyle::background`] for the active tab.
     pub active_background: Color,
     pub active_text: Color,
     /// Bottom accent on the active tab.
     pub active_accent: Color,
+    /// Height of the active tab bottom accent bar.
+    pub active_accent_height: f32,
 }
 
 /// Splitter handle between proportional children.
@@ -115,6 +133,10 @@ pub struct DropOverlayStyle {
     pub color: Color,
     /// Fraction of pane edge used for edge drop bands (0.0–0.5).
     pub edge_fraction: f32,
+    /// Width of the vertical insertion marker in the tab bar during drag.
+    pub insert_marker_width: f32,
+    /// Minimum alpha for the tab-bar insertion marker (derived from [`Self::color`]).
+    pub insert_marker_min_alpha: f32,
 }
 
 impl Default for DockStyle {
@@ -124,13 +146,12 @@ impl Default for DockStyle {
 }
 
 impl DockStyle {
-    /// Default dock chrome; uses the built-in [`Self::modern_dark`] palette.
-    ///
-    /// The `theme` argument is accepted for API compatibility with iced's `.style(|theme| …)`
-    /// pattern but does not remap dock colors yet.
+    /// Built-in dock chrome for the given iced theme.
     pub fn from_theme(theme: &Theme) -> Self {
-        let _ = theme;
-        Self::modern_dark()
+        match theme {
+            Theme::Light => Self::modern_light(),
+            _ => Self::modern_dark(),
+        }
     }
 
     /// VS Code–inspired dark palette with flat panes and subtle chrome.
@@ -168,6 +189,7 @@ impl DockStyle {
                 padding: [0.0, 0.0],
                 drag_threshold: 6.0,
                 close_button: CloseButtonStyle {
+                    label: "×".into(),
                     text_size: 15.0,
                     size: 20.0,
                     margin_right: 6.0,
@@ -178,7 +200,12 @@ impl DockStyle {
                     hovered_text: Color::WHITE,
                     border_radius: 3.0,
                 },
+                separator: Some(TabBarSeparatorStyle {
+                    color: Color::from_rgba(0.0, 0.0, 0.0, 0.35),
+                    height: 1.0,
+                }),
                 scrollbar_height: 4.0,
+                scrollbar_thumb_min_width: 2.0,
                 scrollbar_thumb: Color::from_rgba(1.0, 1.0, 1.0, 0.28),
                 scrollbar_thumb_hovered: Color::from_rgba(1.0, 1.0, 1.0, 0.45),
             },
@@ -190,9 +217,12 @@ impl DockStyle {
                 inactive_text: text_muted,
                 hovered_background: Color::from_rgba(1.0, 1.0, 1.0, 0.06),
                 hovered_text: text,
+                pressed_background: Color::from_rgba(1.0, 1.0, 1.0, 0.1),
+                pressed_text: text,
                 active_background: pane,
                 active_text: text,
                 active_accent: accent,
+                active_accent_height: 2.0,
             },
             splitter: SplitterStyle {
                 size: 0.5,
@@ -206,6 +236,96 @@ impl DockStyle {
             drop_overlay: DropOverlayStyle {
                 color: Color::from_rgba(0.38, 0.62, 0.98, 0.28),
                 edge_fraction: 0.2,
+                insert_marker_width: 3.0,
+                insert_marker_min_alpha: 0.65,
+            },
+        }
+    }
+
+    /// Light counterpart to [`Self::modern_dark`].
+    pub fn modern_light() -> Self {
+        let canvas = Color::from_rgb(0.92, 0.92, 0.94);
+        let tab_bar_bg = Color::from_rgb(0.88, 0.88, 0.9);
+        let tab_inactive = Color::from_rgb(0.84, 0.84, 0.87);
+        let pane = Color::from_rgb(0.98, 0.98, 0.99);
+        let border = Color::from_rgb(0.78, 0.78, 0.82);
+        let text = Color::from_rgb(0.15, 0.15, 0.18);
+        let text_muted = Color::from_rgb(0.45, 0.45, 0.5);
+        let accent = Color::from_rgb(0.12, 0.45, 0.92);
+        let radius = 0.0;
+
+        Self {
+            background: DockBackgroundStyle { color: canvas },
+            window: WindowStyle {
+                background: pane,
+                border: Border {
+                    width: 1.0,
+                    color: border,
+                    radius: radius.into(),
+                },
+                focused_border: Some(Border {
+                    width: 1.0,
+                    color: accent,
+                    radius: radius.into(),
+                }),
+                padding: 0.0,
+            },
+            tab_bar: TabBarStyle {
+                height: 30.0,
+                background: tab_bar_bg,
+                spacing: 0.0,
+                padding: [0.0, 0.0],
+                drag_threshold: 6.0,
+                close_button: CloseButtonStyle {
+                    label: "×".into(),
+                    text_size: 15.0,
+                    size: 20.0,
+                    margin_right: 6.0,
+                    padding: [0.0, 0.0],
+                    text_color: text_muted,
+                    background: Color::TRANSPARENT,
+                    hovered_background: Color::from_rgb(0.85, 0.25, 0.28),
+                    hovered_text: Color::WHITE,
+                    border_radius: 3.0,
+                },
+                separator: Some(TabBarSeparatorStyle {
+                    color: Color::from_rgba(0.0, 0.0, 0.0, 0.12),
+                    height: 1.0,
+                }),
+                scrollbar_height: 4.0,
+                scrollbar_thumb_min_width: 2.0,
+                scrollbar_thumb: Color::from_rgba(0.0, 0.0, 0.0, 0.22),
+                scrollbar_thumb_hovered: Color::from_rgba(0.0, 0.0, 0.0, 0.38),
+            },
+            tab: TabStyle {
+                text_size: 12.0,
+                padding: [0.0, 10.0],
+                border_radius: 0.0,
+                inactive_background: tab_inactive,
+                inactive_text: text_muted,
+                hovered_background: Color::from_rgba(0.0, 0.0, 0.0, 0.05),
+                hovered_text: text,
+                pressed_background: Color::from_rgba(0.0, 0.0, 0.0, 0.08),
+                pressed_text: text,
+                active_background: pane,
+                active_text: text,
+                active_accent: accent,
+                active_accent_height: 2.0,
+            },
+            splitter: SplitterStyle {
+                size: 0.5,
+                gap: 10.0,
+                min_pane_width: 80.0,
+                min_pane_height: 80.0,
+                idle_color: Color::TRANSPARENT,
+                hover_color: Color::from_rgba(0.2, 0.2, 0.25, 0.35),
+                drag_color: Color::from_rgba(0.2, 0.2, 0.25, 0.5),
+            },
+            drop_overlay: DropOverlayStyle {
+                color: Color::from_rgba(0.12, 0.45, 0.92, 0.25),
+                edge_fraction: 0.2,
+                insert_marker_width: 3.0,
+                insert_marker_min_alpha: 0.65,
             },
         }
     }

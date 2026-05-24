@@ -6,7 +6,7 @@ use crate::factory::Factory;
 use crate::model::{DockOperation, Layout, NodeId, NodeKind};
 use crate::{Error, Result};
 
-/// Drop zone within a target rect (20% edge bands + center).
+/// Drop zone within a target rect (edge bands + center).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DropZone {
     Center,
@@ -46,16 +46,19 @@ pub struct DragSession {
     pub hover_target: Option<NodeId>,
     pub operation: Option<DockOperation>,
     pub tab_insert: Option<(NodeId, usize)>,
+    /// Edge band size for content drop zones; matches [`crate::DropOverlayStyle::edge_fraction`].
+    pub drop_edge_fraction: f32,
 }
 
 impl DragSession {
-    pub fn new(source_pane: NodeId, source_panel: NodeId) -> Self {
+    pub fn new(source_pane: NodeId, source_panel: NodeId, drop_edge_fraction: f32) -> Self {
         Self {
             source_pane,
             source_panel,
             hover_target: None,
             operation: None,
             tab_insert: None,
+            drop_edge_fraction: drop_edge_fraction.clamp(0.0, 0.5),
         }
     }
 }
@@ -135,7 +138,13 @@ impl DockManager {
     }
 
     /// Map pointer position inside `bounds` to a drop zone.
-    pub fn hit_test_drop_zone(bounds: Rectangle, point: iced::Point) -> Option<DropZone> {
+    ///
+    /// `edge_fraction` is clamped to `0.0..=0.5` (same as [`crate::DropOverlayStyle::edge_fraction`]).
+    pub fn hit_test_drop_zone(
+        bounds: Rectangle,
+        point: iced::Point,
+        edge_fraction: f32,
+    ) -> Option<DropZone> {
         if !bounds.contains(point) {
             return None;
         }
@@ -144,16 +153,16 @@ impl DockManager {
         if w <= 0.0 || h <= 0.0 {
             return None;
         }
+        let edge = edge_fraction.clamp(0.0, 0.5);
         let rx = (point.x - bounds.x) / w;
         let ry = (point.y - bounds.y) / h;
-        const EDGE: f32 = 0.2;
-        if rx < EDGE {
+        if rx < edge {
             Some(DropZone::Left)
-        } else if rx > 1.0 - EDGE {
+        } else if rx > 1.0 - edge {
             Some(DropZone::Right)
-        } else if ry < EDGE {
+        } else if ry < edge {
             Some(DropZone::Top)
-        } else if ry > 1.0 - EDGE {
+        } else if ry > 1.0 - edge {
             Some(DropZone::Bottom)
         } else {
             Some(DropZone::Center)
@@ -164,6 +173,7 @@ impl DockManager {
     pub fn hit_test_pane(
         point: iced::Point,
         targets: &[(NodeId, Rectangle)],
+        edge_fraction: f32,
     ) -> Option<(NodeId, DropZone)> {
         let mut best: Option<(NodeId, Rectangle, f32)> = None;
         for &(id, bounds) in targets {
@@ -175,7 +185,7 @@ impl DockManager {
             }
         }
         best.and_then(|(id, bounds, _)| {
-            Self::hit_test_drop_zone(bounds, point).map(|zone| (id, zone))
+            Self::hit_test_drop_zone(bounds, point, edge_fraction).map(|zone| (id, zone))
         })
     }
 
@@ -220,7 +230,9 @@ impl DockManager {
         cursor: iced::Point,
         drop_targets: &[(NodeId, Rectangle)],
     ) {
-        if let Some((target, zone)) = Self::hit_test_pane(cursor, drop_targets) {
+        if let Some((target, zone)) =
+            Self::hit_test_pane(cursor, drop_targets, session.drop_edge_fraction)
+        {
             session.hover_target = Some(target);
             session.operation = Some(zone.to_operation());
         } else {

@@ -55,3 +55,27 @@ fn with_min_pane_width_and_height_update_splitter_style() {
     assert_eq!(style.splitter.min_pane_width, 120.0);
     assert_eq!(style.splitter.min_pane_height, 64.0);
 }
+
+#[test]
+fn from_theme_light_uses_modern_light_palette() {
+    let light = DockStyle::from_theme(&Theme::Light);
+    let dark = DockStyle::modern_dark();
+    assert_ne!(light.background.color, dark.background.color);
+    assert_ne!(light.tab_bar.background, dark.tab_bar.background);
+}
+
+#[test]
+fn modern_dark_exposes_separator_and_insert_marker_fields() {
+    let style = DockStyle::modern_dark();
+    assert!(style.tab_bar.separator.is_some());
+    assert!(style.tab.active_accent_height > 0.0);
+    assert!(style.drop_overlay.insert_marker_width > 0.0);
+    assert_eq!(style.tab_bar.close_button.label, "×");
+}
+
+#[test]
+fn tab_separator_can_be_disabled() {
+    let mut style = DockStyle::modern_dark();
+    style.tab_bar.separator = None;
+    assert!(style.tab_bar.separator.is_none());
+}
