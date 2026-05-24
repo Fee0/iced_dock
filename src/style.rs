@@ -68,6 +68,12 @@ pub struct TabBarStyle {
     pub background: Color,
     pub spacing: f32,
     pub padding: [f32; 2],
+    /// Height of the floating horizontal scrollbar thumb when tabs overflow.
+    pub scrollbar_height: f32,
+    /// Scrollbar thumb color when the tab bar is hovered.
+    pub scrollbar_thumb: Color,
+    /// Scrollbar thumb color while the thumb is hovered or dragged.
+    pub scrollbar_thumb_hovered: Color,
 }
 
 /// Individual tab button colors and padding.
@@ -172,6 +178,9 @@ impl DockStyle {
                 background: canvas,
                 spacing: 0.0,
                 padding: [0.0, 0.0],
+                scrollbar_height: 4.0,
+                scrollbar_thumb: Color::from_rgba(1.0, 1.0, 1.0, 0.28),
+                scrollbar_thumb_hovered: Color::from_rgba(1.0, 1.0, 1.0, 0.45),
             },
             tab: TabStyle {
                 text_size: 12.0,

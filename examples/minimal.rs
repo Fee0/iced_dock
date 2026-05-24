@@ -14,6 +14,12 @@ fn demo_layout() -> LayoutTree {
             tabs([
                 tab("main", "main.rs", ContentKey(0)),
                 tab("lib", "lib.rs", ContentKey(1)),
+                tab("mod_a", "mod_a.rs", ContentKey(3)),
+                tab("mod_b", "mod_b.rs", ContentKey(4)),
+                tab("mod_c", "mod_c.rs", ContentKey(5)),
+                tab("mod_d", "mod_d.rs", ContentKey(6)),
+                tab("mod_e", "mod_e.rs", ContentKey(7)),
+                tab("mod_f", "mod_f.rs", ContentKey(8)),
             ])
             .active("main"),
             tabs([tab("preview", "preview", ContentKey(2))]),
@@ -79,6 +85,7 @@ fn view(app: &App) -> Element<'_, Message> {
             .content(panel)
             .min_pane_width(200.0)
             .min_pane_height(120.0)
+            .tab_bar_scrollbar_hide_delay(iced::time::Duration::from_millis(500))
             .style(|theme| DockStyle::from_theme(theme))
             .build(),
     )
@@ -101,6 +108,12 @@ fn panel(key: ContentKey) -> Element<'static, Message> {
         11 => ("Output", "Panel"),
         12 => ("Explorer", "Sidebar"),
         13 => ("Search", "Sidebar"),
+        3 => ("mod_a.rs", "Editor"),
+        4 => ("mod_b.rs", "Editor"),
+        5 => ("mod_c.rs", "Editor"),
+        6 => ("mod_d.rs", "Editor"),
+        7 => ("mod_e.rs", "Editor"),
+        8 => ("mod_f.rs", "Editor"),
         n => {
             return text(format!("Unknown pane {n}")).into();
         }

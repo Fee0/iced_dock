@@ -12,10 +12,11 @@ use iced::{Color, Element, Event, Length, Padding, Rectangle, Size, Theme};
 
 use crate::manager::DockManager;
 use crate::model::NodeId;
-use crate::style::{close_button_style, tab_button_style, DockStyle};
+use crate::style::{close_button_style, DockStyle};
 use crate::widget::compose;
 use crate::widget::dock::{handle_dock_message, DockWidgetState};
 use crate::widget::message::{DockMessage, TabMessage};
+use crate::widget::tab_strip::{self, TabStrip};
 
 fn layout_theme() -> Theme {
     Theme::Dark
@@ -64,53 +65,6 @@ fn tab_child_index(tabs: &[TabInfo]) -> Option<usize> {
     has_tab_strip(tabs).then_some(2)
 }
 
-fn active_tab_index(tabs: &[TabInfo], active_tab: NodeId) -> Option<usize> {
-    tabs.iter().position(|tab| tab.id == active_tab)
-}
-
-fn draw_tab_strip_background(
-    tab_layout: &Layout<'_>,
-    active_tab_index: Option<usize>,
-    tab_bar_background: Color,
-    active_background: Color,
-    renderer: &mut iced::Renderer,
-) {
-    let tab_bounds = tab_layout.bounds();
-    renderer.fill_quad(
-        renderer::Quad {
-            bounds: tab_bounds,
-            ..renderer::Quad::default()
-        },
-        tab_bar_background,
-    );
-
-    let Some(active_i) = active_tab_index else {
-        return;
-    };
-    let Some(row_layout) = tab_layout.children().next() else {
-        return;
-    };
-    let Some(active_layout) = row_layout.children().nth(active_i) else {
-        return;
-    };
-
-    let btn_bounds = active_layout.bounds();
-    // Extend 1px upward to cover any subpixel gap with the content above.
-    let fill = Rectangle {
-        x: btn_bounds.x,
-        y: tab_bounds.y - 1.0,
-        width: btn_bounds.width,
-        height: tab_bounds.height + 1.0,
-    };
-    renderer.fill_quad(
-        renderer::Quad {
-            bounds: fill,
-            ..renderer::Quad::default()
-        },
-        active_background,
-    );
-}
-
 #[derive(Debug, Clone)]
 pub struct TabInfo {
     pub id: NodeId,
@@ -136,6 +90,7 @@ pub struct TabDock<'a, Message> {
     pub content: Element<'a, Message, Theme, iced::Renderer>,
     on_event: Rc<dyn Fn(DockMessage) -> Message>,
     style: Rc<dyn Fn(&Theme) -> DockStyle>,
+    tab_bar_scrollbar_hide_delay: iced::time::Duration,
 }
 
 impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
@@ -150,6 +105,7 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
         content: Element<'a, Message, Theme, iced::Renderer>,
         on_event: Rc<dyn Fn(DockMessage) -> Message>,
         style: Rc<dyn Fn(&Theme) -> DockStyle>,
+        tab_bar_scrollbar_hide_delay: iced::time::Duration,
     ) -> Self {
         let layout_style = (style)(&layout_theme());
         let chrome = build_chrome::<Message>(
@@ -160,13 +116,17 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
             active_tab,
             on_event.clone(),
         );
-        let tab_strip = build_tab_strip::<Message>(
-            &layout_style,
-            pane_id,
-            tabs.clone(),
-            active_tab,
-            on_event.clone(),
-        );
+        let tab_strip = has_tab_strip(&tabs).then(|| {
+            TabStrip::new(
+                pane_id,
+                tabs.clone(),
+                active_tab,
+                on_event.clone(),
+                style.clone(),
+                tab_bar_scrollbar_hide_delay,
+            )
+            .into()
+        });
         Self {
             dock_state,
             pane_id,
@@ -178,6 +138,7 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
             content,
             on_event,
             style,
+            tab_bar_scrollbar_hide_delay,
         }
     }
 
@@ -242,58 +203,6 @@ fn build_chrome<Message: Clone + 'static>(
             left: 10.0,
         })
         .into()
-}
-
-fn build_tab_strip<Message: Clone + 'static>(
-    style: &DockStyle,
-    pane_id: NodeId,
-    tabs: Vec<TabInfo>,
-    active_tab: NodeId,
-    on_event: Rc<dyn Fn(DockMessage) -> Message>,
-) -> Option<Element<'static, Message, Theme, iced::Renderer>> {
-    if tabs.len() <= 1 {
-        return None;
-    }
-    let mut style = style.clone();
-    style.sync_tab_appearance();
-    let bar = &style.tab_bar;
-    let tab_style = &style.tab;
-    let mut strip = row![]
-        .spacing(bar.spacing)
-        .padding(bar.padding)
-        .width(Length::Fill)
-        .height(Length::Fixed(bar.height))
-        .align_y(iced::Alignment::Start);
-    for tab in tabs {
-        let on_event = on_event.clone();
-        let tab_id = tab.id;
-        let is_active = tab.id == active_tab;
-        let label = container(text(tab.title.clone()).size(tab_style.text_size))
-            .height(Length::Fill)
-            .center_y(Length::Fill);
-        let btn = button(label)
-            .padding(Padding {
-                top: 0.0,
-                bottom: 0.0,
-                left: tab_style.padding[1],
-                right: tab_style.padding[1],
-            })
-            .height(Length::Fixed(bar.height))
-            .style(tab_button_style(tab_style, is_active))
-            .on_press_with(move || {
-                (on_event)(DockMessage::Tab(TabMessage::Select {
-                    pane: pane_id,
-                    panel: tab_id,
-                }))
-            });
-        strip = strip.push(btn);
-    }
-    Some(
-        container(strip)
-            .width(Length::Fill)
-            .height(Length::Fixed(bar.height))
-            .into(),
-    )
 }
 
 impl<'a, Message> Widget<Message, Theme, iced::Renderer> for TabDock<'a, Message>
@@ -471,17 +380,6 @@ where
                 viewport,
             );
         }
-        if let Some(tab_idx) = tab_child_index(&self.tabs) {
-            if let Some(tab_layout) = layout.children().nth(tab_idx) {
-                draw_tab_strip_background(
-                    &tab_layout,
-                    active_tab_index(&self.tabs, self.active_tab),
-                    dock_style.tab_bar.background,
-                    dock_style.tab.active_background,
-                    renderer,
-                );
-            }
-        }
         if let (Some(tab_idx), Some(tabs)) = (tab_child_index(&self.tabs), &self.tab_strip) {
             if let (Some(tab_layout), Some(child_tree)) =
                 (layout.children().nth(tab_idx), tree.children.get(tab_idx))
@@ -579,6 +477,13 @@ where
                     tabs, child_tree, event, tab_layout, cursor, renderer, clipboard, shell,
                     viewport,
                 );
+                tab_strip::sync_hover_in_tree(
+                    child_tree,
+                    tab_layout.bounds(),
+                    cursor,
+                    self.tab_bar_scrollbar_hide_delay,
+                    shell,
+                );
             }
         }
 
@@ -661,6 +566,12 @@ where
                 }
             }
         }
+
+        if let Some(tab_idx) = tab_child_index(&self.tabs) {
+            if let Some(child_tree) = tree.children.get(tab_idx) {
+                tab_strip::schedule_hide_redraw(child_tree, shell);
+            }
+        }
     }
 
     fn mouse_interaction(
@@ -695,6 +606,15 @@ where
                 viewport,
                 renderer,
             ));
+        }
+        if let (Some(tab_idx), Some(tabs)) = (tab_child_index(&self.tabs), &self.tab_strip) {
+            if let (Some(tab_layout), Some(child_tree)) =
+                (layout.children().nth(tab_idx), tree.children.get(tab_idx))
+            {
+                interaction = interaction.max(compose::child_mouse_interaction(
+                    tabs, child_tree, tab_layout, cursor, viewport, renderer,
+                ));
+            }
         }
         interaction
     }

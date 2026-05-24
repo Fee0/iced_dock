@@ -86,6 +86,7 @@ pub struct Dock<Message> {
     external_state: Option<Rc<RefCell<DockWidgetState>>>,
     drag_active: bool,
     style: Rc<dyn Fn(&Theme) -> DockStyle>,
+    tab_bar_scrollbar_hide_delay: iced::time::Duration,
 }
 
 impl<Message: Clone + 'static> Dock<Message> {
@@ -99,6 +100,7 @@ impl<Message: Clone + 'static> Dock<Message> {
             external_state: None,
             drag_active: false,
             style: Rc::new(DockStyle::from_theme),
+            tab_bar_scrollbar_hide_delay: iced::time::Duration::from_secs(1),
         }
     }
 
@@ -114,6 +116,14 @@ impl<Message: Clone + 'static> Dock<Message> {
 
     pub fn drag_active(mut self, active: bool) -> Self {
         self.drag_active = active;
+        self
+    }
+
+    /// Delay before the tab-bar scrollbar hides after the pointer leaves the tab bar.
+    ///
+    /// Default is one second.
+    pub fn tab_bar_scrollbar_hide_delay(mut self, delay: iced::time::Duration) -> Self {
+        self.tab_bar_scrollbar_hide_delay = delay;
         self
     }
 
@@ -208,6 +218,7 @@ impl<Message: Clone + 'static> Dock<Message> {
                 content,
                 on_tab,
                 self.style.clone(),
+                self.tab_bar_scrollbar_hide_delay,
             )
             .into(),
         )
@@ -272,6 +283,7 @@ pub struct DockBuilder<Message> {
     style: Option<Rc<dyn Fn(&Theme) -> DockStyle>>,
     min_pane_width: Option<f32>,
     min_pane_height: Option<f32>,
+    tab_bar_scrollbar_hide_delay: Option<iced::time::Duration>,
 }
 
 impl<Message> Default for DockBuilder<Message> {
@@ -284,6 +296,7 @@ impl<Message> Default for DockBuilder<Message> {
             style: None,
             min_pane_width: None,
             min_pane_height: None,
+            tab_bar_scrollbar_hide_delay: None,
         }
     }
 }
@@ -335,6 +348,17 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
         self
     }
 
+    /// Delay before the tab-bar scrollbar hides after the pointer leaves the tab bar.
+    ///
+    /// Default is one second.
+    pub fn tab_bar_scrollbar_hide_delay(
+        mut self,
+        delay: iced::time::Duration,
+    ) -> Self {
+        self.tab_bar_scrollbar_hide_delay = Some(delay);
+        self
+    }
+
     pub fn build(self) -> Dock<Message> {
         let content = self
             .content
@@ -362,6 +386,9 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
             });
         } else {
             dock.style = base_style;
+        }
+        if let Some(delay) = self.tab_bar_scrollbar_hide_delay {
+            dock.tab_bar_scrollbar_hide_delay = delay;
         }
         dock
     }
