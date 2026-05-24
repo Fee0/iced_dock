@@ -387,7 +387,9 @@ where
         viewport: &Rectangle,
         renderer: &iced::Renderer,
     ) -> mouse::Interaction {
-        if self.is_dragging(tree) {
+        if self.dock_state.borrow().drag.is_some()
+            || tab_strip::is_tab_drag_active(tree.children.first())
+        {
             return mouse::Interaction::Grab;
         }
 

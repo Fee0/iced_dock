@@ -108,7 +108,7 @@ fn build_tabs_row<Message: Clone + 'static>(
         } else {
             tab_style.inactive_text
         };
-        let mut label = mouse_area(
+        let label = mouse_area(
             container(text(tab.title.clone()).size(tab_style.text_size).color(text_color))
                 .padding(Padding {
                     top: 0.0,
@@ -119,9 +119,6 @@ fn build_tabs_row<Message: Clone + 'static>(
                 .height(Length::Fill)
                 .center_y(Length::Fill),
         );
-        if tab.can_drag {
-            label = label.interaction(mouse::Interaction::Grab);
-        }
         let close: Element<'_, Message, Theme, iced::Renderer> = if tab.can_close {
             button(text("×").size(cb.text_size))
                 .padding(cb.padding)
@@ -283,6 +280,13 @@ pub(crate) fn is_dragging(tab_strip_tree: Option<&Tree>) -> bool {
             let state = tree.state.downcast_ref::<TabStripState>();
             state.dragging || state.drag_pending
         })
+        .unwrap_or(false)
+}
+
+/// Whether a tab label drag has passed the threshold (show grab cursor, etc.).
+pub(crate) fn is_tab_drag_active(tab_strip_tree: Option<&Tree>) -> bool {
+    tab_strip_tree
+        .map(|tree| tree.state.downcast_ref::<TabStripState>().dragging)
         .unwrap_or(false)
 }
 
@@ -780,7 +784,7 @@ where
         renderer: &iced::Renderer,
     ) -> mouse::Interaction {
         let state = tree.state.downcast_ref::<TabStripState>();
-        if state.dragging || state.drag_pending {
+        if state.dragging {
             return mouse::Interaction::Grab;
         }
         if state.scrollbar_drag.is_some() {
@@ -801,24 +805,6 @@ where
                 .is_some_and(|p| metrics.thumb.contains(p) || metrics.track.contains(p))
             {
                 return mouse::Interaction::Pointer;
-            }
-        }
-
-        if let (Some(pos), Some(row_layout)) = (cursor.position(), layout.children().next()) {
-            if let Some(tab_id) = hit_test_tab_label(
-                &row_layout,
-                &self.tabs,
-                state.scroll_offset,
-                pos,
-            ) {
-                if self
-                    .tabs
-                    .iter()
-                    .find(|t| t.id == tab_id)
-                    .is_some_and(|t| t.can_drag)
-                {
-                    return mouse::Interaction::Grab;
-                }
             }
         }
 
