@@ -344,6 +344,11 @@ where
         }
 
         if let Some(tab_layout) = layout.children().next() {
+            let suppress_hover = self.dock_state.borrow().drag.is_some();
+            if tab_strip::set_suppress_hover(&mut tree.children[0], suppress_hover) {
+                shell.request_redraw();
+            }
+
             if let Some(row_layout) = tab_layout.children().next() {
                 let scroll = tab_strip::scroll_offset(&tree.children[0]);
                 let insert_x = tab_strip::build_insert_x(&row_layout);
@@ -386,6 +391,7 @@ where
             }
         } else {
             tab_strip::set_insert_marker_index(&mut tree.children[0], None);
+            tab_strip::set_suppress_hover(&mut tree.children[0], false);
         }
         if let Some(content_layout) = layout.children().nth(1) {
             compose::child_update(

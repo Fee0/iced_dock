@@ -36,6 +36,8 @@ struct TabStripState {
     pressed_tab: Option<NodeId>,
     hovered_tab: Option<NodeId>,
     insert_marker_index: Option<usize>,
+    /// When true, tab label and close-button hover are disabled (active global tab drag).
+    suppress_hover: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -284,6 +286,16 @@ pub(crate) fn set_insert_marker_index(tree: &mut Tree, index: Option<usize>) -> 
         return false;
     }
     state.insert_marker_index = index;
+    true
+}
+
+/// Disable tab label / close-button hover while a tab drag is active anywhere in the dock.
+pub(crate) fn set_suppress_hover(tree: &mut Tree, suppress: bool) -> bool {
+    let state = tree.state.downcast_mut::<TabStripState>();
+    if state.suppress_hover == suppress {
+        return false;
+    }
+    state.suppress_hover = suppress;
     true
 }
 
@@ -753,7 +765,18 @@ where
         let cursor_pos = cursor.position();
         let over_tab_bar = cursor_over_tab_bar(tab_bounds, cursor);
 
-        let hovered = if over_tab_bar {
+        if state.suppress_hover && state.hovered_tab.is_some() {
+            state.hovered_tab = None;
+            self.rebuild_tabs_row(&Theme::Dark, None);
+            if !tree.children.is_empty() {
+                tree.children[0].diff(&self.tabs_row);
+            }
+            shell.request_redraw();
+        }
+
+        let hovered = if state.suppress_hover {
+            None
+        } else if over_tab_bar {
             cursor_pos.and_then(|pos| {
                 layout.children().next().and_then(|row_layout| {
                     hit_test_tab(
@@ -969,8 +992,11 @@ where
 
         if !captured_scrollbar && !captured_label && (forward_wheel || !captured_wheel) {
             if let Some(row_layout) = layout.children().next() {
-                let content_cursor =
-                    tab_row_cursor(tab_bounds, cursor, state.scroll_offset);
+                let content_cursor = if state.suppress_hover {
+                    Cursor::Unavailable
+                } else {
+                    tab_row_cursor(tab_bounds, cursor, state.scroll_offset)
+                };
                 compose::child_update(
                     &mut self.tabs_row,
                     &mut tree.children[0],
@@ -1005,6 +1031,9 @@ where
     ) -> mouse::Interaction {
         let state = tree.state.downcast_ref::<TabStripState>();
         if state.dragging {
+            return mouse::Interaction::Grab;
+        }
+        if state.suppress_hover {
             return mouse::Interaction::Grab;
         }
         if self.show_scrollbar && state.scrollbar_drag.is_some() {
