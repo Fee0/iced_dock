@@ -14,6 +14,13 @@ fn default_style_from_theme_has_sane_metrics() {
 }
 
 #[test]
+fn tab_bar_and_inactive_tabs_differ_from_dock_background() {
+    let style = DockStyle::from_theme(&Theme::Dark);
+    assert_ne!(style.tab_bar.background, style.background.color);
+    assert_ne!(style.tab.inactive_background, style.background.color);
+}
+
+#[test]
 fn active_tab_matches_window_background() {
     let mut style = DockStyle::from_theme(&Theme::Dark);
     style.window.background = iced::Color::from_rgb(0.1, 0.2, 0.3);

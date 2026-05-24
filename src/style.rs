@@ -133,8 +133,10 @@ impl DockStyle {
 
     /// VS Code–inspired dark palette with flat panes and subtle chrome.
     pub fn modern_dark() -> Self {
-        let canvas = Color::from_rgb(0.094, 0.094, 0.106); // #18181b
-        let pane = Color::from_rgb(0.145, 0.145, 0.157); // #252528
+        let canvas = Color::from_rgb(0.094, 0.094, 0.106); // #18181b — dock gaps / outer chrome
+        let tab_bar_bg = Color::from_rgb(0.118, 0.118, 0.133); // #1e1e22 — tab strip
+        let tab_inactive = Color::from_rgb(0.149, 0.149, 0.165); // #26262a — inactive tabs
+        let pane = Color::from_rgb(0.145, 0.145, 0.157); // #252528 — pane / active tab
         let border = Color::from_rgb(0.2, 0.2, 0.22);
         let text = Color::from_rgb(0.82, 0.82, 0.85);
         let text_muted = Color::from_rgb(0.55, 0.55, 0.58);
@@ -154,7 +156,7 @@ impl DockStyle {
             },
             tab_bar: TabBarStyle {
                 height: 30.0,
-                background: canvas,
+                background: tab_bar_bg,
                 spacing: 0.0,
                 padding: [0.0, 0.0],
                 drag_threshold: 6.0,
@@ -177,7 +179,7 @@ impl DockStyle {
                 text_size: 12.0,
                 padding: [0.0, 10.0],
                 border_radius: 0.0,
-                inactive_background: Color::TRANSPARENT,
+                inactive_background: tab_inactive,
                 inactive_text: text_muted,
                 hovered_background: Color::from_rgba(1.0, 1.0, 1.0, 0.06),
                 hovered_text: text,
@@ -206,14 +208,13 @@ impl DockStyle {
         self.tab.active_background = self.window.background;
     }
 
-    /// Align tab strip fill with the dock root background.
+    /// Set the tab strip background to match [`DockBackgroundStyle::color`].
     pub fn sync_tab_bar_with_dock(&mut self) {
         self.tab_bar.background = self.background.color;
     }
 
-    /// Apply [`sync_tab_bar_with_dock`] and [`sync_active_tab_with_window`].
+    /// Keep the active tab fill aligned with the pane background.
     pub fn sync_tab_appearance(&mut self) {
-        self.sync_tab_bar_with_dock();
         self.sync_active_tab_with_window();
     }
 
