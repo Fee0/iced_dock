@@ -92,7 +92,14 @@ pub struct SplitterStyle {
     pub size: f32,
     /// Extra space between panes (shows [`DockBackgroundStyle::color`]).
     pub gap: f32,
-    pub min_pane_size: f32,
+    /// Minimum width of each pane in horizontal split groups.
+    ///
+    /// Split drags stop when an adjacent pair would shrink a pane below this width.
+    pub min_pane_width: f32,
+    /// Minimum height of each pane in vertical split groups.
+    ///
+    /// Split drags stop when an adjacent pair would shrink a pane below this height.
+    pub min_pane_height: f32,
     /// Drawn when idle (typically fully transparent).
     pub idle_color: Color,
     pub hover_color: Color,
@@ -181,8 +188,9 @@ impl DockStyle {
             splitter: SplitterStyle {
                 size: 0.5,
                 gap: 10.0,
-                min_pane_size: 80.0,
-                idle_color: Color::from_rgba(0.2, 0.2, 0.2, 0.99),
+                min_pane_width: 80.0,
+                min_pane_height: 80.0,
+                idle_color: Color::TRANSPARENT,
                 hover_color: Color::from_rgba(0.99, 0.99, 0.99, 0.99),
                 drag_color: Color::from_rgba(0.99, 0.99, 0.99, 0.99),
             },
@@ -207,6 +215,32 @@ impl DockStyle {
     pub fn sync_tab_appearance(&mut self) {
         self.sync_tab_bar_with_dock();
         self.sync_active_tab_with_window();
+    }
+
+    /// Set the minimum pane width for horizontal splits.
+    pub fn with_min_pane_width(mut self, min_pane_width: f32) -> Self {
+        self.splitter.min_pane_width = min_pane_width.max(1.0);
+        self
+    }
+
+    /// Set the minimum pane height for vertical splits.
+    pub fn with_min_pane_height(mut self, min_pane_height: f32) -> Self {
+        self.splitter.min_pane_height = min_pane_height.max(1.0);
+        self
+    }
+}
+
+impl SplitterStyle {
+    /// Set the minimum pane width (see [`SplitterStyle::min_pane_width`]).
+    pub fn with_min_pane_width(mut self, min_pane_width: f32) -> Self {
+        self.min_pane_width = min_pane_width.max(1.0);
+        self
+    }
+
+    /// Set the minimum pane height (see [`SplitterStyle::min_pane_height`]).
+    pub fn with_min_pane_height(mut self, min_pane_height: f32) -> Self {
+        self.min_pane_height = min_pane_height.max(1.0);
+        self
     }
 }
 

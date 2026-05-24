@@ -270,6 +270,8 @@ pub struct DockBuilder<Message> {
     shared_state: Option<Rc<RefCell<DockWidgetState>>>,
     drag_active: bool,
     style: Option<Rc<dyn Fn(&Theme) -> DockStyle>>,
+    min_pane_width: Option<f32>,
+    min_pane_height: Option<f32>,
 }
 
 impl<Message> Default for DockBuilder<Message> {
@@ -280,6 +282,8 @@ impl<Message> Default for DockBuilder<Message> {
             shared_state: None,
             drag_active: false,
             style: None,
+            min_pane_width: None,
+            min_pane_height: None,
         }
     }
 }
@@ -313,6 +317,24 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
         self
     }
 
+    /// Minimum width of each pane in horizontal split groups.
+    ///
+    /// Overrides [`SplitterStyle::min_pane_width`] on the resolved [`DockStyle`].
+    /// Default is `80.0` from [`DockStyle::modern_dark`].
+    pub fn min_pane_width(mut self, min_pane_width: f32) -> Self {
+        self.min_pane_width = Some(min_pane_width.max(1.0));
+        self
+    }
+
+    /// Minimum height of each pane in vertical split groups.
+    ///
+    /// Overrides [`SplitterStyle::min_pane_height`] on the resolved [`DockStyle`].
+    /// Default is `80.0` from [`DockStyle::modern_dark`].
+    pub fn min_pane_height(mut self, min_pane_height: f32) -> Self {
+        self.min_pane_height = Some(min_pane_height.max(1.0));
+        self
+    }
+
     pub fn build(self) -> Dock<Message> {
         let content = self
             .content
@@ -322,8 +344,24 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
             .unwrap_or_else(|| Rc::new(|_| panic!("dock().on_event(...) required")));
         let mut dock = Dock::new(content, on_event).drag_active(self.drag_active);
         dock.external_state = self.shared_state;
-        if let Some(style) = self.style {
-            dock.style = style;
+        let base_style = self
+            .style
+            .unwrap_or_else(|| Rc::new(DockStyle::from_theme) as Rc<dyn Fn(&Theme) -> DockStyle>);
+        let min_pane_width = self.min_pane_width;
+        let min_pane_height = self.min_pane_height;
+        if min_pane_width.is_some() || min_pane_height.is_some() {
+            dock.style = Rc::new(move |theme| {
+                let mut style = base_style(theme);
+                if let Some(width) = min_pane_width {
+                    style = style.with_min_pane_width(width);
+                }
+                if let Some(height) = min_pane_height {
+                    style = style.with_min_pane_height(height);
+                }
+                style
+            });
+        } else {
+            dock.style = base_style;
         }
         dock
     }

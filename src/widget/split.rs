@@ -208,7 +208,12 @@ where
         let dock_style = self.layout_style();
         let splitter_size = dock_style.splitter.size;
         let splitter_gap = dock_style.splitter.gap;
-        let min_pane_size = dock_style.splitter.min_pane_size;
+        let is_horizontal = self.axis == Axis::Horizontal;
+        let min_pane_main = if is_horizontal {
+            dock_style.splitter.min_pane_width
+        } else {
+            dock_style.splitter.min_pane_height
+        };
 
         let state = tree.state.downcast_mut::<SplitWidgetState>();
         let size = limits.max();
@@ -218,7 +223,6 @@ where
             return layout::Node::new(Size::ZERO);
         }
 
-        let is_horizontal = self.axis == Axis::Horizontal;
         let main_size = if is_horizontal {
             size.width
         } else {
@@ -230,7 +234,7 @@ where
             count,
             splitter_size,
             splitter_gap,
-            min_pane_size,
+            min_pane_main,
         );
 
         let mut children_nodes = Vec::with_capacity(count);
@@ -394,7 +398,11 @@ where
 
         let pos = layout.position();
         let offset = iced::Vector::new(pos.x, pos.y);
-        let min_pane_size = self.layout_style().splitter.min_pane_size;
+        let min_pane_main = if is_horizontal {
+            self.layout_style().splitter.min_pane_width
+        } else {
+            self.layout_style().splitter.min_pane_height
+        };
 
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
@@ -433,8 +441,8 @@ where
                         let delta = cursor_main - state.drag_start_cursor;
                         let pair_total =
                             state.drag_start_left_size + state.drag_start_right_size;
-                        let min_left = min_pane_size.min(pair_total);
-                        let max_left = (pair_total - min_pane_size).max(min_left);
+                        let min_left = min_pane_main.min(pair_total);
+                        let max_left = (pair_total - min_pane_main).max(min_left);
                         let new_left =
                             (state.drag_start_left_size + delta).clamp(min_left, max_left);
                         let pair_ratio = if pair_total > 0.0 {

@@ -31,3 +31,12 @@ fn idle_splitter_is_transparent_by_default() {
     let style = DockStyle::from_theme(&Theme::Dark);
     assert_eq!(style.splitter.idle_color.a, 0.0);
 }
+
+#[test]
+fn with_min_pane_width_and_height_update_splitter_style() {
+    let style = DockStyle::from_theme(&Theme::Dark)
+        .with_min_pane_width(120.0)
+        .with_min_pane_height(64.0);
+    assert_eq!(style.splitter.min_pane_width, 120.0);
+    assert_eq!(style.splitter.min_pane_height, 64.0);
+}

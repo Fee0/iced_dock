@@ -77,6 +77,8 @@ fn view(app: &App) -> Element<'_, Message> {
             .state(app.dock.state())
             .on_event(Message::Dock)
             .content(panel)
+            .min_pane_width(200.0)
+            .min_pane_height(120.0)
             .style(|theme| DockStyle::from_theme(theme))
             .build(),
     )
