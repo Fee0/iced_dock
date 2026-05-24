@@ -573,32 +573,30 @@ where
                     },
                 );
             });
-        });
 
-        let show_scrollbar = state.scrollbar_visible
-            && state
-                .hide_at
-                .is_none_or(|deadline| iced::time::Instant::now() < deadline);
+            let show_scrollbar = state.scrollbar_visible
+                && state.hide_at.is_none_or(|deadline| iced::time::Instant::now() < deadline);
 
-        if overflow && show_scrollbar {
-            if let Some(metrics) = scrollbar_metrics(
-                tab_bounds,
-                bar,
-                scroll_offset,
-                state.content_width,
-                state.viewport_width,
-            ) {
-                let thumb_hovered = cursor
-                    .position()
-                    .is_some_and(|p| metrics.thumb.contains(p));
-                draw_scrollbar(
-                    &metrics,
-                    thumb_hovered || state.scrollbar_drag.is_some(),
+            if overflow && show_scrollbar {
+                if let Some(metrics) = scrollbar_metrics(
+                    tab_bounds,
                     bar,
-                    renderer,
-                );
+                    scroll_offset,
+                    state.content_width,
+                    state.viewport_width,
+                ) {
+                    let thumb_hovered = cursor
+                        .position()
+                        .is_some_and(|p| metrics.thumb.contains(p));
+                    draw_scrollbar(
+                        &metrics,
+                        thumb_hovered || state.scrollbar_drag.is_some(),
+                        bar,
+                        renderer,
+                    );
+                }
             }
-        }
+        });
     }
 
     fn update(
