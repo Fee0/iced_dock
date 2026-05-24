@@ -159,7 +159,7 @@ impl DockStyle {
                 close_button_width: 40.0,
                 close_button: CloseButtonStyle {
                     text_size: 15.0,
-                    padding: [0.0, 10.0],
+                    padding: [4.0, 10.0],
                     text_color: text_muted,
                     background: Color::TRANSPARENT,
                     hovered_background: Color::from_rgb(0.85, 0.25, 0.28),

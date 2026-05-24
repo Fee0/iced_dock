@@ -498,11 +498,6 @@ where
         let scroll_offset = state.scroll_offset;
         let visible_bounds = tab_bounds.intersection(viewport).unwrap_or(tab_bounds);
         let overflow = state.content_width > state.viewport_width + f32::EPSILON;
-        let scrollbar_band = if overflow {
-            bar.scrollbar_height
-        } else {
-            0.0
-        };
 
         renderer.fill_quad(
             renderer::Quad {
@@ -537,10 +532,7 @@ where
                             x: btn_bounds.x,
                             y: btn_bounds.y,
                             width: btn_bounds.width,
-                            height: (tab_bounds.height - scrollbar_band - btn_bounds.y
-                                + tab_bounds.y
-                                + 1.0)
-                                .max(0.0),
+                            height: (tab_bounds.height - btn_bounds.y + tab_bounds.y + 1.0).max(0.0),
                         };
                         renderer.fill_quad(
                             renderer::Quad {
@@ -549,10 +541,7 @@ where
                             },
                             dock_style.tab.active_background,
                         );
-                        let accent_y = (tab_bounds.y + tab_bounds.height
-                            - scrollbar_band
-                            - TAB_ACCENT_HEIGHT)
-                            .max(btn_bounds.y);
+                        let accent_y = tab_bounds.y + tab_bounds.height - TAB_ACCENT_HEIGHT;
                         renderer.fill_quad(
                             renderer::Quad {
                                 bounds: Rectangle {
