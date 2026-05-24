@@ -83,6 +83,7 @@ fn pane_focused_updates_focus_without_layout_dirty() {
         tab_bar_targets: Vec::new(),
         pane_bounds: Vec::new(),
         focused_pane: Some(pane_a),
+        focus_dirty: false,
         layout_dirty: false,
     };
 
@@ -96,6 +97,7 @@ fn pane_focused_updates_focus_without_layout_dirty() {
 
     assert!(changed);
     assert!(!state.layout_dirty);
+    assert!(state.focus_dirty);
     assert_eq!(state.focused_pane, Some(pane_b));
 }
 
@@ -146,6 +148,40 @@ fn open_panel_active_targets_focused_pane() {
 
     assert_eq!(session.active_panel().as_deref(), Some("terminal"));
     assert_eq!(session.focused_pane(), Some(output_pane));
+}
+
+#[test]
+fn adjacent_pane_finds_horizontal_neighbor_with_gap() {
+    let built = build_tree(&horizontal([
+        tabs([panel("a", "A", ContentKey(0))]),
+        tabs([panel("b", "B", ContentKey(1))]),
+    ]))
+    .expect("built");
+    let left = iced_dock::first_pane(&built.layout).expect("left");
+    let right = built
+        .layout
+        .root_child()
+        .and_then(|root| {
+            if let iced_dock::NodeKind::Proportional(pg) = built.layout.kind(root)? {
+                pg.children.iter().find(|&&id| id != left).copied()
+            } else {
+                None
+            }
+        })
+        .expect("right");
+
+    let mut map = std::collections::HashMap::new();
+    map.insert(
+        left,
+        iced::Rectangle::new(iced::Point::ORIGIN, iced::Size::new(100.0, 100.0)),
+    );
+    map.insert(
+        right,
+        iced::Rectangle::new(iced::Point::new(120.0, 0.0), iced::Size::new(100.0, 100.0)),
+    );
+
+    assert_eq!(adjacent_pane(left, Direction::Right, &map), Some(right));
+    assert_eq!(adjacent_pane(right, Direction::Left, &map), Some(left));
 }
 
 #[test]

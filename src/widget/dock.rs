@@ -24,10 +24,12 @@ pub struct DockWidgetState {
     pub drag: Option<DragSession>,
     pub drop_targets: Vec<(NodeId, Rectangle)>,
     pub tab_bar_targets: Vec<TabBarTarget>,
-    /// Absolute bounds of each visible pane, collected each layout pass.
+    /// Absolute bounds of each visible pane, collected each draw pass.
     pub pane_bounds: Vec<(NodeId, Rectangle)>,
     /// Pane that last received user focus (tab click or content click).
     pub focused_pane: Option<NodeId>,
+    /// Set when focus changed without a layout rebuild; triggers a redraw.
+    pub focus_dirty: bool,
     /// Set when the layout tree changes and the cached widget root must rebuild.
     pub layout_dirty: bool,
 }
@@ -44,6 +46,7 @@ impl DockWidgetState {
             tab_bar_targets: Vec::new(),
             pane_bounds: Vec::new(),
             focused_pane,
+            focus_dirty: false,
             layout_dirty: true,
         })
     }
@@ -58,6 +61,7 @@ impl Default for DockWidgetState {
             tab_bar_targets: Vec::new(),
             pane_bounds: Vec::new(),
             focused_pane: None,
+            focus_dirty: false,
             layout_dirty: false,
         }
     }
@@ -510,7 +514,6 @@ where
             .clone();
         dock_state.borrow_mut().drop_targets.clear();
         dock_state.borrow_mut().tab_bar_targets.clear();
-        dock_state.borrow_mut().pane_bounds.clear();
 
         if tree.children.is_empty() {
             self.sync_root(tree);
@@ -548,6 +551,13 @@ where
             },
             dock_style.background.color,
         );
+
+        tree.state
+            .downcast_ref::<DockTreeHolder<Message>>()
+            .dock_state
+            .borrow_mut()
+            .pane_bounds
+            .clear();
 
         let Some(child_layout) = layout.children().next() else {
             return;
@@ -642,7 +652,13 @@ where
 
         if dock_state.borrow().layout_dirty {
             dock_state.borrow_mut().layout_dirty = false;
+            dock_state.borrow_mut().pane_bounds.clear();
             self.sync_root(tree);
+        }
+
+        if dock_state.borrow().focus_dirty {
+            dock_state.borrow_mut().focus_dirty = false;
+            shell.request_redraw();
         }
     }
 
@@ -730,7 +746,10 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
         DockMessage::Tab(tab_msg) => match tab_msg {
             TabMessage::Select { pane, panel } => {
                 factory.set_active_panel(&mut state.layout, pane, panel);
-                state.focused_pane = Some(pane);
+                if state.focused_pane != Some(pane) {
+                    state.focused_pane = Some(pane);
+                    state.focus_dirty = true;
+                }
                 state.layout_dirty = true;
                 changed = true;
             }
@@ -774,6 +793,7 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
         DockMessage::PaneFocused { pane, .. } => {
             if state.focused_pane != Some(pane) {
                 state.focused_pane = Some(pane);
+                state.focus_dirty = true;
                 changed = true;
             }
         }

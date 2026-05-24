@@ -41,6 +41,7 @@ impl DockSession {
             tab_bar_targets: Vec::new(),
             pane_bounds: Vec::new(),
             focused_pane,
+            focus_dirty: false,
             layout_dirty: true,
         };
         Ok(Self {
@@ -84,6 +85,7 @@ impl DockSession {
             factory.set_active_panel(&mut state.layout, pane_id, panel_id);
             state.layout_dirty = true;
             state.focused_pane = Some(pane_id);
+            state.focus_dirty = true;
         }
         Ok(())
     }
@@ -100,6 +102,7 @@ impl DockSession {
             owning_pane(&self.inner.borrow().layout, panel_node).ok_or(Error::InvalidTarget)?;
         Factory.set_active_panel(&mut self.inner.borrow_mut().layout, pane_id, panel_node);
         self.inner.borrow_mut().focused_pane = Some(pane_id);
+        self.inner.borrow_mut().focus_dirty = true;
         self.inner.borrow_mut().layout_dirty = true;
         Ok(())
     }
@@ -136,7 +139,13 @@ impl DockSession {
         if !matches!(self.inner.borrow().layout.kind(pane), Some(NodeKind::Pane(_))) {
             return Err(Error::InvalidTarget);
         }
-        self.inner.borrow_mut().focused_pane = Some(pane);
+        handle_dock_message(
+            &mut self.inner.borrow_mut(),
+            DockMessage::PaneFocused {
+                pane,
+                panel: None,
+            },
+        );
         Ok(())
     }
 

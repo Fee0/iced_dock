@@ -253,6 +253,8 @@ where
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
+        self.register_pane_bounds(layout.bounds());
+
         let mut dock_style = (self.style)(theme);
         dock_style.sync_tab_appearance();
 
@@ -352,7 +354,6 @@ where
         viewport: &Rectangle,
     ) {
         let dragging = self.is_dragging(tree);
-        self.register_pane_bounds(layout.bounds());
 
         let is_picked = self.dock_state.borrow().drag.is_some_and(|session| {
             session.source_pane == self.pane_id
@@ -438,6 +439,7 @@ where
                                 pane: self.pane_id,
                                 panel: Some(self.active_tab),
                             }));
+                            shell.request_redraw();
                         }
                     }
                     _ => {}

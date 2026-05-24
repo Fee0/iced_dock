@@ -2,8 +2,6 @@
 
 use std::collections::HashMap;
 
-use iced::Point;
-
 use crate::model::NodeId;
 
 /// Cardinal direction for adjacent-pane lookup.
@@ -15,31 +13,53 @@ pub enum Direction {
     Down,
 }
 
-/// Find the pane whose bounds contain a probe point just outside `pane` in `direction`.
+fn overlaps_perpendicular(a: iced::Rectangle, b: iced::Rectangle, horizontal: bool) -> bool {
+    if horizontal {
+        a.y < b.y + b.height && b.y < a.y + a.height
+    } else {
+        a.x < b.x + b.width && b.x < a.x + a.width
+    }
+}
+
+/// Find the nearest pane in `direction` from `pane`.
 ///
 /// `pane_bounds` maps each visible pane id to its absolute screen bounds (collected each
-/// layout pass). Same geometric approach as iced's `pane_grid::State::adjacent`.
+/// draw pass). Unlike a single-point probe, this tolerates splitter gaps between panes.
 pub fn adjacent_pane(
     pane: NodeId,
     direction: Direction,
     pane_bounds: &HashMap<NodeId, iced::Rectangle>,
 ) -> Option<NodeId> {
     let current = pane_bounds.get(&pane)?;
+    let horizontal = matches!(direction, Direction::Left | Direction::Right);
 
-    let target = match direction {
-        Direction::Left => Point::new(current.x - 1.0, current.y + 1.0),
-        Direction::Right => Point::new(current.x + current.width + 1.0, current.y + 1.0),
-        Direction::Up => Point::new(current.x + 1.0, current.y - 1.0),
-        Direction::Down => Point::new(current.x + 1.0, current.y + current.height + 1.0),
-    };
+    let mut best: Option<(NodeId, f32)> = None;
 
-    pane_bounds
-        .iter()
-        .find(|(id, region)| **id != pane && region.contains(target))
-        .map(|(id, _)| *id)
+    for (&id, region) in pane_bounds {
+        if id == pane || !overlaps_perpendicular(*current, *region, horizontal) {
+            continue;
+        }
+
+        let distance = match direction {
+            Direction::Left => current.x - (region.x + region.width),
+            Direction::Right => region.x - (current.x + current.width),
+            Direction::Up => current.y - (region.y + region.height),
+            Direction::Down => region.y - (current.y + current.height),
+        };
+
+        if distance < 0.0 {
+            continue;
+        }
+
+        if best.map(|(_, best_dist)| distance < best_dist).unwrap_or(true) {
+            best = Some((id, distance));
+        }
+    }
+
+    best.map(|(id, _)| id)
 }
 
-/// Build a map from the transient `(NodeId, Rectangle)` list collected during layout.
+/// Build a map from the transient `(NodeId, Rectangle)` list collected during draw.
 pub fn pane_bounds_map(pane_bounds: &[(NodeId, iced::Rectangle)]) -> HashMap<NodeId, iced::Rectangle> {
     pane_bounds.iter().copied().collect()
 }

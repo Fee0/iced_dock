@@ -99,7 +99,10 @@ fn update(app: &mut App, message: Message) -> Task<Message> {
             if let Some(pane) = app.dock.focused_pane() {
                 let bounds = pane_bounds_map(&app.dock.state().borrow().pane_bounds);
                 if let Some(adjacent) = adjacent_pane(pane, direction, &bounds) {
-                    let _ = app.dock.focus_pane(adjacent);
+                    let _ = app.dock.apply_message(DockMessage::PaneFocused {
+                        pane: adjacent,
+                        panel: None,
+                    });
                 }
             }
         }
