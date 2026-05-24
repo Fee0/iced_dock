@@ -38,6 +38,7 @@ impl DockSession {
             layout: built.layout,
             drag: None,
             drop_targets: Vec::new(),
+            tab_bar_targets: Vec::new(),
             layout_dirty: true,
         };
         let last_active_pane = built

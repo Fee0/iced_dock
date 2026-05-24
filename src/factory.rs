@@ -61,6 +61,45 @@ impl Factory {
         }
     }
 
+    pub fn insert_panel_at(
+        &self,
+        layout: &mut Layout,
+        pane: NodeId,
+        panel: NodeId,
+        index: usize,
+    ) -> Result {
+        if !layout.is_leaf(panel) {
+            return Err(Error::NotPanel { node: panel });
+        }
+        if let Some(NodeKind::Pane(ref mut p)) = layout.get_mut(pane).map(|e| &mut e.kind) {
+            let index = index.min(p.tabs.len());
+            p.tabs.insert(index, panel);
+            p.active = Some(panel);
+            layout.set_owner(panel, Some(pane));
+            Ok(())
+        } else {
+            Err(Error::NotPane { node: pane })
+        }
+    }
+
+    pub fn move_panel_to_pane_at(
+        &self,
+        layout: &mut Layout,
+        source: NodeId,
+        target_pane: NodeId,
+        index: usize,
+    ) -> Result {
+        let old_owner = layout.get(source).and_then(|e| e.owner);
+        self.remove_from_parent(layout, source)?;
+        self.insert_panel_at(layout, target_pane, source, index)?;
+        if let Some(owner) = old_owner {
+            if owner != target_pane {
+                self.collapse_owner(layout, owner);
+            }
+        }
+        Ok(())
+    }
+
     pub fn move_panel_to_pane(
         &self,
         layout: &mut Layout,
@@ -108,6 +147,38 @@ impl Factory {
         } else {
             Err(Error::NotPane { node: pane })
         }
+    }
+
+    pub fn move_tab_in_pane(
+        &self,
+        layout: &mut Layout,
+        pane: NodeId,
+        panel: NodeId,
+        to_index: usize,
+    ) -> Result {
+        let from = match layout.kind(pane) {
+            Some(NodeKind::Pane(p)) => p
+                .tabs
+                .iter()
+                .position(|&id| id == panel)
+                .ok_or(Error::InvalidTabIndex {
+                    pane,
+                    from: 0,
+                    to: to_index,
+                    len: p.tabs.len(),
+                })?,
+            _ => return Err(Error::NotPane { node: pane }),
+        };
+
+        if from == to_index || from + 1 == to_index {
+            return Ok(());
+        }
+
+        let mut adjusted = to_index;
+        if from < adjusted {
+            adjusted -= 1;
+        }
+        self.reorder_panel(layout, pane, from, adjusted)
     }
 
     pub fn set_active_panel(&self, layout: &mut Layout, pane: NodeId, panel: NodeId) {

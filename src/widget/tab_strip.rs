@@ -35,6 +35,7 @@ struct TabStripState {
     dragging: bool,
     pressed_tab: Option<NodeId>,
     hovered_tab: Option<NodeId>,
+    insert_marker_index: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -217,6 +218,73 @@ fn close_button_bounds(tab_bounds: Rectangle, close: &CloseButtonStyle) -> Recta
         width: close.size,
         height: tab_bounds.height,
     }
+}
+
+const INSERT_MARKER_WIDTH: f32 = 3.0;
+
+fn insert_marker_color(drop_color: Color) -> Color {
+    Color {
+        a: drop_color.a.max(0.65),
+        ..drop_color
+    }
+}
+
+/// Horizontal scroll offset of a tab strip widget tree.
+pub(crate) fn scroll_offset(tab_strip_tree: &Tree) -> f32 {
+    tab_strip_tree
+        .state
+        .downcast_ref::<TabStripState>()
+        .scroll_offset
+}
+
+/// Layout-space X coordinates for each tab insertion slot.
+///
+/// Uses the same coordinate system as [`hit_test_tab`] (`cursor.x + scroll_offset`).
+pub(crate) fn build_insert_x(row_layout: &Layout<'_>) -> Vec<f32> {
+    let children: Vec<_> = row_layout.children().collect();
+    if children.is_empty() {
+        return vec![0.0];
+    }
+
+    let mut insert_x = Vec::with_capacity(children.len() + 1);
+    for (i, child) in children.iter().enumerate() {
+        let b = child.bounds();
+        if i == 0 {
+            insert_x.push(b.x);
+        }
+        if i + 1 < children.len() {
+            let next = children[i + 1].bounds();
+            insert_x.push((b.x + b.width + next.x) / 2.0);
+        } else {
+            insert_x.push(b.x + b.width);
+        }
+    }
+    insert_x
+}
+
+/// Marker rectangle for a tab insertion slot in layout space (inside the scrolled tab row).
+pub(crate) fn insert_marker_rect_layout(
+    tab_bounds: Rectangle,
+    insert_x: &[f32],
+    index: usize,
+) -> Option<Rectangle> {
+    let layout_x = *insert_x.get(index)?;
+    Some(Rectangle {
+        x: layout_x - INSERT_MARKER_WIDTH / 2.0,
+        y: tab_bounds.y,
+        width: INSERT_MARKER_WIDTH,
+        height: tab_bounds.height,
+    })
+}
+
+/// Sync the insertion marker shown during an active tab drag.
+pub(crate) fn set_insert_marker_index(tree: &mut Tree, index: Option<usize>) -> bool {
+    let state = tree.state.downcast_mut::<TabStripState>();
+    if state.insert_marker_index == index {
+        return false;
+    }
+    state.insert_marker_index = index;
+    true
 }
 
 fn hit_test_close_button(
@@ -622,6 +690,21 @@ where
                         ..visible_bounds
                     },
                 );
+
+                if let Some(index) = state.insert_marker_index {
+                    let insert_x = build_insert_x(&row_layout);
+                    if let Some(marker) =
+                        insert_marker_rect_layout(tab_bounds, &insert_x, index)
+                    {
+                        renderer.fill_quad(
+                            renderer::Quad {
+                                bounds: marker,
+                                ..renderer::Quad::default()
+                            },
+                            insert_marker_color(dock_style.drop_overlay.color),
+                        );
+                    }
+                }
             });
 
             let scrollbar_fade_in = state.scrollbar_visible

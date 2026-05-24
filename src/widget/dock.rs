@@ -10,7 +10,7 @@ use iced::mouse::{self, Cursor};
 use iced::{Element, Event, Length, Rectangle, Size, Theme};
 
 use crate::factory::Factory;
-use crate::manager::{DockManager, DragSession};
+use crate::manager::{DockManager, DragSession, TabBarTarget};
 use crate::model::{ContentKey, Layout as DockLayout, NodeId, NodeKind, Pane};
 use crate::style::DockStyle;
 use crate::widget::message::{DockMessage, TabMessage};
@@ -23,6 +23,7 @@ pub struct DockWidgetState {
     pub layout: DockLayout,
     pub drag: Option<DragSession>,
     pub drop_targets: Vec<(NodeId, Rectangle)>,
+    pub tab_bar_targets: Vec<TabBarTarget>,
     /// Set when the layout tree changes and the cached widget root must rebuild.
     pub layout_dirty: bool,
 }
@@ -35,6 +36,7 @@ impl DockWidgetState {
             layout: built.layout,
             drag: None,
             drop_targets: Vec::new(),
+            tab_bar_targets: Vec::new(),
             layout_dirty: true,
         })
     }
@@ -46,6 +48,7 @@ impl Default for DockWidgetState {
             layout: DockLayout::new(),
             drag: None,
             drop_targets: Vec::new(),
+            tab_bar_targets: Vec::new(),
             layout_dirty: false,
         }
     }
@@ -59,15 +62,29 @@ pub fn finish_drag(state: &mut DockWidgetState, cursor: Option<iced::Point>) -> 
         return had_drag;
     };
 
-    let targets = state.drop_targets.clone();
+    let drop_targets = state.drop_targets.clone();
+    let tab_bar_targets = state.tab_bar_targets.clone();
     let Some(session) = state.drag.take() else {
         return false;
     };
 
     let mut session = session;
-    DockManager::update_drag_hover(&mut session, cursor, &targets);
+    DockManager::update_drag_hover_full(
+        &mut session,
+        cursor,
+        &drop_targets,
+        &tab_bar_targets,
+    );
     let mut changed = false;
-    if DockManager.execute(&mut state.layout, session).is_ok() {
+    if let Some((pane, index)) = session.tab_insert {
+        if DockManager
+            .execute_tab_insert(&mut state.layout, session, pane, index)
+            .is_ok()
+        {
+            state.layout_dirty = true;
+            changed = true;
+        }
+    } else if DockManager.execute(&mut state.layout, session).is_ok() {
         state.layout_dirty = true;
         changed = true;
     }
@@ -483,6 +500,7 @@ where
             .dock_state
             .clone();
         dock_state.borrow_mut().drop_targets.clear();
+        dock_state.borrow_mut().tab_bar_targets.clear();
 
         if tree.children.is_empty() {
             self.sync_root(tree);
@@ -597,9 +615,15 @@ where
         if let Event::Mouse(mouse::Event::CursorMoved { .. }) = event {
             if dock_state.borrow().drag.is_some() {
                 if let Some(pos) = cursor.position() {
-                    let targets = dock_state.borrow().drop_targets.clone();
+                    let drop_targets = dock_state.borrow().drop_targets.clone();
+                    let tab_bar_targets = dock_state.borrow().tab_bar_targets.clone();
                     if let Some(ref mut session) = dock_state.borrow_mut().drag {
-                        DockManager::update_drag_hover(session, pos, &targets);
+                        DockManager::update_drag_hover_full(
+                            session,
+                            pos,
+                            &drop_targets,
+                            &tab_bar_targets,
+                        );
                     }
                     shell.request_redraw();
                 }
@@ -719,9 +743,15 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
                 }
             }
             TabMessage::DragMoved { cursor } => {
-                let targets = state.drop_targets.clone();
+                let drop_targets = state.drop_targets.clone();
+                let tab_bar_targets = state.tab_bar_targets.clone();
                 if let Some(ref mut session) = state.drag {
-                    DockManager::update_drag_hover(session, cursor, &targets);
+                    DockManager::update_drag_hover_full(
+                        session,
+                        cursor,
+                        &drop_targets,
+                        &tab_bar_targets,
+                    );
                 }
             }
             TabMessage::DragCancelled => {

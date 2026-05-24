@@ -28,6 +28,16 @@ impl DropZone {
     }
 }
 
+/// Tab bar drop target registered during layout/update.
+#[derive(Debug, Clone)]
+pub struct TabBarTarget {
+    pub pane: NodeId,
+    pub bounds: Rectangle,
+    /// Layout-space X for each insertion slot (same coordinates as tab [`Layout::bounds`]).
+    pub insert_x: Vec<f32>,
+    pub scroll_offset: f32,
+}
+
 /// Active tab drag session.
 #[derive(Debug, Clone, Copy)]
 pub struct DragSession {
@@ -35,6 +45,7 @@ pub struct DragSession {
     pub source_panel: NodeId,
     pub hover_target: Option<NodeId>,
     pub operation: Option<DockOperation>,
+    pub tab_insert: Option<(NodeId, usize)>,
 }
 
 impl DragSession {
@@ -44,6 +55,7 @@ impl DragSession {
             source_panel,
             hover_target: None,
             operation: None,
+            tab_insert: None,
         }
     }
 }
@@ -167,6 +179,42 @@ impl DockManager {
         })
     }
 
+    fn insertion_index_at(insert_x: &[f32], x: f32) -> usize {
+        if insert_x.is_empty() {
+            return 0;
+        }
+        if insert_x.len() == 1 {
+            return 0;
+        }
+        for i in 0..insert_x.len() - 1 {
+            let threshold = (insert_x[i] + insert_x[i + 1]) / 2.0;
+            if x < threshold {
+                return i;
+            }
+        }
+        insert_x.len() - 1
+    }
+
+    /// Find the tab bar under `point` and the insertion index within it.
+    pub fn hit_test_tab_insert(
+        point: iced::Point,
+        targets: &[TabBarTarget],
+    ) -> Option<(NodeId, usize)> {
+        let mut best: Option<(NodeId, f32, usize)> = None;
+        for target in targets {
+            if !target.bounds.contains(point) {
+                continue;
+            }
+            let area = target.bounds.width * target.bounds.height;
+            if best.map(|(_, a, _)| area < a).unwrap_or(true) {
+                let layout_x = point.x + target.scroll_offset;
+                let index = Self::insertion_index_at(&target.insert_x, layout_x);
+                best = Some((target.pane, area, index));
+            }
+        }
+        best.map(|(pane, _, index)| (pane, index))
+    }
+
     pub fn update_drag_hover(
         session: &mut DragSession,
         cursor: iced::Point,
@@ -178,6 +226,43 @@ impl DockManager {
         } else {
             session.hover_target = None;
             session.operation = None;
+        }
+    }
+
+    /// Update hover state for an active drag; tab bar insertion takes priority over content zones.
+    pub fn update_drag_hover_full(
+        session: &mut DragSession,
+        cursor: iced::Point,
+        drop_targets: &[(NodeId, Rectangle)],
+        tab_bar_targets: &[TabBarTarget],
+    ) {
+        if let Some((pane, index)) = Self::hit_test_tab_insert(cursor, tab_bar_targets) {
+            session.tab_insert = Some((pane, index));
+            session.hover_target = None;
+            session.operation = None;
+        } else {
+            session.tab_insert = None;
+            Self::update_drag_hover(session, cursor, drop_targets);
+        }
+    }
+
+    pub fn execute_tab_insert(
+        &self,
+        layout: &mut Layout,
+        session: DragSession,
+        pane: NodeId,
+        index: usize,
+    ) -> Result {
+        if !layout.is_leaf(session.source_panel) {
+            return Err(Error::NotPanel {
+                node: session.source_panel,
+            });
+        }
+        let factory = Factory;
+        if session.source_pane == pane {
+            factory.move_tab_in_pane(layout, pane, session.source_panel, index)
+        } else {
+            factory.move_panel_to_pane_at(layout, session.source_panel, pane, index)
         }
     }
 }

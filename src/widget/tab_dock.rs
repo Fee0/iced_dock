@@ -9,7 +9,7 @@ use iced::advanced::{Clipboard, Renderer as AdvRenderer, Shell};
 use iced::mouse::{self, Cursor};
 use iced::{Element, Event, Length, Rectangle, Size, Theme};
 
-use crate::manager::DockManager;
+use crate::manager::{DockManager, TabBarTarget};
 use crate::model::NodeId;
 use crate::style::DockStyle;
 use crate::widget::compose;
@@ -65,8 +65,21 @@ pub struct TabInfo {
 }
 
 #[derive(Default)]
-struct TabDockState {
-    hover_zone: Option<crate::manager::DropZone>,
+struct TabDockState;
+
+fn tab_insert_is_noop(
+    session: crate::manager::DragSession,
+    pane_id: NodeId,
+    index: usize,
+    tabs: &[TabInfo],
+) -> bool {
+    if session.source_pane != pane_id {
+        return false;
+    }
+    let Some(from) = tabs.iter().position(|t| t.id == session.source_panel) else {
+        return false;
+    };
+    from == index || from + 1 == index
 }
 
 pub struct TabDock<'a, Message> {
@@ -132,6 +145,20 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
             .borrow_mut()
             .drop_targets
             .push((self.pane_id, bounds));
+    }
+
+    fn register_tab_bar_target(
+        &self,
+        bounds: Rectangle,
+        insert_x: Vec<f32>,
+        scroll_offset: f32,
+    ) {
+        self.dock_state.borrow_mut().tab_bar_targets.push(TabBarTarget {
+            pane: self.pane_id,
+            bounds,
+            insert_x,
+            scroll_offset,
+        });
     }
 }
 
@@ -264,16 +291,24 @@ where
         if show_overlay {
             if let Some(content_layout) = layout.children().nth(1) {
                 let bounds = content_layout.bounds();
-                let zone = drag_session
-                    .filter(|s| s.hover_target == Some(self.pane_id))
-                    .and_then(|s| s.operation)
-                    .and_then(|_| cursor.position())
-                    .and_then(|point| DockManager::hit_test_drop_zone(bounds, point))
-                    .or_else(|| {
-                        cursor
-                            .position_over(bounds)
+                let show_content_overlay = drag_session.is_some_and(|s| {
+                    s.tab_insert.is_none() && s.hover_target == Some(self.pane_id)
+                });
+                let zone = show_content_overlay
+                    .then(|| {
+                        drag_session
+                            .and_then(|s| s.operation)
+                            .and_then(|_| cursor.position())
                             .and_then(|point| DockManager::hit_test_drop_zone(bounds, point))
-                    });
+                            .or_else(|| {
+                                cursor
+                                    .position_over(bounds)
+                                    .and_then(|point| {
+                                        DockManager::hit_test_drop_zone(bounds, point)
+                                    })
+                            })
+                    })
+                    .flatten();
 
                 if let Some(zone) = zone {
                     let highlight = dock_style.drop_overlay.color;
@@ -303,13 +338,18 @@ where
         viewport: &Rectangle,
     ) {
         let dragging = self.is_dragging(tree);
-        let state = tree.state.downcast_mut::<TabDockState>();
 
         if let Some(content_layout) = layout.children().nth(1) {
             self.register_drop_target(content_layout.bounds());
         }
 
         if let Some(tab_layout) = layout.children().next() {
+            if let Some(row_layout) = tab_layout.children().next() {
+                let scroll = tab_strip::scroll_offset(&tree.children[0]);
+                let insert_x = tab_strip::build_insert_x(&row_layout);
+                self.register_tab_bar_target(tab_layout.bounds(), insert_x, scroll);
+            }
+
             compose::child_update(
                 &mut self.tab_strip,
                 &mut tree.children[0],
@@ -329,6 +369,23 @@ where
                 self.tab_bar_show_scrollbar,
                 shell,
             );
+
+            let marker_index = self.dock_state.borrow().drag.and_then(|session| {
+                session.tab_insert.and_then(|(pane, index)| {
+                    if pane == self.pane_id
+                        && !tab_insert_is_noop(session, self.pane_id, index, &self.tabs)
+                    {
+                        Some(index)
+                    } else {
+                        None
+                    }
+                })
+            });
+            if tab_strip::set_insert_marker_index(&mut tree.children[0], marker_index) {
+                shell.request_redraw();
+            }
+        } else {
+            tab_strip::set_insert_marker_index(&mut tree.children[0], None);
         }
         if let Some(content_layout) = layout.children().nth(1) {
             compose::child_update(
@@ -367,12 +424,6 @@ where
         if dragging {
             if let Event::Mouse(mouse::Event::CursorMoved { .. }) = event {
                 if let Some(pos) = cursor.position() {
-                    if let Some(content_layout) = layout.children().nth(1) {
-                        let bounds = content_layout.bounds();
-                        state.hover_zone = cursor
-                            .position_over(bounds)
-                            .and_then(|p| DockManager::hit_test_drop_zone(bounds, p));
-                    }
                     shell.publish((self.on_event)(DockMessage::Tab(TabMessage::DragMoved {
                         cursor: pos,
                     })));
