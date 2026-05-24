@@ -30,7 +30,7 @@ A docking layout widget for [iced](https://github.com/iced-rs/iced) 0.14. Build 
 - **Focused pane** — one pane has global focus at a time (accent border), separate from which tab is active inside each pane.
 - **Click to focus** — clicking a pane's content area focuses that pane and emits `DockMessage::PaneFocused`.
 - **Tab click** — selects the tab and focuses its pane.
-- **Keyboard navigation** — `adjacent_pane` helper finds the nearest neighbor in a direction (gap-tolerant); wire it to `Ctrl+Arrow` or similar in your app.
+- **Keyboard navigation** — `DockSession::focus_adjacent` or the lower-level `adjacent_pane` helper (gap-tolerant); wire to `Ctrl+Arrow` or similar in your app.
 - **Pane targets** — open new panels into the focused pane (`PaneTarget::Active`), a named pane, or the first pane in tree order.
 
 ### Styling
@@ -181,18 +181,29 @@ dock::<Message>()
 
 | Method | Purpose |
 |--------|---------|
-| `from_tree` | Build session from `LayoutTree` |
+| `from_tree` | Build session from `LayoutTree` (focuses first pane) |
+| `from_tree_with_focus` | Build session with [`InitialFocus`] (first / named pane / named panel) |
+| `from_built` | Build session from compiled [`BuiltLayout`] + optional focused pane |
 | `state()` | Shared state for the widget |
 | `apply_message` | Apply `DockMessage` and refresh indexes |
 | `open_panel(target, def)` | Add and activate a panel |
-| `focus_panel(id)` | Activate tab by panel id and focus its pane |
+| `select_panel(id)` | Activate tab by panel id and focus its pane |
+| `focus_panel(id)` | Alias for `select_panel` |
 | `focus_pane(node_id)` | Focus pane without changing active tab |
+| `focus_adjacent(direction)` | Move pane focus to nearest neighbor (needs one draw pass) |
+| `cycle_panel(cycle)` | Next/prev tab in the focused pane (wraps) |
+| `clear_focus()` | Clear global pane focus |
 | `close_panel(id)` | Close tab and collapse empty panes |
 | `focused_pane()` | Current focused pane `NodeId` |
-| `active_panel()` | Active tab id in the focused pane |
+| `is_pane_focused(pane)` | Whether a pane has global focus |
+| `active_panel()` | Active tab id in the **focused** pane |
+| `active_panel_in_pane(pane)` | Active tab id in any pane |
+| `panel_node(id)` / `pane_for_panel(id)` | String id → `NodeId` lookups |
 | `panel_ids()` | All registered panel ids |
 
 `PaneTarget`: `Active` (focused pane), `Named("pane_name")`, `First`.
+
+**Focus vs active tab:** `select_panel` / `focus_panel` change both; `focus_pane` changes only the focused pane border; `active_panel_in_pane` reads any pane regardless of focus.
 
 ## Events
 
@@ -201,7 +212,7 @@ dock::<Message>()
 - `Tab(Select { pane, panel })` — tab clicked
 - `Tab(Close { panel })` — close button pressed
 - `Tab(DragStarted / DragMoved / DragEnded / DragCancelled)` — tab drag lifecycle
-- `PaneFocused { pane, panel }` — content click or programmatic focus
+- `PaneFocused { pane, panel }` — content click or programmatic focus; when `panel` is `Some`, activates that tab
 - `SplitDrag { group, splitter_index, pair_ratio }` — splitter moved
 - `LayoutChanged` — reserved for future use
 
@@ -209,21 +220,13 @@ Layout mutations from tab/split messages are handled inside the widget before yo
 
 ## Keyboard navigation
 
-The crate does not subscribe to keys itself. Use `adjacent_pane` with bounds from the last draw pass:
+The crate does not subscribe to keys itself. Prefer [`DockSession::focus_adjacent`] (uses pane bounds from the last draw pass):
 
 ```rust
-use iced_dock::{adjacent_pane, pane_bounds_map, Direction, DockMessage};
-
-if let Some(pane) = session.focused_pane() {
-    let bounds = pane_bounds_map(&session.state().borrow().pane_bounds);
-    if let Some(next) = adjacent_pane(pane, Direction::Right, &bounds) {
-        session.apply_message(DockMessage::PaneFocused {
-            pane: next,
-            panel: None,
-        });
-    }
-}
+session.focus_adjacent(Direction::Right);
 ```
+
+For custom logic, use [`adjacent_pane`] with [`pane_bounds_map`] on `session.state().borrow().pane_bounds`.
 
 See `examples/minimal.rs` for a `keyboard::listen` subscription with `Ctrl+Arrow`.
 

@@ -1,8 +1,8 @@
 use iced_dock::builder::build_tree;
 use iced_dock::{
     adjacent_pane, handle_dock_message, horizontal, owning_pane, pane_bounds_map, panel, tabs,
-    vertical, ContentKey, Direction, DockMessage, DockSession, DockWidgetState, PaneTarget,
-    TabMessage,
+    vertical, ContentKey, Direction, DockMessage, DockSession, DockWidgetState, InitialFocus,
+    PanelCycle, PaneTarget, TabMessage,
 };
 
 fn nested_layout() -> iced_dock::LayoutTree {
@@ -251,4 +251,127 @@ fn pane_bounds_map_from_collected_vec() {
     let map = pane_bounds_map(&bounds);
     assert_eq!(map.len(), 2);
     assert!(map.contains_key(&a));
+}
+
+#[test]
+fn select_panel_by_string_id() {
+    let session = DockSession::from_tree(nested_layout()).expect("session");
+    session.select_panel("preview").expect("select");
+    assert_eq!(session.active_panel().as_deref(), Some("preview"));
+}
+
+#[test]
+fn active_panel_in_pane_non_focused() {
+    let session = DockSession::from_tree(nested_layout()).expect("session");
+    let built = build_tree(&nested_layout()).expect("built");
+    let output_panel = built.index.panel_node("output").expect("output");
+    let output_pane = owning_pane(&built.layout, output_panel).expect("pane");
+
+    session.select_panel("main").expect("focus main pane");
+    assert_eq!(
+        session.active_panel_in_pane(output_pane).as_deref(),
+        Some("output")
+    );
+    assert_eq!(session.active_panel().as_deref(), Some("main"));
+}
+
+#[test]
+fn pane_focused_with_panel_activates_tab() {
+    let built = build_tree(&horizontal([
+        tabs([
+            panel("a", "A", ContentKey(0)),
+            panel("b", "B", ContentKey(1)),
+        ])
+        .active("a"),
+    ]))
+    .expect("built");
+    let pane = iced_dock::first_pane(&built.layout).expect("pane");
+    let panel_b = built.index.panel_node("b").expect("b");
+
+    let mut state = DockWidgetState::from_built(built, Some(pane));
+    state.layout_dirty = false;
+
+    let changed = handle_dock_message(
+        &mut state,
+        DockMessage::PaneFocused {
+            pane,
+            panel: Some(panel_b),
+        },
+    );
+
+    assert!(changed);
+    assert!(state.layout_dirty);
+    assert_eq!(state.focused_pane, Some(pane));
+}
+
+#[test]
+fn focus_adjacent_moves_focus() {
+    let built = build_tree(&horizontal([
+        tabs([panel("a", "A", ContentKey(0))]),
+        tabs([panel("b", "B", ContentKey(1))]),
+    ]))
+    .expect("built");
+    let left = iced_dock::first_pane(&built.layout).expect("left");
+    let right = built
+        .layout
+        .root_child()
+        .and_then(|root| {
+            if let iced_dock::NodeKind::Proportional(pg) = built.layout.kind(root)? {
+                pg.children.iter().find(|&&id| id != left).copied()
+            } else {
+                None
+            }
+        })
+        .expect("right");
+
+    let session = DockSession::from_built(built, Some(left));
+    session.state().borrow_mut().pane_bounds = vec![
+        (
+            left,
+            iced::Rectangle::new(iced::Point::ORIGIN, iced::Size::new(100.0, 100.0)),
+        ),
+        (
+            right,
+            iced::Rectangle::new(iced::Point::new(100.0, 0.0), iced::Size::new(100.0, 100.0)),
+        ),
+    ];
+
+    assert!(session.focus_adjacent(Direction::Right));
+    assert_eq!(session.focused_pane(), Some(right));
+}
+
+#[test]
+fn cycle_panel_wraps() {
+    let session = DockSession::from_tree(nested_layout()).expect("session");
+    session.select_panel("main").expect("main");
+    assert_eq!(session.active_panel().as_deref(), Some("main"));
+
+    session.cycle_panel(PanelCycle::Next).expect("next");
+    assert_eq!(session.active_panel().as_deref(), Some("lib"));
+
+    session.cycle_panel(PanelCycle::Prev).expect("prev");
+    assert_eq!(session.active_panel().as_deref(), Some("main"));
+}
+
+#[test]
+fn from_tree_with_focus_named_panel() {
+    let session =
+        DockSession::from_tree_with_focus(nested_layout(), InitialFocus::NamedPanel("props"))
+            .expect("session");
+    let built = build_tree(&nested_layout()).expect("built");
+    let props_panel = built.index.panel_node("props").expect("props");
+    let props_pane = owning_pane(&built.layout, props_panel).expect("pane");
+
+    assert_eq!(session.focused_pane(), Some(props_pane));
+    // Initial focus sets pane only; active tab follows compile order in that pane.
+    assert_eq!(session.active_panel_in_pane(props_pane).as_deref(), Some("output"));
+    assert_eq!(session.active_panel().as_deref(), Some("output"));
+}
+
+#[test]
+fn clear_focus() {
+    let session = DockSession::from_tree(nested_layout()).expect("session");
+    assert!(session.focused_pane().is_some());
+    session.clear_focus();
+    assert!(session.focused_pane().is_none());
 }

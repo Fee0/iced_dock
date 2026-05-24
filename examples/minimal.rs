@@ -5,8 +5,8 @@ use iced::widget::{column, container, text};
 use iced::{application, Color, Element, Length, Size, Subscription, Task, Theme};
 
 use iced_dock::{
-    adjacent_pane, dock, horizontal, pane_bounds_map, panel as tab, tabs, vertical, ContentKey,
-    Direction, DockMessage, DockSession, DockStyle, LayoutTree,
+    dock, horizontal, panel as tab, tabs, vertical, ContentKey, Direction, DockMessage,
+    DockSession, DockStyle, LayoutTree,
 };
 
 fn demo_layout() -> LayoutTree {
@@ -96,15 +96,7 @@ fn update(app: &mut App, message: Message) -> Task<Message> {
             let _ = app.dock.apply_message(msg);
         }
         Message::FocusAdjacent(direction) => {
-            if let Some(pane) = app.dock.focused_pane() {
-                let bounds = pane_bounds_map(&app.dock.state().borrow().pane_bounds);
-                if let Some(adjacent) = adjacent_pane(pane, direction, &bounds) {
-                    let _ = app.dock.apply_message(DockMessage::PaneFocused {
-                        pane: adjacent,
-                        panel: None,
-                    });
-                }
-            }
+            app.dock.focus_adjacent(direction);
         }
     }
     Task::none()

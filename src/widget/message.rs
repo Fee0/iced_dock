@@ -28,7 +28,7 @@ pub enum DockMessage {
     /// User clicked into a pane's content area (or app requested pane focus).
     PaneFocused {
         pane: NodeId,
-        /// The pane's currently active tab, if any.
+        /// When `Some`, activates that tab before updating pane focus.
         panel: Option<NodeId>,
     },
     SplitDrag {

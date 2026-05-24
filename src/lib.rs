@@ -16,8 +16,9 @@ pub mod style;
 pub mod widget;
 
 pub use builder::{
-    build_tree, first_pane, horizontal, owning_pane, panel, single, tabs, vertical, BuiltLayout,
-    DockIndex, DockSession, LayoutTree, PaneTarget, PanelDef, SplitNode, TabsNode,
+    active_panel_in_pane, build_tree, first_pane, horizontal, owning_pane, pane_for_panel, panel,
+    single, tabs, vertical, BuiltLayout, DockIndex, DockSession, InitialFocus, LayoutTree,
+    PanelCycle, PaneTarget, PanelDef, SplitNode, TabsNode,
 };
 pub use error::{Error, Result};
 pub use factory::Factory;

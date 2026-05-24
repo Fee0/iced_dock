@@ -26,9 +26,11 @@ mod index;
 mod session;
 mod spec;
 
-pub use compile::{build_tree, first_pane, owning_pane, BuiltLayout};
+pub use compile::{
+    active_panel_in_pane, build_tree, first_pane, owning_pane, pane_for_panel, BuiltLayout,
+};
 pub use index::DockIndex;
-pub use session::{DockSession, PaneTarget};
+pub use session::{DockSession, InitialFocus, PanelCycle, PaneTarget};
 pub use spec::{
     horizontal, panel, single, tabs, vertical, LayoutTree, PanelDef, SplitNode, TabsNode,
 };

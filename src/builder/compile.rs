@@ -137,8 +137,14 @@ pub fn owning_pane(layout: &Layout, panel: NodeId) -> Option<NodeId> {
     layout.get(panel).and_then(|e| e.owner)
 }
 
+/// Pane that owns a panel identified by string id.
+pub fn pane_for_panel(layout: &Layout, index: &DockIndex, panel_id: &str) -> Option<NodeId> {
+    let panel = index.panel_node(panel_id)?;
+    owning_pane(layout, panel)
+}
+
 /// Active panel id string in a specific pane.
-pub(crate) fn active_panel_in_pane(
+pub fn active_panel_in_pane(
     layout: &Layout,
     index: &DockIndex,
     pane: NodeId,

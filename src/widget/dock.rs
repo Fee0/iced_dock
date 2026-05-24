@@ -39,7 +39,12 @@ impl DockWidgetState {
     pub fn from_tree(tree: crate::LayoutTree) -> crate::Result<Self> {
         let built = crate::builder::build_tree(&tree)?;
         let focused_pane = crate::builder::first_pane(&built.layout);
-        Ok(Self {
+        Ok(Self::from_built(built, focused_pane))
+    }
+
+    /// Build widget state from a compiled layout.
+    pub fn from_built(built: crate::builder::BuiltLayout, focused_pane: Option<NodeId>) -> Self {
+        Self {
             layout: built.layout,
             drag: None,
             drop_targets: Vec::new(),
@@ -48,7 +53,7 @@ impl DockWidgetState {
             focused_pane,
             focus_dirty: false,
             layout_dirty: true,
-        })
+        }
     }
 }
 
@@ -790,7 +795,18 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
                 changed = true;
             }
         },
-        DockMessage::PaneFocused { pane, .. } => {
+        DockMessage::PaneFocused { pane, panel } => {
+            if let Some(panel_node) = panel {
+                let tab_changed = matches!(
+                    state.layout.kind(pane),
+                    Some(NodeKind::Pane(p)) if p.active != Some(panel_node)
+                );
+                if tab_changed {
+                    factory.set_active_panel(&mut state.layout, pane, panel_node);
+                    state.layout_dirty = true;
+                    changed = true;
+                }
+            }
             if state.focused_pane != Some(pane) {
                 state.focused_pane = Some(pane);
                 state.focus_dirty = true;
