@@ -7,12 +7,11 @@ use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
 use iced::advanced::{Clipboard, Renderer as AdvRenderer, Shell};
 use iced::mouse::{self, Cursor};
-use iced::widget::{button, container, mouse_area, row, text, Space};
-use iced::{Color, Element, Event, Length, Padding, Rectangle, Size, Theme};
+use iced::{Element, Event, Length, Rectangle, Size, Theme};
 
 use crate::manager::DockManager;
 use crate::model::NodeId;
-use crate::style::{close_button_style, DockStyle};
+use crate::style::DockStyle;
 use crate::widget::compose;
 use crate::widget::dock::{handle_dock_message, DockWidgetState};
 use crate::widget::message::{DockMessage, TabMessage};
@@ -57,36 +56,25 @@ fn pane_inset(style: &DockStyle) -> f32 {
     style.window.padding + style.window.border.width
 }
 
-fn has_tab_strip(tabs: &[TabInfo]) -> bool {
-    tabs.len() > 1
-}
-
-fn tab_child_index(tabs: &[TabInfo]) -> Option<usize> {
-    has_tab_strip(tabs).then_some(2)
-}
-
 #[derive(Debug, Clone)]
 pub struct TabInfo {
     pub id: NodeId,
     pub title: String,
+    pub can_close: bool,
+    pub can_drag: bool,
 }
 
 #[derive(Default)]
 struct TabDockState {
-    drag_pending: bool,
-    drag_start: Option<iced::Point>,
-    dragging: bool,
     hover_zone: Option<crate::manager::DropZone>,
 }
 
 pub struct TabDock<'a, Message> {
     dock_state: Rc<RefCell<DockWidgetState>>,
     pub pane_id: NodeId,
-    pub can_drag: bool,
     pub tabs: Vec<TabInfo>,
     pub active_tab: NodeId,
-    pub chrome: Element<'a, Message, Theme, iced::Renderer>,
-    pub tab_strip: Option<Element<'a, Message, Theme, iced::Renderer>>,
+    pub tab_strip: Element<'a, Message, Theme, iced::Renderer>,
     pub content: Element<'a, Message, Theme, iced::Renderer>,
     on_event: Rc<dyn Fn(DockMessage) -> Message>,
     style: Rc<dyn Fn(&Theme) -> DockStyle>,
@@ -97,9 +85,6 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
     pub fn new(
         dock_state: Rc<RefCell<DockWidgetState>>,
         pane_id: NodeId,
-        title: String,
-        can_close: bool,
-        can_drag: bool,
         tabs: Vec<TabInfo>,
         active_tab: NodeId,
         content: Element<'a, Message, Theme, iced::Renderer>,
@@ -107,33 +92,20 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
         style: Rc<dyn Fn(&Theme) -> DockStyle>,
         tab_bar_scrollbar_hide_delay: iced::time::Duration,
     ) -> Self {
-        let layout_style = (style)(&layout_theme());
-        let chrome = build_chrome::<Message>(
-            &layout_style,
-            title,
-            can_close,
-            can_drag,
+        let tab_strip = TabStrip::new(
+            pane_id,
+            tabs.clone(),
             active_tab,
             on_event.clone(),
-        );
-        let tab_strip = has_tab_strip(&tabs).then(|| {
-            TabStrip::new(
-                pane_id,
-                tabs.clone(),
-                active_tab,
-                on_event.clone(),
-                style.clone(),
-                tab_bar_scrollbar_hide_delay,
-            )
-            .into()
-        });
+            style.clone(),
+            tab_bar_scrollbar_hide_delay,
+        )
+        .into();
         Self {
             dock_state,
             pane_id,
-            can_drag,
             tabs,
             active_tab,
-            chrome,
             tab_strip,
             content,
             on_event,
@@ -148,7 +120,7 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
 
     fn is_dragging(&self, tree: &Tree) -> bool {
         self.dock_state.borrow().drag.is_some()
-            || tree.state.downcast_ref::<TabDockState>().dragging
+            || tab_strip::is_dragging(tree.children.first())
     }
 
     fn register_drop_target(&self, bounds: Rectangle) {
@@ -157,52 +129,6 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
             .drop_targets
             .push((self.pane_id, bounds));
     }
-}
-
-fn build_chrome<Message: Clone + 'static>(
-    style: &DockStyle,
-    title: String,
-    can_close: bool,
-    can_drag: bool,
-    active_tab: NodeId,
-    on_event: Rc<dyn Fn(DockMessage) -> Message>,
-) -> Element<'static, Message, Theme, iced::Renderer> {
-    let tb = &style.title_bar;
-    let title_label = text(title).size(tb.text_size).color(tb.text_color);
-    let mut drag_strip = mouse_area(Space::new().width(Length::Fill).height(Length::Fill));
-    if can_drag {
-        drag_strip = drag_strip.interaction(mouse::Interaction::Grab);
-    }
-    let drag_strip = container(drag_strip)
-        .width(Length::Fill)
-        .height(Length::Fill);
-
-    let close: Element<'_, Message, Theme, iced::Renderer> = if can_close {
-        let on_event = on_event.clone();
-        let cb = &tb.close_button;
-        button(text("×").size(cb.text_size))
-            .padding(cb.padding)
-            .style(close_button_style(cb))
-            .on_press_with(move || {
-                (on_event)(DockMessage::Tab(TabMessage::Close { panel: active_tab }))
-            })
-            .into()
-    } else {
-        Space::new()
-            .width(Length::Fixed(tb.close_button_width))
-            .into()
-    };
-
-    row![title_label, drag_strip, close]
-        .height(Length::Fixed(tb.height))
-        .align_y(iced::Alignment::Center)
-        .padding(Padding {
-            top: 0.0,
-            right: 0.0,
-            bottom: 0.0,
-            left: 10.0,
-        })
-        .into()
 }
 
 impl<'a, Message> Widget<Message, Theme, iced::Renderer> for TabDock<'a, Message>
@@ -218,33 +144,17 @@ where
     }
 
     fn children(&self) -> Vec<Tree> {
-        let mut trees = vec![Tree::new(&self.chrome), Tree::new(&self.content)];
-        if let Some(tabs) = &self.tab_strip {
-            trees.push(Tree::new(tabs));
-        }
-        trees
+        vec![Tree::new(&self.tab_strip), Tree::new(&self.content)]
     }
 
     fn diff(&self, tree: &mut Tree) {
         if tree.children.is_empty() {
-            tree.children.push(Tree::new(&self.chrome));
+            tree.children.push(Tree::new(&self.tab_strip));
             tree.children.push(Tree::new(&self.content));
-            if let Some(tabs) = &self.tab_strip {
-                tree.children.push(Tree::new(tabs));
-            }
             return;
         }
-        tree.children[0].diff(&self.chrome);
+        tree.children[0].diff(&self.tab_strip);
         tree.children[1].diff(&self.content);
-        if let Some(tabs) = &self.tab_strip {
-            if tree.children.len() < 3 {
-                tree.children.push(Tree::new(tabs));
-            } else {
-                tree.children[2].diff(tabs);
-            }
-        } else if tree.children.len() > 2 {
-            tree.children.pop();
-        }
     }
 
     fn size(&self) -> Size<Length> {
@@ -265,24 +175,19 @@ where
         let inset = pane_inset(&style);
         let inner_w = (max.width - 2.0 * inset).max(0.0);
         let inner_h = (max.height - 2.0 * inset).max(0.0);
-        let title_h = style.title_bar.height;
-        let tab_h = if self.tabs.len() > 1 {
-            style.tab_bar.height
-        } else {
-            0.0
-        };
-        let content_h = (inner_h - title_h - tab_h).max(0.0);
+        let tab_h = style.tab_bar.height;
+        let content_h = (inner_h - tab_h).max(0.0);
         let mut y = inset;
 
-        let chrome_limits = layout::Limits::new(Size::ZERO, Size::new(inner_w, title_h));
-        let mut chrome_node = compose::child_layout(
-            &mut self.chrome,
+        let tab_limits = layout::Limits::new(Size::ZERO, Size::new(inner_w, tab_h));
+        let mut tab_node = compose::child_layout(
+            &mut self.tab_strip,
             &mut tree.children[0],
             renderer,
-            &chrome_limits,
+            &tab_limits,
         );
-        chrome_node.move_to_mut((inset, y));
-        y += title_h;
+        tab_node.move_to_mut((inset, y));
+        y += tab_h;
 
         let content_limits = layout::Limits::new(Size::ZERO, Size::new(inner_w, content_h));
         let mut content_node = compose::child_layout(
@@ -292,19 +197,11 @@ where
             &content_limits,
         );
         content_node.move_to_mut((inset, y));
-        y += content_h;
 
-        let mut nodes = vec![chrome_node, content_node];
-
-        if let (Some(tabs), Some(tab_idx)) = (&mut self.tab_strip, tab_child_index(&self.tabs)) {
-            let tab_limits = layout::Limits::new(Size::ZERO, Size::new(inner_w, tab_h));
-            let mut tab_node =
-                compose::child_layout(tabs, &mut tree.children[tab_idx], renderer, &tab_limits);
-            tab_node.move_to_mut((inset, y));
-            nodes.push(tab_node);
-        }
-
-        layout::Node::with_children(Size::new(max.width, max.height), nodes)
+        layout::Node::with_children(
+            Size::new(max.width, max.height),
+            vec![tab_node, content_node],
+        )
     }
 
     fn draw(
@@ -332,38 +229,14 @@ where
             window.background,
         );
 
-        if let Some(chrome_layout) = layout.children().next() {
-            let chrome_bounds = chrome_layout.bounds();
-            renderer.fill_quad(
-                renderer::Quad {
-                    bounds: chrome_bounds,
-                    ..renderer::Quad::default()
-                },
-                dock_style.title_bar.background,
-            );
-            let sep = Rectangle {
-                x: chrome_bounds.x,
-                y: chrome_bounds.y + chrome_bounds.height - 1.0,
-                width: chrome_bounds.width,
-                height: 1.0,
-            };
-            renderer.fill_quad(
-                renderer::Quad {
-                    bounds: sep,
-                    ..renderer::Quad::default()
-                },
-                Color::from_rgba(0.0, 0.0, 0.0, 0.35),
-            );
-        }
-
-        if let Some(chrome_layout) = layout.children().next() {
+        if let Some(tab_layout) = layout.children().next() {
             compose::child_draw(
-                &self.chrome,
+                &self.tab_strip,
                 &tree.children[0],
                 renderer,
                 theme,
                 style,
-                chrome_layout,
+                tab_layout,
                 cursor,
                 viewport,
             );
@@ -379,15 +252,6 @@ where
                 cursor,
                 viewport,
             );
-        }
-        if let (Some(tab_idx), Some(tabs)) = (tab_child_index(&self.tabs), &self.tab_strip) {
-            if let (Some(tab_layout), Some(child_tree)) =
-                (layout.children().nth(tab_idx), tree.children.get(tab_idx))
-            {
-                compose::child_draw(
-                    tabs, child_tree, renderer, theme, style, tab_layout, cursor, viewport,
-                );
-            }
         }
 
         let drag_session = self.dock_state.borrow().drag;
@@ -434,7 +298,6 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        let layout_style = self.layout_style();
         let dragging = self.is_dragging(tree);
         let state = tree.state.downcast_mut::<TabDockState>();
 
@@ -442,17 +305,24 @@ where
             self.register_drop_target(content_layout.bounds());
         }
 
-        if let Some(chrome_layout) = layout.children().next() {
+        if let Some(tab_layout) = layout.children().next() {
             compose::child_update(
-                &mut self.chrome,
+                &mut self.tab_strip,
                 &mut tree.children[0],
                 event,
-                chrome_layout,
+                tab_layout,
                 cursor,
                 renderer,
                 clipboard,
                 shell,
                 viewport,
+            );
+            tab_strip::sync_hover_in_tree(
+                &mut tree.children[0],
+                tab_layout.bounds(),
+                cursor,
+                self.tab_bar_scrollbar_hide_delay,
+                shell,
             );
         }
         if let Some(content_layout) = layout.children().nth(1) {
@@ -468,86 +338,25 @@ where
                 viewport,
             );
         }
-        if let (Some(tab_idx), Some(tabs)) = (tab_child_index(&self.tabs), &mut self.tab_strip) {
-            if let (Some(tab_layout), Some(child_tree)) = (
-                layout.children().nth(tab_idx),
-                tree.children.get_mut(tab_idx),
-            ) {
-                compose::child_update(
-                    tabs, child_tree, event, tab_layout, cursor, renderer, clipboard, shell,
-                    viewport,
-                );
-                tab_strip::sync_hover_in_tree(
-                    child_tree,
-                    tab_layout.bounds(),
-                    cursor,
-                    self.tab_bar_scrollbar_hide_delay,
-                    shell,
+
+        if matches!(
+            event,
+            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
+        ) && self.dock_state.borrow().drag.is_some()
+        {
+            if let Some(pos) = cursor.position() {
+                shell.publish((self.on_event)(DockMessage::Tab(TabMessage::DragEnded {
+                    cursor: pos,
+                })));
+            } else {
+                let _ = handle_dock_message(
+                    &mut self.dock_state.borrow_mut(),
+                    DockMessage::Tab(TabMessage::DragCancelled),
                 );
             }
-        }
-
-        if let Some(bar_layout) = layout.children().next() {
-            let drag_bounds = bar_layout
-                .children()
-                .nth(1)
-                .map(|drag_layout| drag_layout.bounds())
-                .unwrap_or_else(|| bar_layout.bounds());
-            let threshold = layout_style.title_bar.drag_threshold;
-            match event {
-                Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                    if self.can_drag {
-                        if let Some(pos) = cursor.position() {
-                            if drag_bounds.contains(pos) {
-                                state.drag_pending = true;
-                                state.drag_start = Some(pos);
-                            }
-                        }
-                    }
-                }
-                Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                    if state.drag_pending {
-                        if let (Some(start), Some(pos)) = (state.drag_start, cursor.position()) {
-                            let dx = pos.x - start.x;
-                            let dy = pos.y - start.y;
-                            if (dx * dx + dy * dy).sqrt() >= threshold {
-                                state.dragging = true;
-                                state.drag_pending = false;
-                                shell.publish((self.on_event)(DockMessage::Tab(
-                                    TabMessage::DragStarted {
-                                        source_pane: self.pane_id,
-                                        source_panel: self.active_tab,
-                                    },
-                                )));
-                                shell.request_redraw();
-                            }
-                        }
-                    }
-                }
-                Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-                    state.drag_pending = false;
-                    state.drag_start = None;
-                    let was_dragging = state.dragging;
-                    state.dragging = false;
-
-                    if was_dragging || self.dock_state.borrow().drag.is_some() {
-                        if let Some(pos) = cursor.position() {
-                            shell.publish((self.on_event)(DockMessage::Tab(
-                                TabMessage::DragEnded { cursor: pos },
-                            )));
-                        } else {
-                            let _ = handle_dock_message(
-                                &mut self.dock_state.borrow_mut(),
-                                DockMessage::Tab(TabMessage::DragCancelled),
-                            );
-                        }
-                        shell.invalidate_layout();
-                        shell.invalidate_widgets();
-                        shell.request_redraw();
-                    }
-                }
-                _ => {}
-            }
+            shell.invalidate_layout();
+            shell.invalidate_widgets();
+            shell.request_redraw();
         }
 
         if dragging {
@@ -567,11 +376,7 @@ where
             }
         }
 
-        if let Some(tab_idx) = tab_child_index(&self.tabs) {
-            if let Some(child_tree) = tree.children.get(tab_idx) {
-                tab_strip::schedule_hide_redraw(child_tree, shell);
-            }
-        }
+        tab_strip::schedule_hide_redraw(&tree.children[0], shell);
     }
 
     fn mouse_interaction(
@@ -587,11 +392,11 @@ where
         }
 
         let mut interaction = mouse::Interaction::None;
-        if let Some(chrome_layout) = layout.children().next() {
+        if let Some(tab_layout) = layout.children().next() {
             interaction = interaction.max(compose::child_mouse_interaction(
-                &self.chrome,
+                &self.tab_strip,
                 &tree.children[0],
-                chrome_layout,
+                tab_layout,
                 cursor,
                 viewport,
                 renderer,
@@ -607,15 +412,6 @@ where
                 renderer,
             ));
         }
-        if let (Some(tab_idx), Some(tabs)) = (tab_child_index(&self.tabs), &self.tab_strip) {
-            if let (Some(tab_layout), Some(child_tree)) =
-                (layout.children().nth(tab_idx), tree.children.get(tab_idx))
-            {
-                interaction = interaction.max(compose::child_mouse_interaction(
-                    tabs, child_tree, tab_layout, cursor, viewport, renderer,
-                ));
-            }
-        }
         interaction
     }
 
@@ -626,11 +422,11 @@ where
         renderer: &iced::Renderer,
         operation: &mut dyn Operation,
     ) {
-        if let Some(chrome_layout) = layout.children().next() {
+        if let Some(tab_layout) = layout.children().next() {
             compose::child_operate(
-                &mut self.chrome,
+                &mut self.tab_strip,
                 &mut tree.children[0],
-                chrome_layout,
+                tab_layout,
                 renderer,
                 operation,
             );

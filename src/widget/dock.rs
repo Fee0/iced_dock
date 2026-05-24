@@ -185,8 +185,8 @@ impl<Message: Clone + 'static> Dock<Message> {
     ) -> Option<Element<'static, Message, Theme, iced::Renderer>> {
         let active = pane.active.or_else(|| pane.tabs.first().copied())?;
         let entry = layout.get(active)?;
-        let (title, can_close, can_drag, content_key) = match &entry.kind {
-            NodeKind::Panel(m) => (m.title.clone(), m.can_close, m.can_drag, m.content),
+        let content_key = match &entry.kind {
+            NodeKind::Panel(m) => m.content,
             _ => return None,
         };
         let tabs: Vec<TabInfo> = pane
@@ -194,11 +194,15 @@ impl<Message: Clone + 'static> Dock<Message> {
             .iter()
             .filter_map(|&id| {
                 let e = layout.get(id)?;
-                let title = match &e.kind {
-                    NodeKind::Panel(m) => m.title.clone(),
-                    _ => return None,
-                };
-                Some(TabInfo { id, title })
+                match &e.kind {
+                    NodeKind::Panel(m) => Some(TabInfo {
+                        id,
+                        title: m.title.clone(),
+                        can_close: m.can_close,
+                        can_drag: m.can_drag,
+                    }),
+                    _ => None,
+                }
             })
             .collect();
 
@@ -210,9 +214,6 @@ impl<Message: Clone + 'static> Dock<Message> {
             TabDock::new(
                 holder.clone(),
                 pane_id,
-                title,
-                can_close,
-                can_drag,
                 tabs,
                 active,
                 content,
@@ -682,7 +683,9 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
                 source_pane,
                 source_panel,
             } => {
+                factory.set_active_panel(&mut state.layout, source_pane, source_panel);
                 state.drag = Some(DragSession::new(source_pane, source_panel));
+                state.layout_dirty = true;
                 changed = true;
             }
             TabMessage::DragEnded { cursor } => {

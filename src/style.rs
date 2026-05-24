@@ -68,6 +68,8 @@ pub struct TabBarStyle {
     pub background: Color,
     pub spacing: f32,
     pub padding: [f32; 2],
+    /// Minimum pointer movement before a tab label press becomes a dock drag.
+    pub drag_threshold: f32,
     /// Height of the floating horizontal scrollbar thumb when tabs overflow.
     pub scrollbar_height: f32,
     /// Scrollbar thumb color when the tab bar is hovered.
@@ -178,6 +180,7 @@ impl DockStyle {
                 background: canvas,
                 spacing: 0.0,
                 padding: [0.0, 0.0],
+                drag_threshold: 6.0,
                 scrollbar_height: 4.0,
                 scrollbar_thumb: Color::from_rgba(1.0, 1.0, 1.0, 0.28),
                 scrollbar_thumb_hovered: Color::from_rgba(1.0, 1.0, 1.0, 0.45),

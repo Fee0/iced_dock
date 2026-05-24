@@ -7,14 +7,14 @@ use iced::advanced::widget::{Operation, Widget};
 use iced::advanced::{Clipboard, Renderer as AdvRenderer, Shell};
 use iced::keyboard;
 use iced::mouse::{self, Cursor};
-use iced::widget::{button, container, row, text};
+use iced::widget::{button, container, mouse_area, row, text, Space};
 use iced::window;
 use iced::{
-    Element, Event, Length, Padding, Rectangle, Size, Theme, Vector,
+    Color, Element, Event, Length, Padding, Rectangle, Size, Theme, Vector,
 };
 
 use crate::model::NodeId;
-use crate::style::{tab_button_style, DockStyle};
+use crate::style::{close_button_style, DockStyle};
 use crate::widget::compose;
 use crate::widget::message::{DockMessage, TabMessage};
 use crate::widget::tab_dock::TabInfo;
@@ -30,6 +30,10 @@ struct TabStripState {
     scrollbar_drag: Option<ScrollbarDrag>,
     scrollbar_thumb_hovered: bool,
     keyboard_modifiers: keyboard::Modifiers,
+    drag_pending: bool,
+    drag_start: Option<iced::Point>,
+    dragging: bool,
+    pressed_tab: Option<NodeId>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -38,9 +42,11 @@ struct ScrollbarDrag {
 }
 
 pub struct TabStrip<'a, Message> {
+    pane_id: NodeId,
     tabs: Vec<TabInfo>,
     active_tab: NodeId,
     tabs_row: Element<'a, Message, Theme, iced::Renderer>,
+    on_event: Rc<dyn Fn(DockMessage) -> Message>,
     style: Rc<dyn Fn(&Theme) -> DockStyle>,
     hide_delay: iced::time::Duration,
 }
@@ -55,11 +61,13 @@ impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
         hide_delay: iced::time::Duration,
     ) -> Self {
         let layout_style = (style)(&Theme::Dark);
-        let tabs_row = build_tabs_row(&layout_style, pane_id, &tabs, active_tab, on_event.clone());
+        let tabs_row = build_tabs_row(&layout_style, &tabs, active_tab, on_event.clone());
         Self {
+            pane_id,
             tabs,
             active_tab,
             tabs_row,
+            on_event,
             style,
             hide_delay,
         }
@@ -78,44 +86,83 @@ impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
 
 fn build_tabs_row<Message: Clone + 'static>(
     style: &DockStyle,
-    pane_id: NodeId,
     tabs: &[TabInfo],
     active_tab: NodeId,
     on_event: Rc<dyn Fn(DockMessage) -> Message>,
 ) -> Element<'static, Message, Theme, iced::Renderer> {
     let bar = &style.tab_bar;
     let tab_style = &style.tab;
+    let cb = &style.title_bar.close_button;
     let mut strip = row![]
         .spacing(bar.spacing)
         .padding(bar.padding)
         .width(Length::Shrink)
         .height(Length::Fixed(bar.height))
-        .align_y(iced::Alignment::Start);
+        .align_y(iced::Alignment::Center);
     for tab in tabs {
         let on_event = on_event.clone();
         let tab_id = tab.id;
         let is_active = tab.id == active_tab;
-        let label = container(text(tab.title.clone()).size(tab_style.text_size))
-            .height(Length::Fill)
-            .center_y(Length::Fill);
-        let btn = button(label)
-            .padding(Padding {
-                top: 0.0,
-                bottom: 0.0,
-                left: tab_style.padding[1],
-                right: tab_style.padding[1],
-            })
+        let text_color = if is_active {
+            tab_style.active_text
+        } else {
+            tab_style.inactive_text
+        };
+        let mut label = mouse_area(
+            container(text(tab.title.clone()).size(tab_style.text_size).color(text_color))
+                .padding(Padding {
+                    top: 0.0,
+                    bottom: 0.0,
+                    left: tab_style.padding[1],
+                    right: tab_style.padding[1],
+                })
+                .height(Length::Fill)
+                .center_y(Length::Fill),
+        );
+        if tab.can_drag {
+            label = label.interaction(mouse::Interaction::Grab);
+        }
+        let close: Element<'_, Message, Theme, iced::Renderer> = if tab.can_close {
+            button(text("×").size(cb.text_size))
+                .padding(cb.padding)
+                .style(close_button_style(cb))
+                .on_press_with(move || {
+                    (on_event)(DockMessage::Tab(TabMessage::Close { panel: tab_id }))
+                })
+                .into()
+        } else {
+            Space::new()
+                .width(Length::Fixed(style.title_bar.close_button_width))
+                .into()
+        };
+        let tab_cell = row![label, close]
             .height(Length::Fixed(bar.height))
-            .style(tab_button_style(tab_style, is_active))
-            .on_press_with(move || {
-                (on_event)(DockMessage::Tab(TabMessage::Select {
-                    pane: pane_id,
-                    panel: tab_id,
-                }))
-            });
-        strip = strip.push(btn);
+            .align_y(iced::Alignment::Center);
+        strip = strip.push(tab_cell);
     }
     strip.into()
+}
+
+fn tab_label_bounds(tab_layout: &Layout<'_>) -> Option<Rectangle> {
+    Some(tab_layout.children().next()?.bounds())
+}
+
+fn hit_test_tab_label(
+    row_layout: &Layout<'_>,
+    tabs: &[TabInfo],
+    scroll_offset: f32,
+    pos: iced::Point,
+) -> Option<NodeId> {
+    for (i, tab) in tabs.iter().enumerate() {
+        let tab_layout = row_layout.children().nth(i)?;
+        if let Some(label_bounds) = tab_label_bounds(&tab_layout) {
+            let adjusted = iced::Point::new(pos.x + scroll_offset, pos.y);
+            if label_bounds.contains(adjusted) {
+                return Some(tab.id);
+            }
+        }
+    }
+    None
 }
 
 fn max_scroll_offset(content_width: f32, viewport_width: f32) -> f32 {
@@ -229,6 +276,16 @@ fn cursor_over_tab_bar(tab_bounds: Rectangle, cursor: Cursor) -> bool {
     }
 }
 
+/// Whether this tab strip has an in-progress label drag (before or after threshold).
+pub(crate) fn is_dragging(tab_strip_tree: Option<&Tree>) -> bool {
+    tab_strip_tree
+        .map(|tree| {
+            let state = tree.state.downcast_ref::<TabStripState>();
+            state.dragging || state.drag_pending
+        })
+        .unwrap_or(false)
+}
+
 /// Pending scrollbar hide deadline, if a delayed hide was scheduled.
 pub(crate) fn pending_hide_deadline(tree: &Tree) -> Option<iced::time::Instant> {
     tree.state
@@ -237,9 +294,6 @@ pub(crate) fn pending_hide_deadline(tree: &Tree) -> Option<iced::time::Instant> 
 }
 
 /// Ensure a redraw is scheduled when the hide deadline elapses.
-///
-/// Does not replace an already-requested [`RedrawRequest::NextFrame`] so an immediate
-/// hover-clear redraw can run in the same frame.
 pub(crate) fn schedule_hide_redraw<Message>(
     tree: &Tree,
     shell: &mut Shell<'_, Message>,
@@ -359,7 +413,6 @@ where
         let bar_height = style.tab_bar.height;
         let max = limits.max();
         let viewport_width = max.width;
-        // Measure the tab row at natural width so we can detect horizontal overflow.
         let viewport_limits = layout::Limits::new(
             Size::ZERO,
             Size::new(f32::INFINITY, bar_height),
@@ -419,6 +472,20 @@ where
             bar.background,
         );
 
+        let sep = Rectangle {
+            x: tab_bounds.x,
+            y: tab_bounds.y + tab_bounds.height - 1.0,
+            width: tab_bounds.width,
+            height: 1.0,
+        };
+        renderer.fill_quad(
+            renderer::Quad {
+                bounds: sep,
+                ..renderer::Quad::default()
+            },
+            Color::from_rgba(0.0, 0.0, 0.0, 0.35),
+        );
+
         let translation = Vector::new(scroll_offset, 0.0);
 
         renderer.with_layer(visible_bounds, |renderer| {
@@ -428,9 +495,12 @@ where
                         let btn_bounds = active_layout.bounds();
                         let fill = Rectangle {
                             x: btn_bounds.x,
-                            y: tab_bounds.y - 1.0,
+                            y: btn_bounds.y,
                             width: btn_bounds.width,
-                            height: (tab_bounds.height - scrollbar_band + 1.0).max(0.0),
+                            height: (tab_bounds.height - scrollbar_band - btn_bounds.y
+                                + tab_bounds.y
+                                + 1.0)
+                                .max(0.0),
                         };
                         renderer.fill_quad(
                             renderer::Quad {
@@ -502,6 +572,7 @@ where
         let max_offset = max_scroll_offset(state.content_width, state.viewport_width);
         let dock_style = self.layout_style(&Theme::Dark);
         let bar = &dock_style.tab_bar;
+        let threshold = bar.drag_threshold;
 
         let cursor_pos = cursor.position();
         let over_tab_bar = cursor_over_tab_bar(tab_bounds, cursor);
@@ -531,6 +602,7 @@ where
 
         let mut captured_scrollbar = false;
         let mut captured_wheel = false;
+        let mut captured_label = false;
 
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
@@ -561,6 +633,30 @@ where
                         captured_scrollbar = true;
                     }
                 }
+                if !captured_scrollbar {
+                    if let (Some(pos), Some(row_layout)) =
+                        (cursor_pos, layout.children().next())
+                    {
+                        if let Some(tab_id) = hit_test_tab_label(
+                            &row_layout,
+                            &self.tabs,
+                            state.scroll_offset,
+                            pos,
+                        ) {
+                            let can_drag = self
+                                .tabs
+                                .iter()
+                                .find(|t| t.id == tab_id)
+                                .is_some_and(|t| t.can_drag);
+                            state.pressed_tab = Some(tab_id);
+                            if can_drag {
+                                state.drag_pending = true;
+                                state.drag_start = Some(pos);
+                            }
+                            captured_label = true;
+                        }
+                    }
+                }
             }
             Event::Mouse(mouse::Event::CursorMoved { .. }) => {
                 if let (Some(pos), Some(drag), Some(metrics)) = (
@@ -581,10 +677,46 @@ where
                         captured_scrollbar = true;
                     }
                 }
+                if state.drag_pending {
+                    if let (Some(start), Some(pos)) = (state.drag_start, cursor_pos) {
+                        let dx = pos.x - start.x;
+                        let dy = pos.y - start.y;
+                        if (dx * dx + dy * dy).sqrt() >= threshold {
+                            if let Some(panel) = state.pressed_tab {
+                                state.dragging = true;
+                                state.drag_pending = false;
+                                shell.publish((self.on_event)(DockMessage::Tab(
+                                    TabMessage::DragStarted {
+                                        source_pane: self.pane_id,
+                                        source_panel: panel,
+                                    },
+                                )));
+                                shell.request_redraw();
+                                captured_label = true;
+                            }
+                        }
+                    }
+                }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
                 if state.scrollbar_drag.take().is_some() {
                     shell.request_redraw();
+                }
+                let was_dragging = state.dragging;
+                let pressed = state.pressed_tab.take();
+                state.drag_pending = false;
+                state.drag_start = None;
+                state.dragging = false;
+
+                if was_dragging {
+                    shell.request_redraw();
+                    captured_label = true;
+                } else if let Some(panel) = pressed {
+                    shell.publish((self.on_event)(DockMessage::Tab(TabMessage::Select {
+                        pane: self.pane_id,
+                        panel,
+                    })));
+                    captured_label = true;
                 }
             }
             Event::Mouse(mouse::Event::WheelScrolled { delta }) => {
@@ -618,7 +750,7 @@ where
             Event::Mouse(mouse::Event::WheelScrolled { .. })
         );
 
-        if !captured_scrollbar && (forward_wheel || !captured_wheel) {
+        if !captured_scrollbar && !captured_label && (forward_wheel || !captured_wheel) {
             if let Some(row_layout) = layout.children().next() {
                 let content_cursor =
                     tab_row_cursor(tab_bounds, cursor, state.scroll_offset);
@@ -648,6 +780,9 @@ where
         renderer: &iced::Renderer,
     ) -> mouse::Interaction {
         let state = tree.state.downcast_ref::<TabStripState>();
+        if state.dragging || state.drag_pending {
+            return mouse::Interaction::Grab;
+        }
         if state.scrollbar_drag.is_some() {
             return mouse::Interaction::Grabbing;
         }
@@ -666,6 +801,24 @@ where
                 .is_some_and(|p| metrics.thumb.contains(p) || metrics.track.contains(p))
             {
                 return mouse::Interaction::Pointer;
+            }
+        }
+
+        if let (Some(pos), Some(row_layout)) = (cursor.position(), layout.children().next()) {
+            if let Some(tab_id) = hit_test_tab_label(
+                &row_layout,
+                &self.tabs,
+                state.scroll_offset,
+                pos,
+            ) {
+                if self
+                    .tabs
+                    .iter()
+                    .find(|t| t.id == tab_id)
+                    .is_some_and(|t| t.can_drag)
+                {
+                    return mouse::Interaction::Grab;
+                }
             }
         }
 
