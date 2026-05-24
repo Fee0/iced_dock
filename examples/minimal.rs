@@ -85,7 +85,7 @@ fn view(app: &App) -> Element<'_, Message> {
             .content(panel)
             .min_pane_width(200.0)
             .min_pane_height(120.0)
-            .tab_bar_scrollbar_hide_delay(iced::time::Duration::from_millis(500))
+            .tab_bar_show_scrollbar(false)
             .style(|theme| DockStyle::from_theme(theme))
             .build(),
     )

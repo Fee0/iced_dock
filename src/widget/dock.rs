@@ -87,6 +87,7 @@ pub struct Dock<Message> {
     drag_active: bool,
     style: Rc<dyn Fn(&Theme) -> DockStyle>,
     tab_bar_scrollbar_hide_delay: iced::time::Duration,
+    tab_bar_show_scrollbar: bool,
 }
 
 impl<Message: Clone + 'static> Dock<Message> {
@@ -101,6 +102,7 @@ impl<Message: Clone + 'static> Dock<Message> {
             drag_active: false,
             style: Rc::new(DockStyle::from_theme),
             tab_bar_scrollbar_hide_delay: iced::time::Duration::from_secs(1),
+            tab_bar_show_scrollbar: true,
         }
     }
 
@@ -124,6 +126,15 @@ impl<Message: Clone + 'static> Dock<Message> {
     /// Default is one second.
     pub fn tab_bar_scrollbar_hide_delay(mut self, delay: iced::time::Duration) -> Self {
         self.tab_bar_scrollbar_hide_delay = delay;
+        self
+    }
+
+    /// Whether overflowing tab bars show a horizontal scrollbar thumb.
+    ///
+    /// When `false`, tabs can still be scrolled with the mouse wheel (and Shift+wheel).
+    /// Default is `true`.
+    pub fn tab_bar_show_scrollbar(mut self, show: bool) -> Self {
+        self.tab_bar_show_scrollbar = show;
         self
     }
 
@@ -220,6 +231,7 @@ impl<Message: Clone + 'static> Dock<Message> {
                 on_tab,
                 self.style.clone(),
                 self.tab_bar_scrollbar_hide_delay,
+                self.tab_bar_show_scrollbar,
             )
             .into(),
         )
@@ -285,6 +297,7 @@ pub struct DockBuilder<Message> {
     min_pane_width: Option<f32>,
     min_pane_height: Option<f32>,
     tab_bar_scrollbar_hide_delay: Option<iced::time::Duration>,
+    tab_bar_show_scrollbar: Option<bool>,
 }
 
 impl<Message> Default for DockBuilder<Message> {
@@ -298,6 +311,7 @@ impl<Message> Default for DockBuilder<Message> {
             min_pane_width: None,
             min_pane_height: None,
             tab_bar_scrollbar_hide_delay: None,
+            tab_bar_show_scrollbar: None,
         }
     }
 }
@@ -360,6 +374,15 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
         self
     }
 
+    /// Whether overflowing tab bars show a horizontal scrollbar thumb.
+    ///
+    /// When `false`, tabs can still be scrolled with the mouse wheel (and Shift+wheel).
+    /// Default is `true`.
+    pub fn tab_bar_show_scrollbar(mut self, show: bool) -> Self {
+        self.tab_bar_show_scrollbar = Some(show);
+        self
+    }
+
     pub fn build(self) -> Dock<Message> {
         let content = self
             .content
@@ -390,6 +413,9 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
         }
         if let Some(delay) = self.tab_bar_scrollbar_hide_delay {
             dock.tab_bar_scrollbar_hide_delay = delay;
+        }
+        if let Some(show) = self.tab_bar_show_scrollbar {
+            dock.tab_bar_show_scrollbar = show;
         }
         dock
     }

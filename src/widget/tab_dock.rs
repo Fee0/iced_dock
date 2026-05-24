@@ -79,6 +79,7 @@ pub struct TabDock<'a, Message> {
     on_event: Rc<dyn Fn(DockMessage) -> Message>,
     style: Rc<dyn Fn(&Theme) -> DockStyle>,
     tab_bar_scrollbar_hide_delay: iced::time::Duration,
+    tab_bar_show_scrollbar: bool,
 }
 
 impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
@@ -91,6 +92,7 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
         on_event: Rc<dyn Fn(DockMessage) -> Message>,
         style: Rc<dyn Fn(&Theme) -> DockStyle>,
         tab_bar_scrollbar_hide_delay: iced::time::Duration,
+        tab_bar_show_scrollbar: bool,
     ) -> Self {
         let tab_strip = TabStrip::new(
             pane_id,
@@ -99,6 +101,7 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
             on_event.clone(),
             style.clone(),
             tab_bar_scrollbar_hide_delay,
+            tab_bar_show_scrollbar,
         )
         .into();
         Self {
@@ -111,6 +114,7 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
             on_event,
             style,
             tab_bar_scrollbar_hide_delay,
+            tab_bar_show_scrollbar,
         }
     }
 
@@ -322,6 +326,7 @@ where
                 tab_layout.bounds(),
                 cursor,
                 self.tab_bar_scrollbar_hide_delay,
+                self.tab_bar_show_scrollbar,
                 shell,
             );
         }

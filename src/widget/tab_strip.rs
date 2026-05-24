@@ -50,6 +50,7 @@ pub struct TabStrip<'a, Message> {
     on_event: Rc<dyn Fn(DockMessage) -> Message>,
     style: Rc<dyn Fn(&Theme) -> DockStyle>,
     hide_delay: iced::time::Duration,
+    show_scrollbar: bool,
 }
 
 impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
@@ -60,6 +61,7 @@ impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
         on_event: Rc<dyn Fn(DockMessage) -> Message>,
         style: Rc<dyn Fn(&Theme) -> DockStyle>,
         hide_delay: iced::time::Duration,
+        show_scrollbar: bool,
     ) -> Self {
         let layout_style = (style)(&Theme::Dark);
         let tabs_row =
@@ -72,6 +74,7 @@ impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
             on_event,
             style,
             hide_delay,
+            show_scrollbar,
         }
     }
 
@@ -366,10 +369,11 @@ pub(crate) fn sync_hover_in_tree<Message>(
     tab_bounds: Rectangle,
     cursor: Cursor,
     hide_delay: iced::time::Duration,
+    show_scrollbar: bool,
     shell: &mut Shell<'_, Message>,
 ) {
     let state = tab_strip_tree.state.downcast_mut::<TabStripState>();
-    sync_tab_bar_hover(state, tab_bounds, cursor, hide_delay, shell);
+    sync_tab_bar_hover(state, tab_bounds, cursor, hide_delay, show_scrollbar, shell);
 }
 
 fn sync_tab_bar_hover<Message>(
@@ -377,8 +381,13 @@ fn sync_tab_bar_hover<Message>(
     tab_bounds: Rectangle,
     cursor: Cursor,
     hide_delay: iced::time::Duration,
+    show_scrollbar: bool,
     shell: &mut Shell<'_, Message>,
 ) {
+    if !show_scrollbar {
+        return;
+    }
+
     if let Some(deadline) = state.hide_at {
         if iced::time::Instant::now() >= deadline {
             state.scrollbar_visible = false;
@@ -574,10 +583,10 @@ where
                 );
             });
 
-            let show_scrollbar = state.scrollbar_visible
+            let scrollbar_fade_in = state.scrollbar_visible
                 && state.hide_at.is_none_or(|deadline| iced::time::Instant::now() < deadline);
 
-            if overflow && show_scrollbar {
+            if self.show_scrollbar && overflow && scrollbar_fade_in {
                 if let Some(metrics) = scrollbar_metrics(
                     tab_bounds,
                     bar,
@@ -643,13 +652,15 @@ where
             shell.request_redraw();
         }
 
-        if let Event::Window(window::Event::RedrawRequested(now)) = event {
-            if let Some(deadline) = state.hide_at {
-                if *now >= deadline {
-                    state.scrollbar_visible = false;
-                    state.hide_at = None;
-                } else {
-                    Shell::replace_redraw_request(shell, window::RedrawRequest::At(deadline));
+        if self.show_scrollbar {
+            if let Event::Window(window::Event::RedrawRequested(now)) = event {
+                if let Some(deadline) = state.hide_at {
+                    if *now >= deadline {
+                        state.scrollbar_visible = false;
+                        state.hide_at = None;
+                    } else {
+                        Shell::replace_redraw_request(shell, window::RedrawRequest::At(deadline));
+                    }
                 }
             }
         }
@@ -672,31 +683,32 @@ where
 
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                if let (Some(pos), Some(metrics)) = (cursor_pos, scrollbar_metrics.as_ref()) {
-                    if metrics.thumb.contains(pos) {
-                        state.scrollbar_drag = Some(ScrollbarDrag {
-                            grab_x: pos.x - metrics.thumb.x,
-                        });
-                        state.scrollbar_visible = true;
-                        state.hide_at = None;
-                        shell.capture_event();
-                        captured_scrollbar = true;
-                    } else if metrics.track.contains(pos) {
-                        let click = (pos.x - metrics.track.x - metrics.thumb.width * 0.5)
-                            .max(0.0);
-                        let travel = (metrics.track.width - metrics.thumb.width).max(0.0);
-                        if travel > 0.0 {
-                            state.scroll_offset =
-                                clamp_scroll_offset(
+                if self.show_scrollbar {
+                    if let (Some(pos), Some(metrics)) = (cursor_pos, scrollbar_metrics.as_ref()) {
+                        if metrics.thumb.contains(pos) {
+                            state.scrollbar_drag = Some(ScrollbarDrag {
+                                grab_x: pos.x - metrics.thumb.x,
+                            });
+                            state.scrollbar_visible = true;
+                            state.hide_at = None;
+                            shell.capture_event();
+                            captured_scrollbar = true;
+                        } else if metrics.track.contains(pos) {
+                            let click = (pos.x - metrics.track.x - metrics.thumb.width * 0.5)
+                                .max(0.0);
+                            let travel = (metrics.track.width - metrics.thumb.width).max(0.0);
+                            if travel > 0.0 {
+                                state.scroll_offset = clamp_scroll_offset(
                                     (click / travel) * metrics.max_offset,
                                     metrics.max_offset,
                                 );
+                            }
+                            state.scrollbar_visible = true;
+                            state.hide_at = None;
+                            shell.capture_event();
+                            shell.request_redraw();
+                            captured_scrollbar = true;
                         }
-                        state.scrollbar_visible = true;
-                        state.hide_at = None;
-                        shell.capture_event();
-                        shell.request_redraw();
-                        captured_scrollbar = true;
                     }
                 }
                 if !captured_scrollbar {
@@ -725,22 +737,24 @@ where
                 }
             }
             Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                if let (Some(pos), Some(drag), Some(metrics)) = (
-                    cursor_pos,
-                    state.scrollbar_drag,
-                    scrollbar_metrics.as_ref(),
-                ) {
-                    let travel = (metrics.track.width - metrics.thumb.width).max(0.0);
-                    if travel > 0.0 {
-                        let delta = pos.x - metrics.track.x - drag.grab_x;
-                        let ratio = delta / travel;
-                        state.scroll_offset = clamp_scroll_offset(
-                            ratio * metrics.max_offset,
-                            metrics.max_offset,
-                        );
-                        shell.capture_event();
-                        shell.request_redraw();
-                        captured_scrollbar = true;
+                if self.show_scrollbar {
+                    if let (Some(pos), Some(drag), Some(metrics)) = (
+                        cursor_pos,
+                        state.scrollbar_drag,
+                        scrollbar_metrics.as_ref(),
+                    ) {
+                        let travel = (metrics.track.width - metrics.thumb.width).max(0.0);
+                        if travel > 0.0 {
+                            let delta = pos.x - metrics.track.x - drag.grab_x;
+                            let ratio = delta / travel;
+                            state.scroll_offset = clamp_scroll_offset(
+                                ratio * metrics.max_offset,
+                                metrics.max_offset,
+                            );
+                            shell.capture_event();
+                            shell.request_redraw();
+                            captured_scrollbar = true;
+                        }
                     }
                 }
                 if state.drag_pending {
@@ -765,7 +779,7 @@ where
                 }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-                if state.scrollbar_drag.take().is_some() {
+                if self.show_scrollbar && state.scrollbar_drag.take().is_some() {
                     shell.request_redraw();
                 }
                 let was_dragging = state.dragging;
@@ -792,8 +806,10 @@ where
                     if dx.abs() > f32::EPSILON {
                         state.scroll_offset =
                             clamp_scroll_offset(state.scroll_offset + dx, max_offset);
-                        state.scrollbar_visible = true;
-                        state.hide_at = None;
+                        if self.show_scrollbar {
+                            state.scrollbar_visible = true;
+                            state.hide_at = None;
+                        }
                         shell.capture_event();
                         shell.request_redraw();
                         captured_wheel = true;
@@ -803,11 +819,13 @@ where
             _ => {}
         }
 
-        if let Some(metrics) = scrollbar_metrics.as_ref() {
-            let hovered = cursor_pos.is_some_and(|p| metrics.thumb.contains(p));
-            if hovered != state.scrollbar_thumb_hovered {
-                state.scrollbar_thumb_hovered = hovered;
-                shell.request_redraw();
+        if self.show_scrollbar {
+            if let Some(metrics) = scrollbar_metrics.as_ref() {
+                let hovered = cursor_pos.is_some_and(|p| metrics.thumb.contains(p));
+                if hovered != state.scrollbar_thumb_hovered {
+                    state.scrollbar_thumb_hovered = hovered;
+                    shell.request_redraw();
+                }
             }
         }
 
@@ -834,7 +852,14 @@ where
             }
         }
 
-        sync_tab_bar_hover(state, tab_bounds, cursor, self.hide_delay, shell);
+        sync_tab_bar_hover(
+            state,
+            tab_bounds,
+            cursor,
+            self.hide_delay,
+            self.show_scrollbar,
+            shell,
+        );
     }
 
     fn mouse_interaction(
@@ -849,24 +874,25 @@ where
         if state.dragging {
             return mouse::Interaction::Grab;
         }
-        if state.scrollbar_drag.is_some() {
+        if self.show_scrollbar && state.scrollbar_drag.is_some() {
             return mouse::Interaction::Grabbing;
         }
 
         let tab_bounds = layout.bounds();
         let dock_style = self.layout_style(&Theme::Dark);
-        if let Some(metrics) = scrollbar_metrics(
-            tab_bounds,
-            &dock_style.tab_bar,
-            state.scroll_offset,
-            state.content_width,
-            state.viewport_width,
-        ) {
-            if cursor
-                .position()
-                .is_some_and(|p| metrics.thumb.contains(p) || metrics.track.contains(p))
-            {
-                return mouse::Interaction::Pointer;
+        if self.show_scrollbar {
+            if let Some(metrics) = scrollbar_metrics(
+                tab_bounds,
+                &dock_style.tab_bar,
+                state.scroll_offset,
+                state.content_width,
+                state.viewport_width,
+            ) {
+                if cursor.position().is_some_and(|p| {
+                    metrics.thumb.contains(p) || metrics.track.contains(p)
+                }) {
+                    return mouse::Interaction::Pointer;
+                }
             }
         }
 
