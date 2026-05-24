@@ -1,6 +1,6 @@
-use iced_dock::builder::build_tree;
+use iced_dock::unstable::build_tree;
 use iced_dock::{
-    horizontal, panel, tabs, vertical, ContentKey, DockSession, Error, LayoutTree, NodeKind,
+    horizontal, panel, tabs, vertical, ContentKey, DockSession, Error, LayoutTree,
     PaneTarget,
 };
 
@@ -34,7 +34,7 @@ fn nested_layout() -> LayoutTree {
 fn nested_layout_produces_horizontal_root() {
     let built = build_tree(&nested_layout()).expect("nested layout should compile");
     let root = built.layout.root_child().expect("root child");
-    let NodeKind::Proportional(pg) = built.layout.kind(root).expect("proportional root") else {
+    let iced_dock::model::NodeKind::Proportional(pg) = built.layout.kind(root).expect("proportional root") else {
         panic!("expected proportional root");
     };
     assert_eq!(pg.children.len(), 2);
@@ -73,7 +73,7 @@ fn simple_split_matches_manual_structure() {
     ]);
     let built = build_tree(&tree).expect("compile");
     let root = built.layout.root_child().unwrap();
-    let NodeKind::Proportional(pg) = built.layout.kind(root).unwrap() else {
+    let iced_dock::model::NodeKind::Proportional(pg) = built.layout.kind(root).unwrap() else {
         panic!("expected split root");
     };
     assert_eq!(pg.children.len(), 2);
@@ -90,7 +90,7 @@ fn session_open_focus_close_by_id() {
     assert!(session.panel_ids().contains(&"b".into()));
     assert_eq!(session.active_panel().as_deref(), Some("b"));
 
-    session.focus_panel("a").expect("focus");
+    session.select_panel("a").expect("select");
     assert_eq!(session.active_panel().as_deref(), Some("a"));
 
     session.close_panel("a").expect("close");
@@ -109,7 +109,7 @@ fn named_pane_target_opens_panel() {
     let tree = tabs([panel("a", "A", ContentKey(0))]).named("editor");
     let session = DockSession::from_tree(tree).expect("session");
     session
-        .open_panel(PaneTarget::Named("editor"), panel("b", "B", ContentKey(1)))
+        .open_panel(PaneTarget::Named("editor".into()), panel("b", "B", ContentKey(1)))
         .expect("open in named pane");
     assert!(session.panel_ids().contains(&"b".into()));
 }

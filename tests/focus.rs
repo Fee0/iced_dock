@@ -1,8 +1,7 @@
-use iced_dock::builder::build_tree;
+use iced_dock::unstable::{build_tree, dispatch_action, owning_pane};
 use iced_dock::{
-    adjacent_pane, handle_dock_message, horizontal, owning_pane, pane_bounds_map, panel, tabs,
-    vertical, ContentKey, Direction, DockMessage, DockSession, DockWidgetState, InitialFocus,
-    PanelCycle, PaneTarget, TabMessage,
+    adjacent_pane, horizontal, pane_bounds_map, panel, tabs, vertical, ContentKey, Direction,
+    DockAction, DockSession, DockWidgetState, InitialFocus, PanelCycle, PaneTarget, TabAction,
 };
 
 fn nested_layout() -> iced_dock::LayoutTree {
@@ -47,7 +46,7 @@ fn tab_select_sets_focused_pane() {
     let preview_pane = owning_pane(&built.layout, preview_panel).expect("preview pane");
     assert_ne!(initial, preview_pane);
 
-    session.apply_message(DockMessage::Tab(TabMessage::Select {
+    session.dispatch(DockAction::Tab(TabAction::Select {
         pane: preview_pane,
         panel: preview_panel,
     }));
@@ -63,12 +62,12 @@ fn pane_focused_updates_focus_without_layout_dirty() {
         tabs([panel("b", "B", ContentKey(1))]),
     ]))
     .expect("built");
-    let pane_a = iced_dock::first_pane(&built.layout).expect("pane a");
+    let pane_a = iced_dock::unstable::first_pane(&built.layout).expect("pane a");
     let pane_b = built
         .layout
         .root_child()
         .and_then(|root| {
-            if let iced_dock::NodeKind::Proportional(pg) = built.layout.kind(root)? {
+            if let iced_dock::model::NodeKind::Proportional(pg) = built.layout.kind(root)? {
                 pg.children.iter().find(|&&id| id != pane_a).copied()
             } else {
                 None
@@ -78,6 +77,7 @@ fn pane_focused_updates_focus_without_layout_dirty() {
 
     let mut state = DockWidgetState {
         layout: built.layout,
+        index: built.index,
         drag: None,
         drop_targets: Vec::new(),
         tab_bar_targets: Vec::new(),
@@ -87,9 +87,9 @@ fn pane_focused_updates_focus_without_layout_dirty() {
         layout_dirty: false,
     };
 
-    let changed = handle_dock_message(
+    let changed = dispatch_action(
         &mut state,
-        DockMessage::PaneFocused {
+        DockAction::PaneFocused {
             pane: pane_b,
             panel: None,
         },
@@ -109,7 +109,7 @@ fn active_panel_uses_focused_pane_in_multi_pane_layout() {
     let props_panel = built.index.panel_node("props").expect("props");
     let props_pane = owning_pane(&built.layout, props_panel).expect("props pane");
 
-    session.apply_message(DockMessage::Tab(TabMessage::Select {
+    session.dispatch(DockAction::Tab(TabAction::Select {
         pane: props_pane,
         panel: props_panel,
     }));
@@ -127,7 +127,6 @@ fn focus_pane_api() {
 
     session.focus_pane(explorer_pane).expect("focus pane");
     assert_eq!(session.focused_pane(), Some(explorer_pane));
-    // Last tab added during compile is active in this pane.
     assert_eq!(session.active_panel().as_deref(), Some("search"));
 }
 
@@ -157,12 +156,12 @@ fn adjacent_pane_finds_horizontal_neighbor_with_gap() {
         tabs([panel("b", "B", ContentKey(1))]),
     ]))
     .expect("built");
-    let left = iced_dock::first_pane(&built.layout).expect("left");
+    let left = iced_dock::unstable::first_pane(&built.layout).expect("left");
     let right = built
         .layout
         .root_child()
         .and_then(|root| {
-            if let iced_dock::NodeKind::Proportional(pg) = built.layout.kind(root)? {
+            if let iced_dock::model::NodeKind::Proportional(pg) = built.layout.kind(root)? {
                 pg.children.iter().find(|&&id| id != left).copied()
             } else {
                 None
@@ -191,12 +190,12 @@ fn adjacent_pane_finds_horizontal_neighbor() {
         tabs([panel("b", "B", ContentKey(1))]),
     ]))
     .expect("built");
-    let left = iced_dock::first_pane(&built.layout).expect("left");
+    let left = iced_dock::unstable::first_pane(&built.layout).expect("left");
     let right = built
         .layout
         .root_child()
         .and_then(|root| {
-            if let iced_dock::NodeKind::Proportional(pg) = built.layout.kind(root)? {
+            if let iced_dock::model::NodeKind::Proportional(pg) = built.layout.kind(root)? {
                 pg.children.iter().find(|&&id| id != left).copied()
             } else {
                 None
@@ -225,12 +224,12 @@ fn pane_bounds_map_from_collected_vec() {
         tabs([panel("b", "B", ContentKey(1))]),
     ]))
     .expect("built");
-    let a = iced_dock::first_pane(&built.layout).expect("a");
+    let a = iced_dock::unstable::first_pane(&built.layout).expect("a");
     let b = built
         .layout
         .root_child()
         .and_then(|root| {
-            if let iced_dock::NodeKind::Proportional(pg) = built.layout.kind(root)? {
+            if let iced_dock::model::NodeKind::Proportional(pg) = built.layout.kind(root)? {
                 pg.children.iter().find(|&&id| id != a).copied()
             } else {
                 None
@@ -285,15 +284,15 @@ fn pane_focused_with_panel_activates_tab() {
         .active("a"),
     ]))
     .expect("built");
-    let pane = iced_dock::first_pane(&built.layout).expect("pane");
+    let pane = iced_dock::unstable::first_pane(&built.layout).expect("pane");
     let panel_b = built.index.panel_node("b").expect("b");
 
     let mut state = DockWidgetState::from_built(built, Some(pane));
     state.layout_dirty = false;
 
-    let changed = handle_dock_message(
+    let changed = dispatch_action(
         &mut state,
-        DockMessage::PaneFocused {
+        DockAction::PaneFocused {
             pane,
             panel: Some(panel_b),
         },
@@ -311,12 +310,12 @@ fn focus_adjacent_moves_focus() {
         tabs([panel("b", "B", ContentKey(1))]),
     ]))
     .expect("built");
-    let left = iced_dock::first_pane(&built.layout).expect("left");
+    let left = iced_dock::unstable::first_pane(&built.layout).expect("left");
     let right = built
         .layout
         .root_child()
         .and_then(|root| {
-            if let iced_dock::NodeKind::Proportional(pg) = built.layout.kind(root)? {
+            if let iced_dock::model::NodeKind::Proportional(pg) = built.layout.kind(root)? {
                 pg.children.iter().find(|&&id| id != left).copied()
             } else {
                 None
@@ -355,16 +354,20 @@ fn cycle_panel_wraps() {
 
 #[test]
 fn from_tree_with_focus_named_panel() {
-    let session =
-        DockSession::from_tree_with_focus(nested_layout(), InitialFocus::NamedPanel("props"))
-            .expect("session");
+    let session = DockSession::from_tree_with_focus(
+        nested_layout(),
+        InitialFocus::NamedPanel("props".into()),
+    )
+    .expect("session");
     let built = build_tree(&nested_layout()).expect("built");
     let props_panel = built.index.panel_node("props").expect("props");
     let props_pane = owning_pane(&built.layout, props_panel).expect("pane");
 
     assert_eq!(session.focused_pane(), Some(props_pane));
-    // Initial focus sets pane only; active tab follows compile order in that pane.
-    assert_eq!(session.active_panel_in_pane(props_pane).as_deref(), Some("output"));
+    assert_eq!(
+        session.active_panel_in_pane(props_pane).as_deref(),
+        Some("output")
+    );
     assert_eq!(session.active_panel().as_deref(), Some("output"));
 }
 

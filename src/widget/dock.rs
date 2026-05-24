@@ -9,11 +9,13 @@ use iced::advanced::{Clipboard, Renderer as AdvRenderer, Shell};
 use iced::mouse::{self, Cursor};
 use iced::{Element, Event, Length, Rectangle, Size, Theme};
 
+use crate::builder::DockIndex;
 use crate::factory::Factory;
 use crate::manager::{DockManager, DragSession, TabBarTarget};
 use crate::model::{ContentKey, Layout as DockLayout, NodeId, NodeKind, Pane};
 use crate::style::DockStyle;
-use crate::widget::message::{DockMessage, TabMessage};
+use crate::widget::action::{DockAction, TabAction};
+use crate::widget::event::{action_to_event, DockEvent};
 use crate::widget::split::SplitContainer;
 use crate::widget::tab_dock::{TabDock, TabInfo};
 
@@ -21,6 +23,7 @@ use crate::widget::tab_dock::{TabDock, TabInfo};
 #[derive(Debug, Clone)]
 pub struct DockWidgetState {
     pub layout: DockLayout,
+    pub index: DockIndex,
     pub drag: Option<DragSession>,
     pub drop_targets: Vec<(NodeId, Rectangle)>,
     pub tab_bar_targets: Vec<TabBarTarget>,
@@ -35,6 +38,20 @@ pub struct DockWidgetState {
 }
 
 impl DockWidgetState {
+    /// Rebuild string-id index from the current layout graph.
+    pub fn sync_index(&mut self) {
+        self.index = DockIndex::rebuild_from_layout(&self.layout);
+    }
+
+    fn commit_layout(&mut self) {
+        if self.layout_dirty {
+            self.sync_index();
+            self.layout_dirty = false;
+        }
+    }
+}
+
+impl DockWidgetState {
     /// Build widget state from a declarative [`LayoutTree`](crate::LayoutTree).
     pub fn from_tree(tree: crate::LayoutTree) -> crate::Result<Self> {
         let built = crate::builder::build_tree(&tree)?;
@@ -46,6 +63,7 @@ impl DockWidgetState {
     pub fn from_built(built: crate::builder::BuiltLayout, focused_pane: Option<NodeId>) -> Self {
         Self {
             layout: built.layout,
+            index: built.index,
             drag: None,
             drop_targets: Vec::new(),
             tab_bar_targets: Vec::new(),
@@ -59,8 +77,11 @@ impl DockWidgetState {
 
 impl Default for DockWidgetState {
     fn default() -> Self {
+        let layout = DockLayout::new();
+        let index = DockIndex::rebuild_from_layout(&layout);
         Self {
-            layout: DockLayout::new(),
+            layout,
+            index,
             drag: None,
             drop_targets: Vec::new(),
             tab_bar_targets: Vec::new(),
@@ -106,6 +127,9 @@ pub fn finish_drag(state: &mut DockWidgetState, cursor: Option<iced::Point>) -> 
         state.layout_dirty = true;
         changed = true;
     }
+    if changed {
+        state.sync_index();
+    }
     changed
 }
 
@@ -116,8 +140,8 @@ struct DockTreeHolder<Message> {
 }
 
 pub struct Dock<Message> {
-    content: fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>,
-    on_event: Rc<dyn Fn(DockMessage) -> Message>,
+    content: Rc<dyn Fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>>,
+    on_event: Rc<dyn Fn(DockEvent) -> Message>,
     external_state: Option<Rc<RefCell<DockWidgetState>>>,
     drag_active: bool,
     style: Rc<dyn Fn(&Theme) -> DockStyle>,
@@ -127,8 +151,8 @@ pub struct Dock<Message> {
 
 impl<Message: Clone + 'static> Dock<Message> {
     pub fn new(
-        content: fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>,
-        on_event: Rc<dyn Fn(DockMessage) -> Message>,
+        content: Rc<dyn Fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>>,
+        on_event: Rc<dyn Fn(DockEvent) -> Message>,
     ) -> Self {
         Self {
             content,
@@ -173,13 +197,19 @@ impl<Message: Clone + 'static> Dock<Message> {
         self
     }
 
-    fn wrap_event(
+    fn wrap_action(
         holder: &Rc<RefCell<DockWidgetState>>,
-        on_event: &Rc<dyn Fn(DockMessage) -> Message>,
-        msg: DockMessage,
+        on_event: &Rc<dyn Fn(DockEvent) -> Message>,
+        action: DockAction,
     ) -> Message {
-        let _ = handle_dock_message_impl(&mut holder.borrow_mut(), msg.clone());
-        (on_event)(msg)
+        let mut state = holder.borrow_mut();
+        let changed = dispatch_action(&mut state, action.clone());
+        if changed && state.layout_dirty {
+            state.sync_index();
+        }
+        let event = action_to_event(&state.layout, &state.index, &action)
+            .unwrap_or(DockEvent::LayoutChanged);
+        (on_event)(event)
     }
 
     fn build_node(
@@ -201,7 +231,7 @@ impl<Message: Clone + 'static> Dock<Message> {
                 let h = holder.clone();
                 let on_event = self.on_event.clone();
                 let on_split =
-                    Rc::new(move |msg: DockMessage| Self::wrap_event(&h, &on_event, msg));
+                    Rc::new(move |action: DockAction| Self::wrap_action(&h, &on_event, action));
                 Some(
                     SplitContainer::new(
                         node,
@@ -255,7 +285,7 @@ impl<Message: Clone + 'static> Dock<Message> {
         let content = (self.content)(content_key);
         let h = holder.clone();
         let on_event = self.on_event.clone();
-        let on_tab = Rc::new(move |msg: DockMessage| Self::wrap_event(&h, &on_event, msg));
+        let on_tab = Rc::new(move |action: DockAction| Self::wrap_action(&h, &on_event, action));
         Some(
             TabDock::new(
                 holder.clone(),
@@ -318,14 +348,11 @@ impl<Message: Clone + 'static> Dock<Message> {
         holder.root.borrow().as_ref().map(f)
     }
 
-    pub fn handle_message(state: &mut DockWidgetState, msg: DockMessage) -> bool {
-        handle_dock_message_impl(state, msg)
-    }
 }
 
 pub struct DockBuilder<Message> {
-    content: Option<fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>>,
-    on_event: Option<Rc<dyn Fn(DockMessage) -> Message>>,
+    content: Option<Rc<dyn Fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>>>,
+    on_event: Option<Rc<dyn Fn(DockEvent) -> Message>>,
     shared_state: Option<Rc<RefCell<DockWidgetState>>>,
     drag_active: bool,
     style: Option<Rc<dyn Fn(&Theme) -> DockStyle>>,
@@ -354,13 +381,17 @@ impl<Message> Default for DockBuilder<Message> {
 impl<Message: Clone + 'static> DockBuilder<Message> {
     pub fn content(
         mut self,
-        f: fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>,
+        f: impl Fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer> + 'static,
     ) -> Self {
-        self.content = Some(f);
+        self.content = Some(Rc::new(f));
         self
     }
 
-    pub fn on_event(mut self, f: impl Fn(DockMessage) -> Message + 'static) -> Self {
+    /// Map observation [`DockEvent`] values to the application message type.
+    ///
+    /// The widget applies layout mutations before this callback; do not call
+    /// [`DockSession::dispatch`](crate::DockSession::dispatch) for widget-originated events.
+    pub fn on_event(mut self, f: impl Fn(DockEvent) -> Message + 'static) -> Self {
         self.on_event = Some(Rc::new(f));
         self
     }
@@ -419,9 +450,10 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
     }
 
     pub fn build(self) -> Dock<Message> {
-        let content = self
-            .content
-            .unwrap_or(|_| iced::widget::text("No content").into());
+        let content = self.content.unwrap_or_else(|| {
+            Rc::new(|_| iced::widget::text("No content").into())
+                as Rc<dyn Fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>>
+        });
         let on_event = self
             .on_event
             .unwrap_or_else(|| Rc::new(|_| panic!("dock().on_event(...) required")));
@@ -494,7 +526,7 @@ where
                 .downcast_ref::<DockTreeHolder<Message>>()
                 .dock_state
                 .borrow_mut()
-                .layout_dirty = false;
+                .commit_layout();
         }
         self.sync_root(tree);
     }
@@ -656,7 +688,7 @@ where
         }
 
         if dock_state.borrow().layout_dirty {
-            dock_state.borrow_mut().layout_dirty = false;
+            dock_state.borrow_mut().commit_layout();
             dock_state.borrow_mut().pane_bounds.clear();
             self.sync_root(tree);
         }
@@ -733,23 +765,17 @@ where
     }
 }
 
-/// Apply a dock message to shared dock state.
-pub fn apply_message(state: &RefCell<DockWidgetState>, msg: DockMessage) -> bool {
-    handle_dock_message(&mut state.borrow_mut(), msg)
-}
-
-/// Apply layout mutations from a [`DockMessage`].
-pub fn handle_dock_message(state: &mut DockWidgetState, msg: DockMessage) -> bool {
-    handle_dock_message_impl(state, msg)
-}
-
-fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bool {
+/// Apply a [`DockAction`] to dock state (programmatic / session API).
+///
+/// Does not emit [`DockEvent`] values. After a successful structural change, call
+/// [`DockWidgetState::sync_index`] or rely on the widget's next layout pass.
+pub fn dispatch_action(state: &mut DockWidgetState, action: DockAction) -> bool {
     let factory = Factory;
     let mut changed = false;
 
-    match msg {
-        DockMessage::Tab(tab_msg) => match tab_msg {
-            TabMessage::Select { pane, panel } => {
+    match action {
+        DockAction::Tab(tab_msg) => match tab_msg {
+            TabAction::Select { pane, panel } => {
                 factory.set_active_panel(&mut state.layout, pane, panel);
                 if state.focused_pane != Some(pane) {
                     state.focused_pane = Some(pane);
@@ -758,13 +784,18 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
                 state.layout_dirty = true;
                 changed = true;
             }
-            TabMessage::Close { panel } => {
+            TabAction::Close { panel } => {
                 if factory.close(&mut state.layout, panel).is_ok() {
+                    if let Some(id) = state.index.panels.iter().find_map(|(s, &n)| {
+                        (n == panel).then(|| s.clone())
+                    }) {
+                        state.index.panels.remove(&id);
+                    }
                     state.layout_dirty = true;
                     changed = true;
                 }
             }
-            TabMessage::DragStarted {
+            TabAction::DragStarted {
                 source_pane,
                 source_panel,
             } => {
@@ -772,12 +803,12 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
                 state.layout_dirty = true;
                 changed = true;
             }
-            TabMessage::DragEnded { cursor } => {
+            TabAction::DragEnded { cursor } => {
                 if finish_drag(state, Some(cursor)) {
                     changed = true;
                 }
             }
-            TabMessage::DragMoved { cursor } => {
+            TabAction::DragMoved { cursor } => {
                 let drop_targets = state.drop_targets.clone();
                 let tab_bar_targets = state.tab_bar_targets.clone();
                 if let Some(ref mut session) = state.drag {
@@ -789,13 +820,13 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
                     );
                 }
             }
-            TabMessage::DragCancelled => {
+            TabAction::DragCancelled => {
                 state.drag = None;
                 state.layout_dirty = true;
                 changed = true;
             }
         },
-        DockMessage::PaneFocused { pane, panel } => {
+        DockAction::PaneFocused { pane, panel } => {
             if let Some(panel_node) = panel {
                 let tab_changed = matches!(
                     state.layout.kind(pane),
@@ -813,7 +844,7 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
                 changed = true;
             }
         }
-        DockMessage::SplitDrag {
+        DockAction::SplitDrag {
             group,
             splitter_index,
             pair_ratio,
@@ -826,7 +857,9 @@ fn handle_dock_message_impl(state: &mut DockWidgetState, msg: DockMessage) -> bo
                 changed = true;
             }
         }
-        DockMessage::LayoutChanged => {}
+    }
+    if changed && state.layout_dirty {
+        state.sync_index();
     }
     changed
 }

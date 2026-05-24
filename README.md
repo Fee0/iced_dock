@@ -28,7 +28,7 @@ A docking layout widget for [iced](https://github.com/iced-rs/iced) 0.14. Build 
 ### Pane focus
 
 - **Focused pane** — one pane has global focus at a time (accent border), separate from which tab is active inside each pane.
-- **Click to focus** — clicking a pane's content area focuses that pane and emits `DockMessage::PaneFocused`.
+- **Click to focus** — clicking a pane's content area focuses that pane and emits `DockEvent::PaneFocused`.
 - **Tab click** — selects the tab and focuses its pane.
 - **Keyboard navigation** — `DockSession::focus_adjacent` or the lower-level `adjacent_pane` helper (gap-tolerant); wire to `Ctrl+Arrow` or similar in your app.
 - **Pane targets** — open new panels into the focused pane (`PaneTarget::Active`), a named pane, or the first pane in tree order.
@@ -42,19 +42,20 @@ A docking layout widget for [iced](https://github.com/iced-rs/iced) 0.14. Build 
 ### Integration
 
 - **iced widget** — `dock()` builder returns a `Dock` widget that plugs into any iced `Element` tree.
-- **Event messages** — `DockMessage` / `TabMessage` for tab select, close, drag lifecycle, split resize, pane focus, and layout changes.
-- **Automatic state updates** — layout mutations from dock messages are applied internally; your app can observe events and optionally call `DockSession::apply_message`.
-- **Content mapping** — you provide a `ContentKey → Element` function; the dock resolves which panel is visible per pane.
+- **Observation events** — [`DockEvent`] uses string panel/pane ids (no slotmap handles in app code).
+- **Widget-owned mutations** — user input is applied inside the dock before your `on_event` callback; use `update` for side effects only.
+- **Content mapping** — closure `ContentKey → Element`; store shared app state in `Rc` if needed.
 
 ### Runtime API
 
-- **`DockSession`** — high-level handle for opening, focusing, and closing panels by string id; tracks panel/pane indexes.
-- **`DockWidgetState`** — shared state for the widget (`layout`, drag session, focused pane); usable with or without `DockSession`.
-- **`Factory`** — low-level layout mutations (splits, tab moves, close) for advanced use.
+- **`DockSession`** — open, focus, and close panels by string id; shares one `DockWidgetState` with the widget.
+- **`DockWidgetState`** — layout graph, string index, drag session, focused pane, pane bounds.
+- **`iced_dock::unstable`** — `Factory`, `DockManager`, `dispatch_action`, `build_tree`, and other low-level helpers.
 
 ### Persistence (optional)
 
-- **`serde` feature** — serialize/deserialize declarative `LayoutTree` and runtime `Layout` to save user layouts and restore split/tab state.
+- **`serde` feature** — serialize/deserialize declarative `LayoutTree` and runtime `Layout`.
+- Prefer **`LayoutTree`** for workspace templates. Runtime **`Layout`** is for session restore in the same app version; slotmap `NodeId` values are not stable semantic handles across refactors.
 
 ## Quick start
 
@@ -72,7 +73,7 @@ Define a layout and wire the widget:
 use iced::widget::text;
 use iced::{Element, Theme};
 use iced_dock::{
-    dock, horizontal, panel, tabs, ContentKey, DockMessage, DockSession, LayoutTree,
+    dock, horizontal, panel, tabs, ContentKey, DockEvent, DockSession, LayoutTree,
 };
 
 fn layout() -> LayoutTree {
@@ -92,14 +93,14 @@ struct App {
 }
 
 enum Message {
-    Dock(DockMessage),
+    Dock(DockEvent),
 }
 
 fn view(app: &App) -> Element<'_, Message> {
     dock::<Message>()
         .state(app.dock.state())
         .on_event(Message::Dock)
-        .content(panel_content)
+        .content(|key| panel_content(key))
         .build()
         .into()
 }
@@ -108,9 +109,9 @@ fn panel_content(key: ContentKey) -> Element<'static, Message> {
     text(format!("Panel {}", key.0)).into()
 }
 
-fn update(app: &mut App, message: Message) {
-    if let Message::Dock(msg) = message {
-        app.dock.apply_message(msg);
+fn update(_app: &mut App, message: Message) {
+    if let Message::Dock(_event) = message {
+        // Layout already updated by the widget — log, sync title bar, etc.
     }
 }
 ```
@@ -121,16 +122,24 @@ Run the full demo (multi-split IDE layout, focus border, `Ctrl+Arrow` navigation
 cargo run --example minimal
 ```
 
+Optional prelude:
+
+```rust
+use iced_dock::prelude::*;
+```
+
 ## Core concepts
 
 | Concept | Description |
 |---------|-------------|
 | **Panel** | A tab: string id, title, and `ContentKey` that maps to your UI. |
-| **Pane** | A tab group showing one active panel; has optional name for `PaneTarget::Named`. |
-| **Active tab** | Which panel is visible inside a pane (`Pane.active`). |
-| **Focused pane** | Which pane last received attention globally (`DockWidgetState.focused_pane`). |
+| **Pane** | A tab group showing one active panel; optional name for `PaneTarget::Named`. |
+| **Active tab** | Which panel is visible inside a pane. |
+| **Focused pane** | Which pane last received attention globally. |
 | **ContentKey** | Opaque `u32` you use to build the correct `Element` for a panel. |
 | **LayoutTree** | Declarative spec compiled once into runtime `Layout`. |
+| **DockEvent** | App-facing notification (string ids). |
+| **DockAction** | Internal command; use `DockSession::dispatch` for programmatic control. |
 
 Tab selection and pane focus are separate (same model as iced's `pane_grid`): a pane can show an active tab while focus moves between panes for commands like "open in active pane".
 
@@ -159,21 +168,21 @@ Helpers:
 - `.named("pane_name")` — register pane for `PaneTarget::Named`
 - `.weights([...])` — initial split proportions
 
-Compile standalone with `build_tree(&tree)` or use `DockSession::from_tree(tree)`.
+Use `DockSession::from_tree(tree)` or `iced_dock::unstable::build_tree(&tree)` for standalone compilation.
 
 ## Dock widget builder
 
 ```rust
 dock::<Message>()
-    .state(session.state())           // shared Rc<RefCell<DockWidgetState>>
-    .on_event(Message::Dock)          // required: map DockMessage to app Message
-    .content(fn(ContentKey) -> Element) // required: panel content factory
+    .state(session.state())
+    .on_event(Message::Dock)              // map DockEvent → app Message
+    .content(|key| view_panel(key))       // Fn + 'static (Rc-friendly)
     .style(|theme| DockStyle::from_theme(theme))
     .min_pane_width(200.0)
     .min_pane_height(120.0)
     .tab_bar_show_scrollbar(false)
     .tab_bar_scrollbar_hide_delay(Duration::from_secs(1))
-    .drag_active(false)               // visual hint during tab drag
+    .drag_active(false)
     .build()
 ```
 
@@ -182,45 +191,42 @@ dock::<Message>()
 | Method | Purpose |
 |--------|---------|
 | `from_tree` | Build session from `LayoutTree` (focuses first pane) |
-| `from_tree_with_focus` | Build session with [`InitialFocus`] (first / named pane / named panel) |
-| `from_built` | Build session from compiled [`BuiltLayout`] + optional focused pane |
-| `state()` | Shared state for the widget |
-| `apply_message` | Apply `DockMessage` and refresh indexes |
+| `from_tree_with_focus` | Build with [`InitialFocus`] |
+| `from_built` | Build from `unstable::BuiltLayout` + optional focused pane |
+| `state()` | Shared `Rc<RefCell<DockWidgetState>>` for the widget |
+| `dispatch(action)` | Apply [`DockAction`] programmatically (not for widget events) |
 | `open_panel(target, def)` | Add and activate a panel |
-| `select_panel(id)` | Activate tab by panel id and focus its pane |
-| `focus_panel(id)` | Alias for `select_panel` |
+| `select_panel(id)` | Activate tab and focus its pane |
 | `focus_pane(node_id)` | Focus pane without changing active tab |
-| `focus_adjacent(direction)` | Move pane focus to nearest neighbor (needs one draw pass) |
-| `cycle_panel(cycle)` | Next/prev tab in the focused pane (wraps) |
+| `focus_adjacent(direction)` | Move pane focus (needs one draw pass first) |
+| `cycle_panel(cycle)` | Next/prev tab in focused pane |
 | `clear_focus()` | Clear global pane focus |
 | `close_panel(id)` | Close tab and collapse empty panes |
-| `focused_pane()` | Current focused pane `NodeId` |
-| `is_pane_focused(pane)` | Whether a pane has global focus |
+| `focused_pane()` | Current focused pane `NodeId` (advanced) |
 | `active_panel()` | Active tab id in the **focused** pane |
-| `active_panel_in_pane(pane)` | Active tab id in any pane |
-| `panel_node(id)` / `pane_for_panel(id)` | String id → `NodeId` lookups |
+| `active_panel_in_pane(pane)` | Active tab in any pane |
 | `panel_ids()` | All registered panel ids |
 
-`PaneTarget`: `Active` (focused pane), `Named("pane_name")`, `First`.
+`PaneTarget`: `Active`, `Named("pane_name".into())`, `First`.
 
-**Focus vs active tab:** `select_panel` / `focus_panel` change both; `focus_pane` changes only the focused pane border; `active_panel_in_pane` reads any pane regardless of focus.
+**Focus vs active tab:** `select_panel` changes both; `focus_pane` changes only the focused border; `active_panel_in_pane` reads any pane.
 
 ## Events
 
-`DockMessage` variants:
+[`DockEvent`] variants (string ids):
 
-- `Tab(Select { pane, panel })` — tab clicked
-- `Tab(Close { panel })` — close button pressed
-- `Tab(DragStarted / DragMoved / DragEnded / DragCancelled)` — tab drag lifecycle
-- `PaneFocused { pane, panel }` — content click or programmatic focus; when `panel` is `Some`, activates that tab
-- `SplitDrag { group, splitter_index, pair_ratio }` — splitter moved
-- `LayoutChanged` — reserved for future use
+- `TabSelected { pane, panel }` — tab clicked
+- `TabClosed { panel }` — close button
+- `PaneFocused { pane, panel }` — content click or programmatic focus
+- `SplitResized { splitter_index, pair_ratio }` — splitter moved
+- `DragStarted` / `DragMoved` / `DragEnded` / `DragCancelled` — tab drag lifecycle
+- `LayoutChanged` — structural layout change
 
-Layout mutations from tab/split messages are handled inside the widget before your callback runs, so the dock stays consistent even if the app only forwards messages.
+The widget applies mutations before `on_event` runs. Do **not** call `dispatch` for widget-originated input.
 
 ## Keyboard navigation
 
-The crate does not subscribe to keys itself. Prefer [`DockSession::focus_adjacent`] (uses pane bounds from the last draw pass):
+The crate does not subscribe to keys itself. [`DockSession::focus_adjacent`] uses pane bounds from the last draw pass — run the dock once (or wait for the first frame) before calling:
 
 ```rust
 session.focus_adjacent(Direction::Right);
@@ -228,44 +234,36 @@ session.focus_adjacent(Direction::Right);
 
 For custom logic, use [`adjacent_pane`] with [`pane_bounds_map`] on `session.state().borrow().pane_bounds`.
 
-See `examples/minimal.rs` for a `keyboard::listen` subscription with `Ctrl+Arrow`.
+See `examples/minimal.rs` for `keyboard::listen` with `Ctrl+Arrow`.
 
-## Styling
+## Advanced API
 
-`DockStyle` groups:
+Import `iced_dock::unstable` for `Factory`, `DockManager`, `dispatch_action`, `build_tree`, `DockAction`, `TabAction`, and compile helpers.
 
-- `background` — gaps between panes
-- `window` — pane frame, border, focused border accent
-- `tab_bar` / `tab` — tab strip and labels
-- `splitter` — resize handles and gaps
-- `drop_overlay` — drag target highlight
-
-Use `constant(my_style)` for a fixed style, or `DockStyle::modern_dark()` as a starting point.
+Use `iced_dock::model` for `Layout`, `NodeId`, and graph types when persisting or introspecting the arena.
 
 ## Serialization
-
-Enable the `serde` feature to persist layouts:
 
 ```toml
 iced_dock = { version = "0.1", features = ["serde"] }
 ```
 
-- **`LayoutTree`** — save default/workspace templates
-- **`Layout`** — save full runtime state after user splits and tab changes
+- **`LayoutTree`** — workspace templates (recommended for defaults)
+- **`Layout`** — full runtime state after user edits (same app version)
 
 ## Project structure
 
 ```
 src/
-  builder/     Declarative LayoutTree, DockSession, compile to Layout
-  model/       Layout graph (Panel, Pane, ProportionalGroup)
-  factory/     Layout mutations
-  manager/     Drag validation and drop execution
-  spatial/     adjacent_pane for keyboard focus
-  style/       DockStyle and theme helpers
-  widget/      Dock, TabDock, TabStrip, SplitContainer
+  builder/     LayoutTree, DockSession, compile
+  model/       Layout graph (Panel, Pane, NodeId)
+  unstable/    Factory, DockManager, build_tree, dispatch_action
+  spatial/     adjacent_pane
+  style/       DockStyle
+  widget/      Dock, DockEvent, DockAction
+  prelude.rs   Common imports
 examples/
-  minimal.rs   Full IDE-style demo
+  minimal.rs   IDE-style demo
 ```
 
 ## License

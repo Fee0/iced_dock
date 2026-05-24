@@ -1,7 +1,8 @@
-use iced_dock::builder::build_tree;
+use iced_dock::unstable::{build_tree, BuiltLayout};
 use iced_dock::{
-    horizontal, panel, tabs, vertical, BuiltLayout, ContentKey, Layout, LayoutTree, NodeKind,
+    horizontal, panel, tabs, vertical, ContentKey, Layout, LayoutTree,
 };
+use iced_dock::model::NodeKind;
 
 fn nested_layout() -> LayoutTree {
     horizontal([
@@ -63,4 +64,12 @@ fn built_layout_json_roundtrip() {
     for id in built.index.panels.keys() {
         assert!(back.index.panels.contains_key(id));
     }
+}
+
+#[test]
+fn widget_state_rebuilds_index_after_deserialize() {
+    let built = build_tree(&nested_layout()).expect("compile");
+    let mut state = iced_dock::DockWidgetState::from_built(built, None);
+    state.sync_index();
+    assert_eq!(state.index.panels.len(), 7);
 }

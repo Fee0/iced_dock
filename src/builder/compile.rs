@@ -2,6 +2,7 @@ use crate::builder::index::DockIndex;
 use crate::builder::spec::{validate_tree, LayoutTree, PanelDef, SplitNode, TabsNode};
 use crate::factory::Factory;
 use crate::model::{Layout, NodeId, NodeKind};
+use crate::widget::DockWidgetState;
 use crate::{Error, Result};
 
 /// Result of compiling a [`LayoutTree`].
@@ -98,17 +99,16 @@ fn insert_panel(
     Ok(panel_id)
 }
 
-/// Insert a panel at runtime (shared by [`DockSession`](crate::builder::DockSession)).
-pub(crate) fn insert_panel_runtime(
+/// Insert a panel using widget state (avoids overlapping field borrows).
+pub(crate) fn insert_panel_into_state(
     factory: &Factory,
-    layout: &mut Layout,
-    index: &mut DockIndex,
+    state: &mut DockWidgetState,
     def: &PanelDef,
 ) -> Result<NodeId> {
-    if index.panels.contains_key(&def.id) {
+    if state.index.panels.contains_key(&def.id) {
         return Err(Error::DuplicatePanelId(def.id.clone()));
     }
-    insert_panel(factory, layout, index, def)
+    insert_panel(factory, &mut state.layout, &mut state.index, def)
 }
 
 /// Resolve the first pane in preorder tree walk.

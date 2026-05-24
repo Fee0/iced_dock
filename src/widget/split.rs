@@ -11,7 +11,7 @@ use iced::{Border, Element, Event, Length, Rectangle, Size, Theme};
 use crate::model::{Axis, NodeId};
 use crate::style::DockStyle;
 use crate::widget::compose;
-use crate::widget::message::DockMessage;
+use crate::widget::action::DockAction;
 
 fn layout_theme() -> Theme {
     Theme::Dark
@@ -51,7 +51,7 @@ pub struct SplitContainer<'a, Message> {
     pub axis: Axis,
     pub proportions: Vec<f32>,
     pub children: Vec<Element<'a, Message, Theme, iced::Renderer>>,
-    on_event: Rc<dyn Fn(DockMessage) -> Message>,
+    on_event: Rc<dyn Fn(DockAction) -> Message>,
     style: Rc<dyn Fn(&Theme) -> DockStyle>,
 }
 
@@ -61,7 +61,7 @@ impl<'a, Message> SplitContainer<'a, Message> {
         axis: Axis,
         proportions: Vec<f32>,
         children: Vec<Element<'a, Message, Theme, iced::Renderer>>,
-        on_event: Rc<dyn Fn(DockMessage) -> Message>,
+        on_event: Rc<dyn Fn(DockAction) -> Message>,
         style: Rc<dyn Fn(&Theme) -> DockStyle>,
     ) -> Self {
         Self {
@@ -450,7 +450,7 @@ where
                         } else {
                             0.5
                         };
-                        shell.publish((self.on_event)(DockMessage::SplitDrag {
+                        shell.publish((self.on_event)(DockAction::SplitDrag {
                             group: self.group_id,
                             splitter_index: idx,
                             pair_ratio,

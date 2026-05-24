@@ -1,38 +1,48 @@
 //! Docking layout system for iced.
 //!
+//! ## Quick start
+//!
+//! ```ignore
+//! use iced_dock::prelude::*;
+//!
+//! let session = DockSession::from_tree(layout_tree())?;
+//! dock::<Message>()
+//!     .state(session.state())
+//!     .on_event(Message::DockEvent)
+//!     .content(|key| view_panel(key))
+//!     .build();
+//! ```
+//!
+//! The dock widget applies layout mutations internally. Handle [`DockEvent`] in `update` for
+//! side effects only — do not call [`DockSession::dispatch`] for widget-originated input.
+//!
 //! ## Serialization
 //!
 //! Enable the `serde` feature to derive [`serde::Serialize`] and [`serde::Deserialize`] on layout
-//! types. Persist declarative [`LayoutTree`] for defaults, or [`Layout`] to capture runtime
-//! split/tab state after user edits.
+//! types. Prefer declarative [`LayoutTree`] for workspace templates. Runtime [`Layout`] captures
+//! split/tab state after user edits within the same application version; slotmap [`NodeId`] values
+//! are not stable semantic handles across refactors.
 
 pub mod builder;
 pub mod error;
 pub mod factory;
 pub mod manager;
 pub mod model;
+pub mod prelude;
 pub mod spatial;
 pub mod style;
+pub mod unstable;
 pub mod widget;
 
 pub use builder::{
-    active_panel_in_pane, build_tree, first_pane, horizontal, owning_pane, pane_for_panel, panel,
-    single, tabs, vertical, BuiltLayout, DockIndex, DockSession, InitialFocus, LayoutTree,
-    PanelCycle, PaneTarget, PanelDef, SplitNode, TabsNode,
+    horizontal, panel, single, tabs, vertical, DockSession, InitialFocus, LayoutTree, PanelCycle,
+    PaneTarget, PanelDef, SplitNode, TabsNode,
 };
 pub use error::{Error, Result};
-pub use factory::Factory;
-pub use manager::{DockManager, DragSession, DropZone};
-pub use model::{
-    Axis, ContentKey, DockOperation, Layout, NodeEntry, NodeId, NodeKind, Pane, Panel,
-    ProportionalGroup,
-};
+pub use model::{ContentKey, Layout};
 pub use spatial::{adjacent_pane, pane_bounds_map, Direction};
 pub use style::{
     close_button_style, constant, CloseButtonStyle, DockBackgroundStyle, DockStyle,
     DropOverlayStyle, SplitterStyle, TabBarStyle, TabStyle, WindowStyle,
 };
-pub use widget::{
-    apply_message, dock, finish_drag, handle_dock_message, Dock, DockMessage, DockWidgetState,
-    TabMessage,
-};
+pub use widget::{dock, Dock, DockAction, DockEvent, DockWidgetState, TabAction};

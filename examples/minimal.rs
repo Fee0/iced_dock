@@ -5,8 +5,8 @@ use iced::widget::{column, container, text};
 use iced::{application, Color, Element, Length, Size, Subscription, Task, Theme};
 
 use iced_dock::{
-    dock, horizontal, panel as tab, tabs, vertical, ContentKey, Direction, DockMessage,
-    DockSession, DockStyle, LayoutTree,
+    dock, horizontal, panel as tab, tabs, vertical, ContentKey, Direction, DockEvent, DockSession,
+    DockStyle, LayoutTree,
 };
 
 fn demo_layout() -> LayoutTree {
@@ -67,7 +67,7 @@ impl App {
 
 #[derive(Debug, Clone)]
 enum Message {
-    Dock(DockMessage),
+    Dock(DockEvent),
     FocusAdjacent(Direction),
 }
 
@@ -92,8 +92,8 @@ fn subscription(_app: &App) -> Subscription<Message> {
 
 fn update(app: &mut App, message: Message) -> Task<Message> {
     match message {
-        Message::Dock(msg) => {
-            let _ = app.dock.apply_message(msg);
+        Message::Dock(_event) => {
+            // Layout mutations are applied inside the dock widget; observe events here only.
         }
         Message::FocusAdjacent(direction) => {
             app.dock.focus_adjacent(direction);

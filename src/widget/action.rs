@@ -1,7 +1,9 @@
+//! Internal dock commands (stable [`NodeId`] handles). Applied by the widget or [`DockSession::dispatch`].
+
 use crate::model::NodeId;
 
 #[derive(Debug, Clone)]
-pub enum TabMessage {
+pub enum TabAction {
     Select {
         pane: NodeId,
         panel: NodeId,
@@ -23,8 +25,8 @@ pub enum TabMessage {
 }
 
 #[derive(Debug, Clone)]
-pub enum DockMessage {
-    Tab(TabMessage),
+pub enum DockAction {
+    Tab(TabAction),
     /// User clicked into a pane's content area (or app requested pane focus).
     PaneFocused {
         pane: NodeId,
@@ -37,5 +39,4 @@ pub enum DockMessage {
         /// Fraction of the adjacent pair's space allocated to the left/top pane.
         pair_ratio: f32,
     },
-    LayoutChanged,
 }

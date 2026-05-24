@@ -1,22 +1,23 @@
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::builder::compile::{
-    active_panel_in_pane, build_tree, first_pane, insert_panel_runtime, pane_for_panel, BuiltLayout,
+    active_panel_in_pane, build_tree, first_pane, insert_panel_into_state, pane_for_panel,
+    BuiltLayout,
 };
-use crate::builder::index::DockIndex;
 use crate::builder::spec::{LayoutTree, PanelDef};
 use crate::factory::Factory;
 use crate::model::{NodeId, NodeKind};
 use crate::spatial::{adjacent_pane, pane_bounds_map, Direction};
-use crate::widget::{handle_dock_message, DockMessage, DockWidgetState, TabMessage};
+use crate::widget::{dispatch_action, DockAction, DockWidgetState, TabAction};
 use crate::{Error, Result};
 
 /// Target pane for opening a new panel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PaneTarget {
     /// Open in the pane registered with [`TabsNode::named`](crate::builder::TabsNode::named).
-    Named(&'static str),
+    Named(Cow<'static, str>),
     /// Open in the pane that last received focus.
     Active,
     /// Open in the first pane encountered in a preorder tree walk.
@@ -24,15 +25,15 @@ pub enum PaneTarget {
 }
 
 /// Which pane receives focus when building a [`DockSession`].
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub enum InitialFocus<'a> {
     /// First pane in preorder tree walk.
     #[default]
     FirstPane,
     /// Pane registered with [`TabsNode::named`](crate::builder::TabsNode::named).
-    NamedPane(&'a str),
+    NamedPane(Cow<'a, str>),
     /// Pane that owns the panel with this id (active tab comes from `.active()` at compile time).
-    NamedPanel(&'a str),
+    NamedPanel(Cow<'a, str>),
 }
 
 /// Direction to cycle the active tab within the focused pane.
@@ -45,8 +46,6 @@ pub enum PanelCycle {
 /// High-level handle for a dock layout and runtime panel operations.
 pub struct DockSession {
     inner: Rc<RefCell<DockWidgetState>>,
-    index: RefCell<DockIndex>,
-    index_stale: RefCell<bool>,
 }
 
 impl DockSession {
@@ -64,12 +63,9 @@ impl DockSession {
 
     /// Build a session from a compiled layout and index.
     pub fn from_built(built: BuiltLayout, focused_pane: Option<NodeId>) -> Self {
-        let index = built.index.clone();
         let state = DockWidgetState::from_built(built, focused_pane);
         Self {
             inner: Rc::new(RefCell::new(state)),
-            index: RefCell::new(index),
-            index_stale: RefCell::new(false),
         }
     }
 
@@ -78,92 +74,74 @@ impl DockSession {
         self.inner.clone()
     }
 
-    /// Apply a dock message and refresh internal indexes when the layout changes.
-    pub fn apply_message(&self, msg: DockMessage) -> bool {
-        let changed = {
-            let mut state = self.inner.borrow_mut();
-            handle_dock_message(&mut state, msg)
-        };
-        if changed && self.inner.borrow().layout_dirty {
-            *self.index_stale.borrow_mut() = true;
-        }
-        changed
+    /// Apply a [`DockAction`] programmatically (not for widget-originated input).
+    pub fn dispatch(&self, action: DockAction) -> bool {
+        dispatch_action(&mut self.inner.borrow_mut(), action)
     }
 
     /// Open a panel in the given pane target and activate it.
     pub fn open_panel(&self, target: PaneTarget, panel: impl Into<PanelDef>) -> Result {
-        self.ensure_index_fresh();
         let def = panel.into();
-        let pane_id = self.resolve_pane(target)?;
+        let pane_id = self.resolve_pane(&target)?;
         let factory = Factory;
-        let panel_id = {
-            let mut state = self.inner.borrow_mut();
-            let mut index = self.index.borrow_mut();
-            insert_panel_runtime(&factory, &mut state.layout, &mut index, &def)?
-        };
-        {
-            let mut state = self.inner.borrow_mut();
-            factory.add_panel_to_pane(&mut state.layout, pane_id, panel_id)?;
-            factory.set_active_panel(&mut state.layout, pane_id, panel_id);
-            state.layout_dirty = true;
-            state.focused_pane = Some(pane_id);
-            state.focus_dirty = true;
-        }
+        let mut state = self.inner.borrow_mut();
+        let panel_id = insert_panel_into_state(&factory, &mut state, &def)?;
+        factory.add_panel_to_pane(&mut state.layout, pane_id, panel_id)?;
+        factory.set_active_panel(&mut state.layout, pane_id, panel_id);
+        state.layout_dirty = true;
+        state.focused_pane = Some(pane_id);
+        state.focus_dirty = true;
+        state.sync_index();
         Ok(())
     }
 
     /// Activate a panel by string id and focus its pane.
     pub fn select_panel(&self, panel_id: &str) -> Result {
-        self.ensure_index_fresh();
         let panel_node = self
             .panel_node(panel_id)
             .ok_or_else(|| Error::UnknownPanel(panel_id.into()))?;
         let pane_id = self
             .pane_for_panel(panel_id)
             .ok_or(Error::InvalidTarget)?;
-        self.apply_message(DockMessage::Tab(TabMessage::Select {
+        self.dispatch(DockAction::Tab(TabAction::Select {
             pane: pane_id,
             panel: panel_node,
         }));
         Ok(())
     }
 
-    /// Focus a panel by its string id (activates tab and focuses pane).
-    pub fn focus_panel(&self, panel_id: &str) -> Result {
-        self.select_panel(panel_id)
-    }
-
     /// Close a panel by its string id.
     pub fn close_panel(&self, panel_id: &str) -> Result {
-        self.ensure_index_fresh();
         let panel_node = self
             .panel_node(panel_id)
             .ok_or_else(|| Error::UnknownPanel(panel_id.into()))?;
         let mut state = self.inner.borrow_mut();
         Factory.close(&mut state.layout, panel_node)?;
-        self.index.borrow_mut().panels.remove(panel_id);
-        *self.index_stale.borrow_mut() = true;
+        state.index.panels.remove(panel_id);
         state.layout_dirty = true;
+        state.sync_index();
         Ok(())
     }
 
     /// All known panel ids.
     pub fn panel_ids(&self) -> Vec<String> {
-        self.ensure_index_fresh();
-        self.index.borrow().panel_ids().cloned().collect()
+        self.inner
+            .borrow()
+            .index
+            .panel_ids()
+            .cloned()
+            .collect()
     }
 
     /// Panel node id for a string panel id.
     pub fn panel_node(&self, panel_id: &str) -> Option<NodeId> {
-        self.ensure_index_fresh();
-        self.index.borrow().panel_node(panel_id)
+        self.inner.borrow().index.panel_node(panel_id)
     }
 
     /// Pane that owns a panel identified by string id.
     pub fn pane_for_panel(&self, panel_id: &str) -> Option<NodeId> {
-        self.ensure_index_fresh();
         let state = self.inner.borrow();
-        pane_for_panel(&state.layout, &self.index.borrow(), panel_id)
+        pane_for_panel(&state.layout, &state.index, panel_id)
     }
 
     /// Pane that last received focus, if any.
@@ -181,19 +159,17 @@ impl DockSession {
         if !matches!(self.inner.borrow().layout.kind(pane), Some(NodeKind::Pane(_))) {
             return Err(Error::InvalidTarget);
         }
-        handle_dock_message(
-            &mut self.inner.borrow_mut(),
-            DockMessage::PaneFocused {
-                pane,
-                panel: None,
-            },
-        );
+        self.dispatch(DockAction::PaneFocused {
+            pane,
+            panel: None,
+        });
         Ok(())
     }
 
     /// Move focus to the nearest pane in `direction`.
     ///
-    /// Requires at least one draw pass so [`DockWidgetState::pane_bounds`] is populated.
+    /// Requires at least one draw pass so [`DockWidgetState::pane_bounds`] is populated
+    /// (run the dock widget once or wait for the first frame).
     /// Returns `true` if focus moved to a neighbor.
     pub fn focus_adjacent(&self, direction: Direction) -> bool {
         let Some(pane) = self.focused_pane() else {
@@ -243,40 +219,31 @@ impl DockSession {
         };
         let panel = pane_state.tabs[next_index];
         drop(state);
-        self.apply_message(DockMessage::Tab(TabMessage::Select { pane, panel }));
+        self.dispatch(DockAction::Tab(TabAction::Select { pane, panel }));
         Ok(())
     }
 
     /// Currently focused panel id (active tab in the focused pane), if any.
     pub fn active_panel(&self) -> Option<String> {
-        self.ensure_index_fresh();
         let state = self.inner.borrow();
         let pane = state.focused_pane?;
-        active_panel_in_pane(&state.layout, &self.index.borrow(), pane)
+        active_panel_in_pane(&state.layout, &state.index, pane)
     }
 
     /// Active panel id string in a specific pane (regardless of global focus).
     pub fn active_panel_in_pane(&self, pane: NodeId) -> Option<String> {
-        self.ensure_index_fresh();
         let state = self.inner.borrow();
-        active_panel_in_pane(&state.layout, &self.index.borrow(), pane)
+        active_panel_in_pane(&state.layout, &state.index, pane)
     }
 
-    fn ensure_index_fresh(&self) {
-        if *self.index_stale.borrow() || self.inner.borrow().layout_dirty {
-            let layout = &self.inner.borrow().layout;
-            *self.index.borrow_mut() = DockIndex::rebuild_from_layout(layout);
-            *self.index_stale.borrow_mut() = false;
-        }
-    }
-
-    fn resolve_pane(&self, target: PaneTarget) -> Result<NodeId> {
+    fn resolve_pane(&self, target: &PaneTarget) -> Result<NodeId> {
         match target {
             PaneTarget::Named(name) => self
-                .index
+                .inner
                 .borrow()
-                .pane_node(name)
-                .ok_or_else(|| Error::UnknownPane(name.into())),
+                .index
+                .pane_node(name.as_ref())
+                .ok_or_else(|| Error::UnknownPane(name.to_string())),
             PaneTarget::Active => self
                 .inner
                 .borrow()
@@ -292,11 +259,11 @@ fn resolve_initial_focus(built: &BuiltLayout, focus: InitialFocus<'_>) -> Result
         InitialFocus::FirstPane => Ok(first_pane(&built.layout)),
         InitialFocus::NamedPane(name) => built
             .index
-            .pane_node(name)
-            .ok_or_else(|| Error::UnknownPane(name.into()))
+            .pane_node(name.as_ref())
+            .ok_or_else(|| Error::UnknownPane(name.to_string()))
             .map(Some),
-        InitialFocus::NamedPanel(panel_id) => pane_for_panel(&built.layout, &built.index, panel_id)
-            .ok_or_else(|| Error::UnknownPanel(panel_id.into()))
+        InitialFocus::NamedPanel(panel_id) => pane_for_panel(&built.layout, &built.index, panel_id.as_ref())
+            .ok_or_else(|| Error::UnknownPanel(panel_id.to_string()))
             .map(Some),
     }
 }

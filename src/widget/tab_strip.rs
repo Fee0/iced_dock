@@ -16,7 +16,7 @@ use iced::{
 use crate::model::NodeId;
 use crate::style::{close_button_style, CloseButtonStyle, DockStyle};
 use crate::widget::compose;
-use crate::widget::message::{DockMessage, TabMessage};
+use crate::widget::action::{DockAction, TabAction};
 use crate::widget::tab_dock::TabInfo;
 
 #[derive(Default)]
@@ -50,7 +50,7 @@ pub struct TabStrip<'a, Message> {
     tabs: Vec<TabInfo>,
     active_tab: NodeId,
     tabs_row: Element<'a, Message, Theme, iced::Renderer>,
-    on_event: Rc<dyn Fn(DockMessage) -> Message>,
+    on_event: Rc<dyn Fn(DockAction) -> Message>,
     style: Rc<dyn Fn(&Theme) -> DockStyle>,
     hide_delay: iced::time::Duration,
     show_scrollbar: bool,
@@ -61,7 +61,7 @@ impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
         pane_id: NodeId,
         tabs: Vec<TabInfo>,
         active_tab: NodeId,
-        on_event: Rc<dyn Fn(DockMessage) -> Message>,
+        on_event: Rc<dyn Fn(DockAction) -> Message>,
         style: Rc<dyn Fn(&Theme) -> DockStyle>,
         hide_delay: iced::time::Duration,
         show_scrollbar: bool,
@@ -125,7 +125,7 @@ fn build_tabs_row<Message: Clone + 'static>(
     tabs: &[TabInfo],
     active_tab: NodeId,
     hovered_tab: Option<NodeId>,
-    on_event: Rc<dyn Fn(DockMessage) -> Message>,
+    on_event: Rc<dyn Fn(DockAction) -> Message>,
 ) -> Element<'static, Message, Theme, iced::Renderer> {
     let bar = &style.tab_bar;
     let tab_style = &style.tab;
@@ -171,7 +171,7 @@ fn build_tabs_row<Message: Clone + 'static>(
             .height(Length::Fixed(cb.size))
             .style(close_button_style(cb))
                 .on_press_with(move || {
-                    (on_event)(DockMessage::Tab(TabMessage::Close { panel: tab_id }))
+                    (on_event)(DockAction::Tab(TabAction::Close { panel: tab_id }))
                 })
                 .into()
         } else {
@@ -921,8 +921,8 @@ where
                             if let Some(panel) = state.pressed_tab {
                                 state.dragging = true;
                                 state.drag_pending = false;
-                                shell.publish((self.on_event)(DockMessage::Tab(
-                                    TabMessage::DragStarted {
+                                shell.publish((self.on_event)(DockAction::Tab(
+                                    TabAction::DragStarted {
                                         source_pane: self.pane_id,
                                         source_panel: panel,
                                     },
@@ -948,7 +948,7 @@ where
                     shell.request_redraw();
                     captured_label = true;
                 } else if let Some(panel) = pressed {
-                    shell.publish((self.on_event)(DockMessage::Tab(TabMessage::Select {
+                    shell.publish((self.on_event)(DockAction::Tab(TabAction::Select {
                         pane: self.pane_id,
                         panel,
                     })));

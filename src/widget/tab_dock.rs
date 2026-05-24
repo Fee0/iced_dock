@@ -14,8 +14,8 @@ use crate::manager::{DockManager, TabBarTarget};
 use crate::model::NodeId;
 use crate::style::DockStyle;
 use crate::widget::compose;
-use crate::widget::dock::{handle_dock_message, DockWidgetState};
-use crate::widget::message::{DockMessage, TabMessage};
+use crate::widget::action::{DockAction, TabAction};
+use crate::widget::dock::DockWidgetState;
 use crate::widget::tab_strip::{self, TabStrip};
 
 fn layout_theme() -> Theme {
@@ -90,7 +90,7 @@ pub struct TabDock<'a, Message> {
     pub active_tab: NodeId,
     pub tab_strip: Element<'a, Message, Theme, iced::Renderer>,
     pub content: Element<'a, Message, Theme, iced::Renderer>,
-    on_event: Rc<dyn Fn(DockMessage) -> Message>,
+    on_event: Rc<dyn Fn(DockAction) -> Message>,
     style: Rc<dyn Fn(&Theme) -> DockStyle>,
     tab_bar_scrollbar_hide_delay: iced::time::Duration,
     tab_bar_show_scrollbar: bool,
@@ -103,7 +103,7 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
         tabs: Vec<TabInfo>,
         active_tab: NodeId,
         content: Element<'a, Message, Theme, iced::Renderer>,
-        on_event: Rc<dyn Fn(DockMessage) -> Message>,
+        on_event: Rc<dyn Fn(DockAction) -> Message>,
         style: Rc<dyn Fn(&Theme) -> DockStyle>,
         tab_bar_scrollbar_hide_delay: iced::time::Duration,
         tab_bar_show_scrollbar: bool,
@@ -435,7 +435,7 @@ where
                         let bounds = content_layout.bounds();
                         if cursor.position_over(bounds).is_some() {
                             shell.capture_event();
-                            shell.publish((self.on_event)(DockMessage::PaneFocused {
+                            shell.publish((self.on_event)(DockAction::PaneFocused {
                                 pane: self.pane_id,
                                 panel: Some(self.active_tab),
                             }));
@@ -453,14 +453,11 @@ where
         ) && self.dock_state.borrow().drag.is_some()
         {
             if let Some(pos) = cursor.position() {
-                shell.publish((self.on_event)(DockMessage::Tab(TabMessage::DragEnded {
+                shell.publish((self.on_event)(DockAction::Tab(TabAction::DragEnded {
                     cursor: pos,
                 })));
             } else {
-                let _ = handle_dock_message(
-                    &mut self.dock_state.borrow_mut(),
-                    DockMessage::Tab(TabMessage::DragCancelled),
-                );
+                shell.publish((self.on_event)(DockAction::Tab(TabAction::DragCancelled)));
             }
             shell.invalidate_layout();
             shell.invalidate_widgets();
@@ -470,7 +467,7 @@ where
         if dragging {
             if let Event::Mouse(mouse::Event::CursorMoved { .. }) = event {
                 if let Some(pos) = cursor.position() {
-                    shell.publish((self.on_event)(DockMessage::Tab(TabMessage::DragMoved {
+                    shell.publish((self.on_event)(DockAction::Tab(TabAction::DragMoved {
                         cursor: pos,
                     })));
                     shell.request_redraw();
