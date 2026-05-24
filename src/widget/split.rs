@@ -79,6 +79,52 @@ impl<'a, Message> SplitContainer<'a, Message> {
     }
 }
 
+fn normalize_to_sum(sizes: &mut [f32], target: f32) {
+    let sum: f32 = sizes.iter().sum();
+    if sizes.is_empty() {
+        return;
+    }
+    if sum <= 1e-6 {
+        let each = target / sizes.len() as f32;
+        sizes.fill(each);
+        return;
+    }
+    let scale = target / sum;
+    for s in sizes.iter_mut() {
+        *s *= scale;
+    }
+}
+
+/// Shrink panes that are above `min_pane_size` until the group fits in `available`.
+/// Never reduces a pane below `min_pane_size`.
+fn shrink_to_fit(sizes: &mut [f32], min_pane_size: f32, available: f32) {
+    let mut used: f32 = sizes.iter().sum();
+    if used <= available + 1e-4 {
+        return;
+    }
+
+    for _ in 0..sizes.len() {
+        let excess = used - available;
+        if excess <= 1e-4 {
+            return;
+        }
+        let flexible_sum: f32 = sizes
+            .iter()
+            .map(|&s| (s - min_pane_size).max(0.0))
+            .sum();
+        if flexible_sum <= 1e-4 {
+            return;
+        }
+        for s in sizes.iter_mut() {
+            let flex = (*s - min_pane_size).max(0.0);
+            if flex > 0.0 {
+                *s = (*s - excess * (flex / flexible_sum)).max(min_pane_size);
+            }
+        }
+        used = sizes.iter().sum();
+    }
+}
+
 fn compute_pane_sizes(
     total: f32,
     proportions: &[f32],
@@ -110,13 +156,20 @@ fn compute_pane_sizes(
         return vec![0.0; count];
     }
 
+    let mut sizes: Vec<f32> = props.iter().map(|p| p * available).collect();
     let min_total = min_pane_size * count as f32;
-    if min_total > available {
-        let scale = available / min_total;
-        return vec![min_pane_size * scale; count];
+
+    // When every pane can be at least `min_pane_size`, enforce the floor and trim overflow
+    // only from panes that are still larger than the minimum.
+    if min_total <= available {
+        for size in &mut sizes {
+            *size = size.max(min_pane_size);
+        }
+        shrink_to_fit(&mut sizes, min_pane_size, available);
     }
 
-    props.iter().map(|p| p * available).collect()
+    normalize_to_sum(&mut sizes, available);
+    sizes
 }
 
 impl<'a, Message> Widget<Message, Theme, iced::Renderer> for SplitContainer<'a, Message>
@@ -185,18 +238,16 @@ where
 
         let mut offset = 0.0f32;
         for (i, child) in self.children.iter_mut().enumerate() {
-            let pane_main = pane_sizes.get(i).copied().unwrap_or(min_pane_size);
-            let limit_min = min_pane_size.min(pane_main);
-            let limit_max = pane_main.max(min_pane_size);
+            let pane_main = pane_sizes.get(i).copied().unwrap_or(0.0);
             let child_limits = if is_horizontal {
                 layout::Limits::new(
-                    Size::new(limit_min, size.height),
-                    Size::new(limit_max, size.height),
+                    Size::new(pane_main, size.height),
+                    Size::new(pane_main, size.height),
                 )
             } else {
                 layout::Limits::new(
-                    Size::new(size.width, limit_min),
-                    Size::new(size.width, limit_max),
+                    Size::new(size.width, pane_main),
+                    Size::new(size.width, pane_main),
                 )
             };
             let child_tree = &mut tree.children[i];
@@ -205,10 +256,10 @@ where
                 .layout(child_tree, renderer, &child_limits);
             if is_horizontal {
                 node.move_to_mut((offset, 0.0));
-                offset += node.size().width;
+                offset += pane_main;
             } else {
                 node.move_to_mut((0.0, offset));
-                offset += node.size().height;
+                offset += pane_main;
             }
             children_nodes.push(node);
 
@@ -382,8 +433,10 @@ where
                         let delta = cursor_main - state.drag_start_cursor;
                         let pair_total =
                             state.drag_start_left_size + state.drag_start_right_size;
-                        let new_left = (state.drag_start_left_size + delta)
-                            .clamp(min_pane_size, pair_total - min_pane_size);
+                        let min_left = min_pane_size.min(pair_total);
+                        let max_left = (pair_total - min_pane_size).max(min_left);
+                        let new_left =
+                            (state.drag_start_left_size + delta).clamp(min_left, max_left);
                         let pair_ratio = if pair_total > 0.0 {
                             new_left / pair_total
                         } else {
@@ -499,7 +552,7 @@ mod tests {
 
     #[test]
     fn compute_pane_sizes_outer_panes_unchanged_when_pair_resizes() {
-        let total = 500.0;
+        let total = 1000.0;
         let count = 4;
         let splitter_size = 0.5;
         let splitter_gap = 10.0;
@@ -529,13 +582,62 @@ mod tests {
     }
 
     #[test]
-    fn compute_pane_sizes_uniform_scale_when_container_too_small() {
-        let sizes = compute_pane_sizes(200.0, &[0.25, 0.25, 0.25, 0.25], 4, 0.5, 10.0, 80.0);
-        assert_eq!(sizes.len(), 4);
-        let sum: f32 = sizes.iter().sum();
-        approx_eq(sum, 200.0 - (0.5 + 10.0) * 3.0);
-        for size in sizes {
-            assert!(size < 80.0);
+    fn compute_pane_sizes_respects_min_pane_size() {
+        let total = 500.0;
+        let count = 4;
+        let splitter_size = 0.5;
+        let splitter_gap = 10.0;
+        let min_pane_size = 80.0;
+        let available = total - (splitter_size + splitter_gap) * 3.0;
+
+        let sizes = compute_pane_sizes(
+            total,
+            &[0.05, 0.05, 0.45, 0.45],
+            count,
+            splitter_size,
+            splitter_gap,
+            min_pane_size,
+        );
+
+        for &size in &sizes {
+            assert!(
+                size >= min_pane_size - 1e-3,
+                "pane size {size} below minimum {min_pane_size}"
+            );
         }
+        let sum: f32 = sizes.iter().sum();
+        approx_eq(sum, available);
+    }
+
+    #[test]
+    fn compute_pane_sizes_fits_all_panes_when_below_min_total() {
+        let total = 200.0;
+        let splitter_size = 0.5;
+        let splitter_gap = 10.0;
+        let min_pane_size = 80.0;
+        let available = total - (splitter_size + splitter_gap) * 3.0;
+
+        let sizes = compute_pane_sizes(
+            total,
+            &[0.25, 0.25, 0.25, 0.25],
+            4,
+            splitter_size,
+            splitter_gap,
+            min_pane_size,
+        );
+        assert_eq!(sizes.len(), 4);
+        approx_eq(sizes.iter().sum(), available);
+        for &size in &sizes {
+            assert!(size > 0.0, "each pane must remain visible");
+            assert!(size < min_pane_size, "below min when container is tight");
+        }
+    }
+
+    #[test]
+    fn compute_pane_sizes_sum_matches_available() {
+        let total = 350.0;
+        let available = total - (0.5 + 10.0) * 2.0;
+        let sizes = compute_pane_sizes(total, &[0.2, 0.3, 0.5], 3, 0.5, 10.0, 80.0);
+        approx_eq(sizes.iter().sum(), available);
     }
 }
