@@ -14,7 +14,7 @@ use iced::{
 };
 
 use crate::model::NodeId;
-use crate::style::{close_button_style, DockStyle};
+use crate::style::{close_button_style, CloseButtonStyle, DockStyle};
 use crate::widget::compose;
 use crate::widget::message::{DockMessage, TabMessage};
 use crate::widget::tab_dock::TabInfo;
@@ -208,6 +208,38 @@ fn hit_test_tab(
         }
     }
     None
+}
+
+fn close_button_bounds(tab_bounds: Rectangle, close: &CloseButtonStyle) -> Rectangle {
+    Rectangle {
+        x: tab_bounds.x + tab_bounds.width - close.margin_right - close.size,
+        y: tab_bounds.y,
+        width: close.size,
+        height: tab_bounds.height,
+    }
+}
+
+fn hit_test_close_button(
+    row_layout: &Layout<'_>,
+    tabs: &[TabInfo],
+    scroll_offset: f32,
+    pos: iced::Point,
+    close: &CloseButtonStyle,
+) -> bool {
+    let adjusted = iced::Point::new(pos.x + scroll_offset, pos.y);
+    for (i, tab) in tabs.iter().enumerate() {
+        if !tab.can_close {
+            continue;
+        }
+        let Some(tab_layout) = row_layout.children().nth(i) else {
+            continue;
+        };
+        let bounds = close_button_bounds(tab_layout.bounds(), close);
+        if bounds.contains(adjusted) {
+            return true;
+        }
+    }
+    false
 }
 
 fn max_scroll_offset(content_width: f32, viewport_width: f32) -> f32 {
@@ -724,23 +756,32 @@ where
                     if let (Some(pos), Some(row_layout)) =
                         (cursor_pos, layout.children().next())
                     {
-                        if let Some(tab_id) = hit_test_tab(
+                        let on_close = hit_test_close_button(
                             &row_layout,
                             &self.tabs,
                             state.scroll_offset,
                             pos,
-                        ) {
-                            let can_drag = self
-                                .tabs
-                                .iter()
-                                .find(|t| t.id == tab_id)
-                                .is_some_and(|t| t.can_drag);
-                            state.pressed_tab = Some(tab_id);
-                            if can_drag {
-                                state.drag_pending = true;
-                                state.drag_start = Some(pos);
+                            &bar.close_button,
+                        );
+                        if !on_close {
+                            if let Some(tab_id) = hit_test_tab(
+                                &row_layout,
+                                &self.tabs,
+                                state.scroll_offset,
+                                pos,
+                            ) {
+                                let can_drag = self
+                                    .tabs
+                                    .iter()
+                                    .find(|t| t.id == tab_id)
+                                    .is_some_and(|t| t.can_drag);
+                                state.pressed_tab = Some(tab_id);
+                                if can_drag {
+                                    state.drag_pending = true;
+                                    state.drag_start = Some(pos);
+                                }
+                                captured_label = true;
                             }
-                            captured_label = true;
                         }
                     }
                 }
