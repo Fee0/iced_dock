@@ -11,11 +11,13 @@ use iced::mouse::{self, Cursor};
 use iced::time::{Duration, Instant};
 use iced::widget::{button, container, mouse_area, row, text, Space};
 use iced::window;
-use iced::{Border, Color, Element, Event, Length, Padding, Rectangle, Size, Vector};
 use iced::Theme as IcedTheme;
+use iced::{Border, Color, Element, Event, Length, Padding, Rectangle, Size, Vector};
 
 use crate::model::NodeId;
-use crate::style::{self, close_button_style, Catalog, CloseButtonStyle, DockStyle, DropOverlayStyle, TabBarStyle};
+use crate::style::{
+    self, close_button_style, Catalog, CloseButtonStyle, DockStyle, DropOverlayStyle, TabBarStyle,
+};
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::compose;
 use crate::widget::tab_dock::TabInfo;
@@ -100,12 +102,9 @@ where
         + PartialEq
         + 'static,
     Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
-    <Theme as button::Catalog>::Class<'static>:
-        From<button::StyleFn<'static, Theme>>,
-    <Theme as container::Catalog>::Class<'static>:
-        From<container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as text::Catalog>::Class<'b>:
-        From<text::StyleFn<'b, Theme>>,
+    <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as text::Catalog>::Class<'b>: From<text::StyleFn<'b, Theme>>,
 {
     pub fn new(
         pane_id: NodeId,
@@ -137,7 +136,7 @@ where
             active_tab,
             None,
             None,
-            on_event.clone(),
+            Rc::clone(&on_event),
         );
         Self {
             pane_id,
@@ -192,7 +191,7 @@ where
             self.active_tab,
             hovered_tab,
             pressed_tab,
-            self.on_event.clone(),
+            Rc::clone(&self.on_event),
         );
     }
 
@@ -238,18 +237,11 @@ fn build_tabs_row<Message, Theme, Renderer>(
 ) -> Element<'static, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
-    Theme: Catalog
-        + button::Catalog
-        + container::Catalog
-        + text::Catalog
-        + 'static,
+    Theme: Catalog + button::Catalog + container::Catalog + text::Catalog + 'static,
     Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
-    <Theme as button::Catalog>::Class<'static>:
-        From<button::StyleFn<'static, Theme>>,
-    <Theme as container::Catalog>::Class<'static>:
-        From<container::StyleFn<'static, Theme>>,
-    for<'a> <Theme as text::Catalog>::Class<'a>:
-        From<text::StyleFn<'a, Theme>>,
+    <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
+    for<'a> <Theme as text::Catalog>::Class<'a>: From<text::StyleFn<'a, Theme>>,
 {
     let bar = &style.tab_bar;
     let tab_style = &style.tab;
@@ -261,7 +253,7 @@ where
         .height(Length::Fixed(bar.height))
         .align_y(iced::Alignment::Center);
     for tab in tabs {
-        let on_event = on_event.clone();
+        let on_event = Rc::clone(&on_event);
         let tab_id = tab.id;
         let is_active = tab.id == active_tab;
         let is_hovered = hovered_tab == Some(tab_id);
@@ -687,12 +679,9 @@ where
         + PartialEq
         + 'static,
     Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
-    <Theme as button::Catalog>::Class<'static>:
-        From<button::StyleFn<'static, Theme>>,
-    <Theme as container::Catalog>::Class<'static>:
-        From<container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as text::Catalog>::Class<'b>:
-        From<text::StyleFn<'b, Theme>>,
+    <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as text::Catalog>::Class<'b>: From<text::StyleFn<'b, Theme>>,
 {
     fn tag(&self) -> Tag {
         Tag::of::<TabStripState<Theme>>()
@@ -1268,12 +1257,9 @@ where
         + PartialEq
         + 'static,
     Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
-    <Theme as button::Catalog>::Class<'static>:
-        From<button::StyleFn<'static, Theme>>,
-    <Theme as container::Catalog>::Class<'static>:
-        From<container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as text::Catalog>::Class<'b>:
-        From<text::StyleFn<'b, Theme>>,
+    <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as text::Catalog>::Class<'b>: From<text::StyleFn<'b, Theme>>,
 {
     fn from(widget: TabStrip<'a, Message, Theme, Renderer>) -> Self {
         Element::new(widget)

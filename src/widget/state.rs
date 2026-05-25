@@ -51,10 +51,7 @@ impl<Theme> DockWidgetState<Theme> {
     }
 
     /// Build widget state from a compiled layout.
-    pub fn from_built(
-        built: BuiltLayout,
-        focused_pane: Option<NodeId>,
-    ) -> Self {
+    pub fn from_built(built: BuiltLayout, focused_pane: Option<NodeId>) -> Self {
         Self {
             layout: built.layout,
             index: built.index,

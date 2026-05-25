@@ -7,8 +7,8 @@ use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
 use iced::advanced::{self, Clipboard, Shell};
 use iced::mouse::{self, Cursor};
-use iced::touch;
 use iced::time::Duration;
+use iced::touch;
 use iced::widget::{button, container, text as iced_text};
 use iced::{Element, Event, Length, Rectangle, Size};
 
@@ -111,12 +111,9 @@ where
         + PartialEq
         + 'static,
     Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
-    <Theme as button::Catalog>::Class<'static>:
-        From<button::StyleFn<'static, Theme>>,
-    <Theme as container::Catalog>::Class<'static>:
-        From<container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
-        From<iced_text::StyleFn<'b, Theme>>,
+    <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
     pub fn new(
         dock_state: Rc<RefCell<DockWidgetState<Theme>>>,
@@ -136,7 +133,7 @@ where
             pane_id,
             tabs.clone(),
             active_tab,
-            on_event.clone(),
+            Rc::clone(&on_event),
             Rc::clone(&class),
             Rc::clone(&theme),
             drag_threshold,
@@ -226,12 +223,9 @@ where
         + PartialEq
         + 'static,
     Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
-    <Theme as button::Catalog>::Class<'static>:
-        From<button::StyleFn<'static, Theme>>,
-    <Theme as container::Catalog>::Class<'static>:
-        From<container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
-        From<iced_text::StyleFn<'b, Theme>>,
+    <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
     fn tag(&self) -> Tag {
         Tag::of::<TabDockState>()
@@ -618,12 +612,9 @@ where
         + PartialEq
         + 'static,
     Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
-    <Theme as button::Catalog>::Class<'static>:
-        From<button::StyleFn<'static, Theme>>,
-    <Theme as container::Catalog>::Class<'static>:
-        From<container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
-        From<iced_text::StyleFn<'b, Theme>>,
+    <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
     fn from(widget: TabDock<'a, Message, Theme, Renderer>) -> Self {
         Element::new(widget)

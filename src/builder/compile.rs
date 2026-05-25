@@ -108,7 +108,12 @@ pub(crate) fn insert_panel_into_state<Theme>(
     if state.index.panels.contains_key(&def.id) {
         return Err(Error::DuplicatePanelId(def.id.clone()));
     }
-    Ok(insert_panel(factory, &mut state.layout, &mut state.index, def))
+    Ok(insert_panel(
+        factory,
+        &mut state.layout,
+        &mut state.index,
+        def,
+    ))
 }
 
 /// Resolve the first pane in preorder tree walk.

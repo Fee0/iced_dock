@@ -74,7 +74,7 @@ impl<Theme> DockSession<Theme> {
     /// Shared widget state for the iced dock builder.
     #[must_use]
     pub fn state(&self) -> Rc<RefCell<DockWidgetState<Theme>>> {
-        self.inner.clone()
+        Rc::clone(&self.inner)
     }
 
     /// Apply a [`DockAction`] programmatically (not for widget-originated input).

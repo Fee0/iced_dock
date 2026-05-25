@@ -58,12 +58,9 @@ where
         + PartialEq
         + 'static,
     Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
-    <Theme as button::Catalog>::Class<'static>:
-        From<button::StyleFn<'static, Theme>>,
-    <Theme as container::Catalog>::Class<'static>:
-        From<container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
-        From<iced_text::StyleFn<'b, Theme>>,
+    <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
     pub fn new(
         content: Rc<dyn Fn(ContentKey) -> PaneContent<'static, Message, Theme, Renderer>>,
@@ -156,8 +153,8 @@ where
                 if children.is_empty() {
                     return None;
                 }
-                let h = holder.clone();
-                let on_event = self.on_event.clone();
+                let h = Rc::clone(holder);
+                let on_event = Rc::clone(&self.on_event);
                 let on_split =
                     Rc::new(move |action: DockAction| Self::wrap_action(&h, &on_event, action));
                 Some(
@@ -220,12 +217,12 @@ where
             .map_or_else(|| Rc::clone(&self.class), Rc::new);
         let content = pane_content.element;
 
-        let h = holder.clone();
-        let on_event = self.on_event.clone();
+        let h = Rc::clone(holder);
+        let on_event = Rc::clone(&self.on_event);
         let on_tab = Rc::new(move |action: DockAction| Self::wrap_action(&h, &on_event, action));
         Some(
             TabDock::new(
-                holder.clone(),
+                Rc::clone(holder),
                 pane_id,
                 tabs,
                 active,
@@ -345,12 +342,9 @@ where
         + PartialEq
         + 'static,
     Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
-    <Theme as button::Catalog>::Class<'static>:
-        From<button::StyleFn<'static, Theme>>,
-    <Theme as container::Catalog>::Class<'static>:
-        From<container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
-        From<iced_text::StyleFn<'b, Theme>>,
+    <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
     #[must_use]
     pub fn content(
@@ -466,9 +460,9 @@ where
     /// Panics when [`on_event`](Self::on_event) was not set.
     #[must_use]
     pub fn build(self) -> Dock<Message, Theme, Renderer> {
-        let content: ContentFn<Message, Theme, Renderer> = self.content.unwrap_or_else(|| {
-            Rc::new(|_| PaneContent::new(widget::text("No content")))
-        });
+        let content: ContentFn<Message, Theme, Renderer> = self
+            .content
+            .unwrap_or_else(|| Rc::new(|_| PaneContent::new(widget::text("No content"))));
         let on_event = self
             .on_event
             .unwrap_or_else(|| Rc::new(|_| panic!("dock().on_event(...) required")));
@@ -511,12 +505,9 @@ where
         + PartialEq
         + 'static,
     Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
-    <Theme as button::Catalog>::Class<'static>:
-        From<button::StyleFn<'static, Theme>>,
-    <Theme as container::Catalog>::Class<'static>:
-        From<container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
-        From<iced_text::StyleFn<'b, Theme>>,
+    <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
     DockBuilder::default()
 }
@@ -532,12 +523,9 @@ where
         + PartialEq
         + 'static,
     Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
-    <Theme as button::Catalog>::Class<'static>:
-        From<button::StyleFn<'static, Theme>>,
-    <Theme as container::Catalog>::Class<'static>:
-        From<container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
-        From<iced_text::StyleFn<'b, Theme>>,
+    <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
     fn tag(&self) -> Tag {
         Tag::of::<DockTreeHolder<Message, Theme, Renderer>>()
@@ -788,12 +776,9 @@ where
         + PartialEq
         + 'static,
     Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
-    <Theme as button::Catalog>::Class<'static>:
-        From<button::StyleFn<'static, Theme>>,
-    <Theme as container::Catalog>::Class<'static>:
-        From<container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
-        From<iced_text::StyleFn<'b, Theme>>,
+    <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
     fn from(widget: Dock<Message, Theme, Renderer>) -> Self {
         Element::new(widget)
