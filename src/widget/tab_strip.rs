@@ -1123,8 +1123,8 @@ where
                     captured_label = true;
                 }
             }
-            Event::Mouse(mouse::Event::WheelScrolled { delta }) => {
-                if over_tab_bar && max_offset > 0.0 {
+            Event::Mouse(mouse::Event::WheelScrolled { delta })
+                if over_tab_bar && max_offset > 0.0 => {
                     let shift = state.keyboard_modifiers.shift();
                     let dx = scroll_delta_x(*delta, shift);
                     if dx.abs() > f32::EPSILON {
@@ -1139,7 +1139,6 @@ where
                         captured_wheel = true;
                     }
                 }
-            }
             _ => {}
         }
 

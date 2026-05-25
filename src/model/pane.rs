@@ -34,6 +34,12 @@ pub struct Pane {
     pub active: Option<NodeId>,
 }
 
+impl Default for Pane {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Pane {
     pub fn new() -> Self {
         Self {

@@ -238,7 +238,7 @@ where
     }
 
     fn state(&self) -> State {
-        State::new(TabDockState::default())
+        State::new(TabDockState)
     }
 
     fn children(&self) -> Vec<Tree> {

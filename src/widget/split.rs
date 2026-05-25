@@ -490,15 +490,14 @@ where
                     }
                 }
             }
-            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-                if state.drag_splitter.is_some() {
+            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
+                if state.drag_splitter.is_some() => {
                     state.drag_splitter = None;
                     state.hovered_splitter = cursor
                         .position()
                         .and_then(|p| splitter_under_cursor(p, &state.splitter_bounds, offset));
                     shell.request_redraw();
                 }
-            }
             _ => {}
         }
     }
