@@ -5,15 +5,15 @@ use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
-use iced::advanced::{Clipboard, Renderer as AdvRenderer, Shell};
+use iced::advanced::{Clipboard, Shell};
 use iced::mouse::{self, Cursor};
-use iced::{Element, Event, Length, Rectangle, Size, Theme};
+use iced::{Element, Event, Length, Rectangle, Size};
 
 use crate::builder::DockIndex;
 use crate::factory::Factory;
 use crate::manager::{DockManager, DragSession, TabBarTarget};
 use crate::model::{ContentKey, Layout as DockLayout, NodeId, NodeKind, Pane};
-use crate::style::{Catalog, DockStyle, StyleFn};
+use crate::style::{Catalog, DockStyle, PaneContent, StyleFn};
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::event::{action_to_event, DockEvent};
 use crate::widget::split::SplitContainer;
@@ -21,7 +21,7 @@ use crate::widget::tab_dock::{TabDock, TabInfo};
 
 /// Persistent docking state (stored in the widget [`Tree`]).
 #[derive(Debug, Clone)]
-pub struct DockWidgetState {
+pub struct DockWidgetState<Theme = iced::Theme> {
     pub layout: DockLayout,
     pub index: DockIndex,
     pub drag: Option<DragSession>,
@@ -36,14 +36,10 @@ pub struct DockWidgetState {
     /// Set when the layout tree changes and the cached widget root must rebuild.
     pub layout_dirty: bool,
     /// Last iced theme from [`Widget::draw`]; survives per-frame dock widget rebuilds.
-    pub resolved_theme: Rc<RefCell<Theme>>,
+    pub resolved_theme: Rc<RefCell<Option<Theme>>>,
 }
 
-fn default_resolved_theme() -> Rc<RefCell<Theme>> {
-    Rc::new(RefCell::new(Theme::Dark))
-}
-
-impl DockWidgetState {
+impl<Theme> DockWidgetState<Theme> {
     /// Rebuild string-id index from the current layout graph.
     pub fn sync_index(&mut self) {
         self.index = DockIndex::rebuild_from_layout(&self.layout);
@@ -78,12 +74,12 @@ impl DockWidgetState {
             focused_pane,
             focus_dirty: false,
             layout_dirty: true,
-            resolved_theme: default_resolved_theme(),
+            resolved_theme: Rc::new(RefCell::new(None)),
         }
     }
 }
 
-impl Default for DockWidgetState {
+impl<Theme> Default for DockWidgetState<Theme> {
     fn default() -> Self {
         let layout = DockLayout::new();
         let index = DockIndex::rebuild_from_layout(&layout);
@@ -97,13 +93,13 @@ impl Default for DockWidgetState {
             focused_pane: None,
             focus_dirty: false,
             layout_dirty: false,
-            resolved_theme: default_resolved_theme(),
+            resolved_theme: Rc::new(RefCell::new(None)),
         }
     }
 }
 
 /// End an active drag at `cursor`, applying a drop when valid.
-pub fn finish_drag(state: &mut DockWidgetState, cursor: Option<iced::Point>) -> bool {
+pub fn finish_drag<Theme>(state: &mut DockWidgetState<Theme>, cursor: Option<iced::Point>) -> bool {
     let Some(cursor) = cursor else {
         let had_drag = state.drag.is_some();
         state.drag = None;
@@ -143,23 +139,48 @@ pub fn finish_drag(state: &mut DockWidgetState, cursor: Option<iced::Point>) -> 
 }
 
 /// Tree state: layout data + cached root element (must match `tree.children`).
-struct DockTreeHolder<Message> {
-    dock_state: Rc<RefCell<DockWidgetState>>,
-    root: RefCell<Option<Element<'static, Message, Theme, iced::Renderer>>>,
+struct DockTreeHolder<Message, Theme, Renderer>
+where
+    Theme: Catalog,
+    Renderer: iced::advanced::Renderer,
+{
+    dock_state: Rc<RefCell<DockWidgetState<Theme>>>,
+    root: RefCell<Option<Element<'static, Message, Theme, Renderer>>>,
 }
 
-pub struct Dock<Message> {
-    content: Rc<dyn Fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>>,
+pub struct Dock<Message, Theme = iced::Theme, Renderer = iced::Renderer>
+where
+    Theme: Catalog,
+    Renderer: iced::advanced::Renderer,
+{
+    content: Rc<dyn Fn(ContentKey) -> PaneContent<'static, Message, Theme, Renderer>>,
     on_event: Rc<dyn Fn(DockEvent) -> Message>,
-    external_state: Option<Rc<RefCell<DockWidgetState>>>,
-    class: Rc<StyleFn<'static, Theme>>,
+    external_state: Option<Rc<RefCell<DockWidgetState<Theme>>>>,
+    class: Rc<<Theme as Catalog>::Class<'static>>,
     tab_bar_scrollbar_hide_delay: iced::time::Duration,
     tab_bar_show_scrollbar: bool,
 }
 
-impl<Message: Clone + 'static> Dock<Message> {
+impl<Message, Theme, Renderer> Dock<Message, Theme, Renderer>
+where
+    Message: Clone + 'static,
+    Theme: Catalog
+        + iced::widget::button::Catalog
+        + iced::widget::container::Catalog
+        + iced::widget::text::Catalog
+        + Clone
+        + PartialEq
+        + 'static,
+    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
+    <Theme as iced::widget::button::Catalog>::Class<'static>:
+        From<iced::widget::button::StyleFn<'static, Theme>>,
+    <Theme as iced::widget::container::Catalog>::Class<'static>:
+        From<iced::widget::container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
+        From<iced::widget::text::StyleFn<'b, Theme>>,
+{
     pub fn new(
-        content: Rc<dyn Fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>>,
+        content: Rc<dyn Fn(ContentKey) -> PaneContent<'static, Message, Theme, Renderer>>,
         on_event: Rc<dyn Fn(DockEvent) -> Message>,
     ) -> Self {
         Self {
@@ -172,22 +193,25 @@ impl<Message: Clone + 'static> Dock<Message> {
         }
     }
 
-    fn theme_cell(holder: &Rc<RefCell<DockWidgetState>>) -> Rc<RefCell<Theme>> {
+    fn theme_cell(holder: &Rc<RefCell<DockWidgetState<Theme>>>) -> Rc<RefCell<Option<Theme>>> {
         Rc::clone(&holder.borrow().resolved_theme)
     }
 
-    pub fn style(mut self, style: impl Fn(&Theme) -> DockStyle + 'static) -> Self {
-        self.class = Rc::new(Box::new(style));
+    pub fn style(mut self, style: impl Fn(&Theme) -> DockStyle + 'static) -> Self
+    where
+        <Theme as Catalog>::Class<'static>: From<StyleFn<'static, Theme>>,
+    {
+        self.class = Rc::new((Box::new(style) as StyleFn<'static, Theme>).into());
         self
     }
 
     /// Sets the style class of the [`Dock`].
-    pub fn class(mut self, class: StyleFn<'static, Theme>) -> Self {
+    pub fn class(mut self, class: <Theme as Catalog>::Class<'static>) -> Self {
         self.class = Rc::new(class);
         self
     }
 
-    pub fn with_state(mut self, state: Rc<RefCell<DockWidgetState>>) -> Self {
+    pub fn with_state(mut self, state: Rc<RefCell<DockWidgetState<Theme>>>) -> Self {
         self.external_state = Some(state);
         self
     }
@@ -210,7 +234,7 @@ impl<Message: Clone + 'static> Dock<Message> {
     }
 
     fn wrap_action(
-        holder: &Rc<RefCell<DockWidgetState>>,
+        holder: &Rc<RefCell<DockWidgetState<Theme>>>,
         on_event: &Rc<dyn Fn(DockEvent) -> Message>,
         action: DockAction,
     ) -> Message {
@@ -223,10 +247,10 @@ impl<Message: Clone + 'static> Dock<Message> {
 
     fn build_node(
         &self,
-        holder: &Rc<RefCell<DockWidgetState>>,
+        holder: &Rc<RefCell<DockWidgetState<Theme>>>,
         layout: &DockLayout,
         node: NodeId,
-    ) -> Option<Element<'static, Message, Theme, iced::Renderer>> {
+    ) -> Option<Element<'static, Message, Theme, Renderer>> {
         match layout.kind(node)? {
             NodeKind::Proportional(pg) => {
                 let children: Vec<_> = pg
@@ -264,11 +288,11 @@ impl<Message: Clone + 'static> Dock<Message> {
 
     fn build_pane(
         &self,
-        holder: &Rc<RefCell<DockWidgetState>>,
+        holder: &Rc<RefCell<DockWidgetState<Theme>>>,
         layout: &DockLayout,
         pane_id: NodeId,
         pane: &Pane,
-    ) -> Option<Element<'static, Message, Theme, iced::Renderer>> {
+    ) -> Option<Element<'static, Message, Theme, Renderer>> {
         let active = pane.active.or_else(|| pane.tabs.first().copied())?;
         let entry = layout.get(active)?;
         let content_key = match &entry.kind {
@@ -292,7 +316,13 @@ impl<Message: Clone + 'static> Dock<Message> {
             })
             .collect();
 
-        let content = (self.content)(content_key);
+        let pane_content = (self.content)(content_key);
+        let pane_class = pane_content
+            .style
+            .map(Rc::new)
+            .unwrap_or_else(|| Rc::clone(&self.class));
+        let content = pane_content.element;
+
         let h = holder.clone();
         let on_event = self.on_event.clone();
         let on_tab = Rc::new(move |action: DockAction| Self::wrap_action(&h, &on_event, action));
@@ -304,7 +334,7 @@ impl<Message: Clone + 'static> Dock<Message> {
                 active,
                 content,
                 on_tab,
-                Rc::clone(&self.class),
+                pane_class,
                 Self::theme_cell(holder),
                 self.tab_bar_scrollbar_hide_delay,
                 self.tab_bar_show_scrollbar,
@@ -315,8 +345,8 @@ impl<Message: Clone + 'static> Dock<Message> {
 
     fn build_root_child(
         &self,
-        holder: &Rc<RefCell<DockWidgetState>>,
-    ) -> Option<Element<'static, Message, Theme, iced::Renderer>> {
+        holder: &Rc<RefCell<DockWidgetState<Theme>>>,
+    ) -> Option<Element<'static, Message, Theme, Renderer>> {
         let state = holder.borrow();
         let root = state.layout.root_child()?;
         self.build_node(holder, &state.layout, root)
@@ -326,17 +356,17 @@ impl<Message: Clone + 'static> Dock<Message> {
     fn sync_root(&self, tree: &mut Tree) {
         let dock_state = tree
             .state
-            .downcast_ref::<DockTreeHolder<Message>>()
+            .downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>()
             .dock_state
             .clone();
         let new_root = self.build_root_child(&dock_state);
         {
-            let holder = tree.state.downcast_mut::<DockTreeHolder<Message>>();
+            let holder = tree.state.downcast_mut::<DockTreeHolder<Message, Theme, Renderer>>();
             holder.root.replace(new_root);
         }
         if let Some(child) = tree
             .state
-            .downcast_ref::<DockTreeHolder<Message>>()
+            .downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>()
             .root
             .borrow()
             .as_ref()
@@ -353,26 +383,34 @@ impl<Message: Clone + 'static> Dock<Message> {
 
     fn with_cached_root<R>(
         tree: &Tree,
-        f: impl FnOnce(&Element<'static, Message, Theme, iced::Renderer>) -> R,
+        f: impl FnOnce(&Element<'static, Message, Theme, Renderer>) -> R,
     ) -> Option<R> {
-        let holder = tree.state.downcast_ref::<DockTreeHolder<Message>>();
+        let holder = tree.state.downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>();
         holder.root.borrow().as_ref().map(f)
     }
 
 }
 
-pub struct DockBuilder<Message> {
-    content: Option<Rc<dyn Fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>>>,
+pub struct DockBuilder<Message, Theme = iced::Theme, Renderer = iced::Renderer>
+where
+    Theme: Catalog,
+    Renderer: iced::advanced::Renderer,
+{
+    content: Option<Rc<dyn Fn(ContentKey) -> PaneContent<'static, Message, Theme, Renderer>>>,
     on_event: Option<Rc<dyn Fn(DockEvent) -> Message>>,
-    shared_state: Option<Rc<RefCell<DockWidgetState>>>,
-    class: Option<Rc<StyleFn<'static, Theme>>>,
+    shared_state: Option<Rc<RefCell<DockWidgetState<Theme>>>>,
+    class: Option<Rc<<Theme as Catalog>::Class<'static>>>,
     min_pane_width: Option<f32>,
     min_pane_height: Option<f32>,
     tab_bar_scrollbar_hide_delay: Option<iced::time::Duration>,
     tab_bar_show_scrollbar: Option<bool>,
 }
 
-impl<Message> Default for DockBuilder<Message> {
+impl<Message, Theme, Renderer> Default for DockBuilder<Message, Theme, Renderer>
+where
+    Theme: Catalog,
+    Renderer: iced::advanced::Renderer,
+{
     fn default() -> Self {
         Self {
             content: None,
@@ -387,10 +425,37 @@ impl<Message> Default for DockBuilder<Message> {
     }
 }
 
-impl<Message: Clone + 'static> DockBuilder<Message> {
+impl<Message, Theme, Renderer> DockBuilder<Message, Theme, Renderer>
+where
+    Message: Clone + 'static,
+    Theme: Catalog
+        + iced::widget::button::Catalog
+        + iced::widget::container::Catalog
+        + iced::widget::text::Catalog
+        + Clone
+        + PartialEq
+        + 'static,
+    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
+    <Theme as iced::widget::button::Catalog>::Class<'static>:
+        From<iced::widget::button::StyleFn<'static, Theme>>,
+    <Theme as iced::widget::container::Catalog>::Class<'static>:
+        From<iced::widget::container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
+        From<iced::widget::text::StyleFn<'b, Theme>>,
+{
     pub fn content(
         mut self,
-        f: impl Fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer> + 'static,
+        f: impl Fn(ContentKey) -> Element<'static, Message, Theme, Renderer> + 'static,
+    ) -> Self {
+        self.content = Some(Rc::new(move |key| PaneContent::from(f(key))));
+        self
+    }
+
+    /// Like [`content`](Self::content), but the closure returns [`PaneContent`]
+    /// for per-pane style overrides.
+    pub fn content_styled(
+        mut self,
+        f: impl Fn(ContentKey) -> PaneContent<'static, Message, Theme, Renderer> + 'static,
     ) -> Self {
         self.content = Some(Rc::new(f));
         self
@@ -405,18 +470,21 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
         self
     }
 
-    pub fn state(mut self, state: Rc<RefCell<DockWidgetState>>) -> Self {
+    pub fn state(mut self, state: Rc<RefCell<DockWidgetState<Theme>>>) -> Self {
         self.shared_state = Some(state);
         self
     }
 
-    pub fn style(mut self, style: impl Fn(&Theme) -> DockStyle + 'static) -> Self {
-        self.class = Some(Rc::new(Box::new(style)));
+    pub fn style(mut self, style: impl Fn(&Theme) -> DockStyle + 'static) -> Self
+    where
+        <Theme as Catalog>::Class<'static>: From<StyleFn<'static, Theme>>,
+    {
+        self.class = Some(Rc::new((Box::new(style) as StyleFn<'static, Theme>).into()));
         self
     }
 
     /// Sets the style class of the [`Dock`].
-    pub fn class(mut self, class: StyleFn<'static, Theme>) -> Self {
+    pub fn class(mut self, class: <Theme as Catalog>::Class<'static>) -> Self {
         self.class = Some(Rc::new(class));
         self
     }
@@ -459,10 +527,13 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
         self
     }
 
-    pub fn build(self) -> Dock<Message> {
+    pub fn build(self) -> Dock<Message, Theme, Renderer>
+    where
+        <Theme as Catalog>::Class<'static>: From<StyleFn<'static, Theme>>,
+    {
         let content = self.content.unwrap_or_else(|| {
-            Rc::new(|_| iced::widget::text("No content").into())
-                as Rc<dyn Fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>>
+            Rc::new(|_| PaneContent::new(iced::widget::text("No content")))
+                as Rc<dyn Fn(ContentKey) -> PaneContent<'static, Message, Theme, Renderer>>
         });
         let on_event = self
             .on_event
@@ -475,8 +546,8 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
         let min_pane_width = self.min_pane_width;
         let min_pane_height = self.min_pane_height;
         if min_pane_width.is_some() || min_pane_height.is_some() {
-            dock.class = Rc::new(Box::new(move |theme| {
-                let mut style = base_class(theme);
+            let wrapped: StyleFn<'static, Theme> = Box::new(move |theme| {
+                let mut style = Catalog::style(theme, &*base_class);
                 if let Some(width) = min_pane_width {
                     style = style.with_min_pane_width(width);
                 }
@@ -484,7 +555,8 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
                     style = style.with_min_pane_height(height);
                 }
                 style
-            }));
+            });
+            dock.class = Rc::new(wrapped.into());
         } else {
             dock.class = base_class;
         }
@@ -498,19 +570,48 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
     }
 }
 
-pub fn dock<Message>() -> DockBuilder<Message>
+pub fn dock<Message, Theme, Renderer>() -> DockBuilder<Message, Theme, Renderer>
 where
     Message: Clone + 'static,
+    Theme: Catalog
+        + iced::widget::button::Catalog
+        + iced::widget::container::Catalog
+        + iced::widget::text::Catalog
+        + Clone
+        + PartialEq
+        + 'static,
+    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
+    <Theme as iced::widget::button::Catalog>::Class<'static>:
+        From<iced::widget::button::StyleFn<'static, Theme>>,
+    <Theme as iced::widget::container::Catalog>::Class<'static>:
+        From<iced::widget::container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
+        From<iced::widget::text::StyleFn<'b, Theme>>,
 {
     DockBuilder::default()
 }
 
-impl<Message> Widget<Message, Theme, iced::Renderer> for Dock<Message>
+impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
+    for Dock<Message, Theme, Renderer>
 where
     Message: Clone + 'static,
+    Theme: Catalog
+        + iced::widget::button::Catalog
+        + iced::widget::container::Catalog
+        + iced::widget::text::Catalog
+        + Clone
+        + PartialEq
+        + 'static,
+    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
+    <Theme as iced::widget::button::Catalog>::Class<'static>:
+        From<iced::widget::button::StyleFn<'static, Theme>>,
+    <Theme as iced::widget::container::Catalog>::Class<'static>:
+        From<iced::widget::container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
+        From<iced::widget::text::StyleFn<'b, Theme>>,
 {
     fn tag(&self) -> Tag {
-        Tag::of::<DockTreeHolder<Message>>()
+        Tag::of::<DockTreeHolder<Message, Theme, Renderer>>()
     }
 
     fn state(&self) -> State {
@@ -518,7 +619,7 @@ where
             .external_state
             .clone()
             .unwrap_or_else(|| Rc::new(RefCell::new(DockWidgetState::default())));
-        State::new(DockTreeHolder::<Message> {
+        State::new(DockTreeHolder::<Message, Theme, Renderer> {
             dock_state,
             root: RefCell::new(None),
         })
@@ -527,13 +628,13 @@ where
     fn diff(&self, tree: &mut Tree) {
         let dirty = tree
             .state
-            .downcast_ref::<DockTreeHolder<Message>>()
+            .downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>()
             .dock_state
             .borrow()
             .layout_dirty;
         if dirty {
             tree.state
-                .downcast_ref::<DockTreeHolder<Message>>()
+                .downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>()
                 .dock_state
                 .borrow_mut()
                 .commit_layout();
@@ -551,12 +652,12 @@ where
     fn layout(
         &mut self,
         tree: &mut Tree,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
         let dock_state = tree
             .state
-            .downcast_ref::<DockTreeHolder<Message>>()
+            .downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>()
             .dock_state
             .clone();
         dock_state.borrow_mut().drop_targets.clear();
@@ -569,7 +670,7 @@ where
         if let Some(child_tree) = tree.children.first_mut() {
             let mut root = tree
                 .state
-                .downcast_mut::<DockTreeHolder<Message>>()
+                .downcast_mut::<DockTreeHolder<Message, Theme, Renderer>>()
                 .root
                 .borrow_mut();
             if let Some(child) = root.as_mut() {
@@ -583,7 +684,7 @@ where
     fn draw(
         &self,
         tree: &Tree,
-        renderer: &mut iced::Renderer,
+        renderer: &mut Renderer,
         theme: &Theme,
         style: &iced::advanced::renderer::Style,
         layout: Layout<'_>,
@@ -592,10 +693,10 @@ where
     ) {
         let dock_state = tree
             .state
-            .downcast_ref::<DockTreeHolder<Message>>()
+            .downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>()
             .dock_state
             .clone();
-        *dock_state.borrow_mut().resolved_theme.borrow_mut() = theme.clone();
+        *dock_state.borrow_mut().resolved_theme.borrow_mut() = Some(theme.clone());
 
         let dock_style = Catalog::style(theme, &self.class);
         renderer.fill_quad(
@@ -607,7 +708,7 @@ where
         );
 
         tree.state
-            .downcast_ref::<DockTreeHolder<Message>>()
+            .downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>()
             .dock_state
             .borrow_mut()
             .pane_bounds
@@ -638,14 +739,14 @@ where
         event: &Event,
         layout: Layout<'_>,
         cursor: Cursor,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
         let dock_state = tree
             .state
-            .downcast_ref::<DockTreeHolder<Message>>()
+            .downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>()
             .dock_state
             .clone();
 
@@ -658,7 +759,7 @@ where
         {
             let mut root = tree
                 .state
-                .downcast_mut::<DockTreeHolder<Message>>()
+                .downcast_mut::<DockTreeHolder<Message, Theme, Renderer>>()
                 .root
                 .borrow_mut();
             if let Some(child) = root.as_mut() {
@@ -693,9 +794,9 @@ where
         layout: Layout<'_>,
         cursor: Cursor,
         viewport: &Rectangle,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
     ) -> mouse::Interaction {
-        let holder = tree.state.downcast_ref::<DockTreeHolder<Message>>();
+        let holder = tree.state.downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>();
         if holder.dock_state.borrow().drag.is_some() {
             return mouse::Interaction::Grab;
         }
@@ -722,7 +823,7 @@ where
         &mut self,
         tree: &mut Tree,
         layout: Layout<'_>,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
         let Some(child_layout) = layout.children().next() else {
@@ -733,7 +834,7 @@ where
         };
         let mut root = tree
             .state
-            .downcast_mut::<DockTreeHolder<Message>>()
+            .downcast_mut::<DockTreeHolder<Message, Theme, Renderer>>()
             .root
             .borrow_mut();
         if let Some(child) = root.as_mut() {
@@ -744,11 +845,26 @@ where
     }
 }
 
-impl<Message> From<Dock<Message>> for Element<'static, Message, Theme, iced::Renderer>
+impl<Message, Theme, Renderer> From<Dock<Message, Theme, Renderer>>
+    for Element<'static, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
+    Theme: Catalog
+        + iced::widget::button::Catalog
+        + iced::widget::container::Catalog
+        + iced::widget::text::Catalog
+        + Clone
+        + PartialEq
+        + 'static,
+    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
+    <Theme as iced::widget::button::Catalog>::Class<'static>:
+        From<iced::widget::button::StyleFn<'static, Theme>>,
+    <Theme as iced::widget::container::Catalog>::Class<'static>:
+        From<iced::widget::container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
+        From<iced::widget::text::StyleFn<'b, Theme>>,
 {
-    fn from(widget: Dock<Message>) -> Self {
+    fn from(widget: Dock<Message, Theme, Renderer>) -> Self {
         Element::new(widget)
     }
 }
@@ -757,7 +873,7 @@ where
 ///
 /// Does not emit [`DockEvent`] values. After a successful structural change, call
 /// [`DockWidgetState::sync_index`] or rely on the widget's next layout pass.
-pub fn dispatch_action(state: &mut DockWidgetState, action: DockAction) -> bool {
+pub fn dispatch_action<Theme>(state: &mut DockWidgetState<Theme>, action: DockAction) -> bool {
     let factory = Factory;
     let mut changed = false;
 

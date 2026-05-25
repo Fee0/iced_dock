@@ -44,11 +44,11 @@ pub enum PanelCycle {
 }
 
 /// High-level handle for a dock layout and runtime panel operations.
-pub struct DockSession {
-    inner: Rc<RefCell<DockWidgetState>>,
+pub struct DockSession<Theme = iced::Theme> {
+    inner: Rc<RefCell<DockWidgetState<Theme>>>,
 }
 
-impl DockSession {
+impl<Theme> DockSession<Theme> {
     /// Build a session from a declarative layout tree.
     pub fn from_tree(tree: LayoutTree) -> Result<Self> {
         Self::from_tree_with_focus(tree, InitialFocus::default())
@@ -70,7 +70,7 @@ impl DockSession {
     }
 
     /// Shared widget state for the iced dock builder.
-    pub fn state(&self) -> Rc<RefCell<DockWidgetState>> {
+    pub fn state(&self) -> Rc<RefCell<DockWidgetState<Theme>>> {
         self.inner.clone()
     }
 
@@ -85,7 +85,7 @@ impl DockSession {
         let pane_id = self.resolve_pane(&target)?;
         let factory = Factory;
         let mut state = self.inner.borrow_mut();
-        let panel_id = insert_panel_into_state(&factory, &mut state, &def)?;
+        let panel_id = insert_panel_into_state(&factory, &mut *state, &def)?;
         factory.add_panel_to_pane(&mut state.layout, pane_id, panel_id)?;
         factory.set_active_panel(&mut state.layout, pane_id, panel_id);
         state.layout_dirty = true;
@@ -267,7 +267,7 @@ fn resolve_initial_focus(built: &BuiltLayout, focus: InitialFocus<'_>) -> Result
     }
 }
 
-impl std::fmt::Debug for DockSession {
+impl<Theme> std::fmt::Debug for DockSession<Theme> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DockSession").finish_non_exhaustive()
     }

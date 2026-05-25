@@ -484,14 +484,67 @@ impl Catalog for Theme {
 }
 
 /// Wrap a fixed [`DockStyle`] for use with [`crate::dock`]'s `.style(...)` builder.
-pub fn constant(style: DockStyle) -> StyleFn<'static, Theme> {
+pub fn constant<T>(style: DockStyle) -> StyleFn<'static, T> {
     Box::new(move |_| style.clone())
 }
 
+/// Pane content with an optional per-pane style override.
+///
+/// Returned by the content closure passed to [`crate::dock`]. Use [`From<Element>`]
+/// for the common case (no override), or [`PaneContent::new`] + `.style(...)` for
+/// per-pane chrome.
+pub struct PaneContent<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
+where
+    Theme: Catalog,
+{
+    pub element: iced::Element<'a, Message, Theme, Renderer>,
+    pub style: Option<<Theme as Catalog>::Class<'static>>,
+}
+
+impl<'a, Message, Theme, Renderer> PaneContent<'a, Message, Theme, Renderer>
+where
+    Theme: Catalog,
+{
+    pub fn new(element: impl Into<iced::Element<'a, Message, Theme, Renderer>>) -> Self {
+        Self {
+            element: element.into(),
+            style: None,
+        }
+    }
+
+    /// Override the dock-level style for this pane.
+    pub fn style(mut self, style: impl Fn(&Theme) -> DockStyle + 'static) -> Self
+    where
+        <Theme as Catalog>::Class<'static>: From<StyleFn<'static, Theme>>,
+    {
+        self.style = Some((Box::new(style) as StyleFn<'static, Theme>).into());
+        self
+    }
+
+    /// Override the dock-level style class for this pane.
+    pub fn class(mut self, class: <Theme as Catalog>::Class<'static>) -> Self {
+        self.style = Some(class);
+        self
+    }
+}
+
+impl<'a, Message, Theme, Renderer> From<iced::Element<'a, Message, Theme, Renderer>>
+    for PaneContent<'a, Message, Theme, Renderer>
+where
+    Theme: Catalog,
+{
+    fn from(element: iced::Element<'a, Message, Theme, Renderer>) -> Self {
+        Self {
+            element,
+            style: None,
+        }
+    }
+}
+
 /// Ghost close button for tab close controls.
-pub fn close_button_style(
+pub fn close_button_style<T>(
     close: &CloseButtonStyle,
-) -> impl Fn(&Theme, button::Status) -> button::Style + Clone {
+) -> impl Fn(&T, button::Status) -> button::Style + Clone {
     let close = close.clone();
     move |_, status| {
         let (background, text_color) = match status {

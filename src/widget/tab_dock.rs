@@ -5,14 +5,14 @@ use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
-use iced::advanced::{Clipboard, Renderer as AdvRenderer, Shell};
+use iced::advanced::{Clipboard, Shell};
 use iced::mouse::{self, Cursor};
 use iced::touch;
-use iced::{Element, Event, Length, Rectangle, Size, Theme};
+use iced::{Element, Event, Length, Rectangle, Size};
 
 use crate::manager::{DockManager, TabBarTarget};
 use crate::model::NodeId;
-use crate::style::{Catalog, DockStyle, StyleFn};
+use crate::style::{Catalog, DockStyle};
 use crate::widget::compose;
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::dock::DockWidgetState;
@@ -79,30 +79,51 @@ fn tab_insert_is_noop(
     from == index || from + 1 == index
 }
 
-pub struct TabDock<'a, Message> {
-    dock_state: Rc<RefCell<DockWidgetState>>,
+pub struct TabDock<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
+where
+    Theme: Catalog,
+    Renderer: iced::advanced::Renderer,
+{
+    dock_state: Rc<RefCell<DockWidgetState<Theme>>>,
     pub pane_id: NodeId,
     pub tabs: Vec<TabInfo>,
     pub active_tab: NodeId,
-    pub tab_strip: Element<'a, Message, Theme, iced::Renderer>,
-    pub content: Element<'a, Message, Theme, iced::Renderer>,
+    pub tab_strip: Element<'a, Message, Theme, Renderer>,
+    pub content: Element<'a, Message, Theme, Renderer>,
     on_event: Rc<dyn Fn(DockAction) -> Message>,
-    class: Rc<StyleFn<'static, Theme>>,
-    theme: Rc<RefCell<Theme>>,
+    class: Rc<<Theme as Catalog>::Class<'static>>,
+    theme: Rc<RefCell<Option<Theme>>>,
     tab_bar_scrollbar_hide_delay: iced::time::Duration,
     tab_bar_show_scrollbar: bool,
 }
 
-impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
+impl<'a, Message, Theme, Renderer> TabDock<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'static,
+    Theme: Catalog
+        + iced::widget::button::Catalog
+        + iced::widget::container::Catalog
+        + iced::widget::text::Catalog
+        + Clone
+        + PartialEq
+        + 'static,
+    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
+    <Theme as iced::widget::button::Catalog>::Class<'static>:
+        From<iced::widget::button::StyleFn<'static, Theme>>,
+    <Theme as iced::widget::container::Catalog>::Class<'static>:
+        From<iced::widget::container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
+        From<iced::widget::text::StyleFn<'b, Theme>>,
+{
     pub fn new(
-        dock_state: Rc<RefCell<DockWidgetState>>,
+        dock_state: Rc<RefCell<DockWidgetState<Theme>>>,
         pane_id: NodeId,
         tabs: Vec<TabInfo>,
         active_tab: NodeId,
-        content: Element<'a, Message, Theme, iced::Renderer>,
+        content: Element<'a, Message, Theme, Renderer>,
         on_event: Rc<dyn Fn(DockAction) -> Message>,
-        class: Rc<StyleFn<'static, Theme>>,
-        theme: Rc<RefCell<Theme>>,
+        class: Rc<<Theme as Catalog>::Class<'static>>,
+        theme: Rc<RefCell<Option<Theme>>>,
         tab_bar_scrollbar_hide_delay: iced::time::Duration,
         tab_bar_show_scrollbar: bool,
     ) -> Self {
@@ -131,8 +152,14 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
             tab_bar_show_scrollbar,
         }
     }
+}
 
-    fn resolved_theme(&self) -> Theme {
+impl<'a, Message, Theme, Renderer> TabDock<'a, Message, Theme, Renderer>
+where
+    Theme: Catalog + Clone + 'static,
+    Renderer: iced::advanced::Renderer,
+{
+    fn resolved_theme(&self) -> Option<Theme> {
         self.theme.borrow().clone()
     }
 
@@ -140,9 +167,16 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
         Catalog::style(theme, &self.class)
     }
 
+    fn layout_style_or_default(&self) -> DockStyle {
+        match self.resolved_theme() {
+            Some(ref t) => Catalog::style(t, &self.class),
+            None => DockStyle::default(),
+        }
+    }
+
     fn is_dragging(&self, tree: &Tree) -> bool {
         self.dock_state.borrow().drag.is_some()
-            || tab_strip::is_dragging(tree.children.first())
+            || tab_strip::is_dragging::<Theme>(tree.children.first())
     }
 
     fn register_drop_target(&self, bounds: Rectangle) {
@@ -174,9 +208,24 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
     }
 }
 
-impl<'a, Message> Widget<Message, Theme, iced::Renderer> for TabDock<'a, Message>
+impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
+    for TabDock<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
+    Theme: Catalog
+        + iced::widget::button::Catalog
+        + iced::widget::container::Catalog
+        + iced::widget::text::Catalog
+        + Clone
+        + PartialEq
+        + 'static,
+    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
+    <Theme as iced::widget::button::Catalog>::Class<'static>:
+        From<iced::widget::button::StyleFn<'static, Theme>>,
+    <Theme as iced::widget::container::Catalog>::Class<'static>:
+        From<iced::widget::container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
+        From<iced::widget::text::StyleFn<'b, Theme>>,
 {
     fn tag(&self) -> Tag {
         Tag::of::<TabDockState>()
@@ -210,10 +259,10 @@ where
     fn layout(
         &mut self,
         tree: &mut Tree,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let style = self.layout_style(&self.resolved_theme());
+        let style = self.layout_style_or_default();
         let max = limits.max();
         let inset = pane_inset(&style);
         let inner_w = (max.width - 2.0 * inset).max(0.0);
@@ -250,7 +299,7 @@ where
     fn draw(
         &self,
         tree: &Tree,
-        renderer: &mut iced::Renderer,
+        renderer: &mut Renderer,
         theme: &Theme,
         style: &renderer::Style,
         layout: Layout<'_>,
@@ -362,7 +411,7 @@ where
         event: &Event,
         layout: Layout<'_>,
         cursor: Cursor,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
@@ -379,12 +428,12 @@ where
 
         if let Some(tab_layout) = layout.children().next() {
             let suppress_hover = self.dock_state.borrow().drag.is_some();
-            if tab_strip::set_suppress_hover(&mut tree.children[0], suppress_hover) {
+            if tab_strip::set_suppress_hover::<Theme>(&mut tree.children[0], suppress_hover) {
                 shell.request_redraw();
             }
 
             if let Some(row_layout) = tab_layout.children().next() {
-                let scroll = tab_strip::scroll_offset(&tree.children[0]);
+                let scroll = tab_strip::scroll_offset::<Theme>(&tree.children[0]);
                 let insert_x = tab_strip::build_insert_x(&row_layout);
                 self.register_tab_bar_target(tab_layout.bounds(), insert_x, scroll);
             }
@@ -400,7 +449,7 @@ where
                 shell,
                 viewport,
             );
-            tab_strip::sync_hover_in_tree(
+            tab_strip::sync_hover_in_tree::<_, Theme>(
                 &mut tree.children[0],
                 tab_layout.bounds(),
                 cursor,
@@ -420,12 +469,12 @@ where
                     }
                 })
             });
-            if tab_strip::set_insert_marker_index(&mut tree.children[0], marker_index) {
+            if tab_strip::set_insert_marker_index::<Theme>(&mut tree.children[0], marker_index) {
                 shell.request_redraw();
             }
         } else {
-            tab_strip::set_insert_marker_index(&mut tree.children[0], None);
-            tab_strip::set_suppress_hover(&mut tree.children[0], false);
+            tab_strip::set_insert_marker_index::<Theme>(&mut tree.children[0], None);
+            tab_strip::set_suppress_hover::<Theme>(&mut tree.children[0], false);
         }
         if let Some(content_layout) = layout.children().nth(1) {
             if !is_picked {
@@ -489,7 +538,7 @@ where
             }
         }
 
-        tab_strip::schedule_hide_redraw(&tree.children[0], shell);
+        tab_strip::schedule_hide_redraw::<_, Theme>(&tree.children[0], shell);
     }
 
     fn mouse_interaction(
@@ -498,10 +547,10 @@ where
         layout: Layout<'_>,
         cursor: Cursor,
         viewport: &Rectangle,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
     ) -> mouse::Interaction {
         if self.dock_state.borrow().drag.is_some()
-            || tab_strip::is_tab_drag_active(tree.children.first())
+            || tab_strip::is_tab_drag_active::<Theme>(tree.children.first())
         {
             return mouse::Interaction::Grab;
         }
@@ -534,7 +583,7 @@ where
         &mut self,
         tree: &mut Tree,
         layout: Layout<'_>,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
         if let Some(tab_layout) = layout.children().next() {
@@ -558,11 +607,26 @@ where
     }
 }
 
-impl<'a, Message> From<TabDock<'a, Message>> for Element<'a, Message, Theme, iced::Renderer>
+impl<'a, Message, Theme, Renderer> From<TabDock<'a, Message, Theme, Renderer>>
+    for Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
+    Theme: Catalog
+        + iced::widget::button::Catalog
+        + iced::widget::container::Catalog
+        + iced::widget::text::Catalog
+        + Clone
+        + PartialEq
+        + 'static,
+    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
+    <Theme as iced::widget::button::Catalog>::Class<'static>:
+        From<iced::widget::button::StyleFn<'static, Theme>>,
+    <Theme as iced::widget::container::Catalog>::Class<'static>:
+        From<iced::widget::container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
+        From<iced::widget::text::StyleFn<'b, Theme>>,
 {
-    fn from(widget: TabDock<'a, Message>) -> Self {
+    fn from(widget: TabDock<'a, Message, Theme, Renderer>) -> Self {
         Element::new(widget)
     }
 }

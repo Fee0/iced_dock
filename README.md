@@ -35,8 +35,10 @@ A docking layout widget for [iced](https://github.com/iced-rs/iced) 0.14. Build 
 
 ### Styling
 
-- **Palette default** — built-in dock chrome follows the active iced theme via `style::default` / [`Catalog`](src/style.rs) (same idea as `pane_grid`).
+- **Generic `Theme`** — `Dock<Message, Theme, Renderer>` is generic over `Theme: Catalog` (same pattern as `pane_grid`). Default type parameters (`Theme = iced::Theme`, `Renderer = iced::Renderer`) keep existing code unchanged.
+- **Palette default** — built-in dock chrome follows the active iced theme via `style::default` / [`Catalog`](src/style.rs).
 - **Optional IDE presets** — `style::preset::modern_dark()` / `modern_light()` for VS Code–inspired chrome (explicit opt-in via `.style(...)`).
+- **Per-pane styling** — the content closure can return `PaneContent` with a per-pane style override, giving individual panes different tab bars, borders, and chrome.
 - **Customizable chrome** — pane borders (including focused accent), tab colors, splitter handles, drop overlays, tab bar metrics, close buttons.
 - **Builder overrides** — `min_pane_width`, `min_pane_height`, tab bar scrollbar visibility and hide delay; `.style(...)`, `.class(...)`.
 
@@ -98,7 +100,7 @@ enum Message {
 }
 
 fn view(app: &App) -> Element<'_, Message> {
-    dock::<Message>()
+    dock()
         .state(app.dock.state())
         .on_event(Message::Dock)
         .content(|key| panel_content(key))
@@ -180,7 +182,40 @@ By default, the dock uses [`style::default`](src/style.rs) (colors from `theme.e
 | Match iced Light/Dark/Custom themes | `dock().build()` with no `.style(...)` |
 | VS Code–style chrome | `.style(iced_dock::preset::modern_dark())` or `preset::modern_light()` |
 | Fixed custom chrome | `.style(iced_dock::constant(my_style))` or `.style(\|t\| { ... })` |
+| Per-pane chrome | Return `PaneContent::new(element).style(\|t\| custom_dock_style)` from the content closure |
+| Custom `Theme` type | `Dock<Message, MyTheme>` — implement `iced_dock::Catalog` for `MyTheme` |
 | Panel interiors | Style your `content` closure (containers, text); not part of dock chrome |
+
+### Per-pane styling
+
+The content closure can return a `PaneContent` to override the dock-level style for individual panes:
+
+```rust
+use iced_dock::{PaneContent, DockStyle, ContentKey};
+
+fn panel_content(key: ContentKey) -> PaneContent<'static, Message> {
+    let element = iced::widget::text(format!("Panel {}", key.0)).into();
+    if key.0 == 10 {
+        PaneContent::new(element).style(|_theme| DockStyle::modern_dark())
+    } else {
+        PaneContent::new(element)
+    }
+}
+```
+
+Per-pane overrides affect tab bar, tab labels, window chrome, and drop overlays. Splitter styling is not per-pane (splitters sit between panes and use the dock-level style).
+
+### Custom Theme types
+
+The dock widget is generic: `Dock<Message, Theme = iced::Theme, Renderer = iced::Renderer>`. To use a custom theme, implement `iced_dock::Catalog` for your type:
+
+```rust
+impl iced_dock::Catalog for MyTheme {
+    type Class<'a> = iced_dock::StyleFn<'a, Self>;
+    fn default() -> Self::Class<'static> { Box::new(|_| DockStyle::default()) }
+    fn style(&self, class: &Self::Class<'_>) -> DockStyle { class(self) }
+}
+```
 
 `DockStyle::from_theme` is deprecated; it now resolves to the palette default, not the IDE presets.
 
@@ -189,7 +224,7 @@ By default, the dock uses [`style::default`](src/style.rs) (colors from `theme.e
 ```rust
 use iced_dock::preset;
 
-dock::<Message>()
+dock()
     .state(session.state())
     .on_event(Message::Dock)              // map DockEvent → app Message
     .content(|key| view_panel(key))       // Fn + 'static (Rc-friendly)

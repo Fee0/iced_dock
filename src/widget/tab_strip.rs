@@ -5,17 +5,17 @@ use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
-use iced::advanced::{Clipboard, Renderer as AdvRenderer, Shell};
+use iced::advanced::{Clipboard, Shell};
 use iced::keyboard;
 use iced::mouse::{self, Cursor};
 use iced::widget::{button, container, mouse_area, row, text, Space};
 use iced::window;
 use iced::{
-    Border, Color, Element, Event, Length, Padding, Rectangle, Size, Theme, Vector,
+    Border, Color, Element, Event, Length, Padding, Rectangle, Size, Vector,
 };
 
 use crate::model::NodeId;
-use crate::style::{close_button_style, Catalog, CloseButtonStyle, DockStyle, StyleFn};
+use crate::style::{close_button_style, Catalog, CloseButtonStyle, DockStyle};
 use crate::widget::compose;
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::tab_dock::TabInfo;
@@ -25,7 +25,7 @@ struct ScrollbarDrag {
     grab_x: f32,
 }
 
-struct TabStripState {
+struct TabStripState<Theme> {
     scroll_offset: f32,
     content_width: f32,
     viewport_width: f32,
@@ -44,11 +44,11 @@ struct TabStripState {
     /// When true, tab label and close-button hover are disabled (active global tab drag).
     suppress_hover: bool,
     /// Theme used for the last [`build_tabs_row`] rebuild.
-    built_theme: Theme,
+    built_theme: Option<Theme>,
 }
 
-impl Default for TabStripState {
-    fn default() -> Self {
+impl<Theme> TabStripState<Theme> {
+    fn new(theme: Option<Theme>) -> Self {
         Self {
             scroll_offset: 0.0,
             content_width: 0.0,
@@ -66,39 +66,66 @@ impl Default for TabStripState {
             hovered_tab: None,
             insert_marker_index: None,
             suppress_hover: false,
-            built_theme: Theme::Dark,
+            built_theme: theme,
         }
     }
 }
 
-pub struct TabStrip<'a, Message> {
+pub struct TabStrip<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
+where
+    Theme: Catalog,
+    Renderer: iced::advanced::Renderer,
+{
     pane_id: NodeId,
     tabs: Vec<TabInfo>,
     active_tab: NodeId,
-    tabs_row: Element<'a, Message, Theme, iced::Renderer>,
+    tabs_row: Element<'a, Message, Theme, Renderer>,
     on_event: Rc<dyn Fn(DockAction) -> Message>,
-    class: Rc<StyleFn<'static, Theme>>,
+    class: Rc<<Theme as Catalog>::Class<'static>>,
     hide_delay: iced::time::Duration,
     show_scrollbar: bool,
-    theme: Rc<RefCell<Theme>>,
+    theme: Rc<RefCell<Option<Theme>>>,
 }
 
-impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
+impl<'a, Message, Theme, Renderer> TabStrip<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'static,
+    Theme: Catalog
+        + iced::widget::button::Catalog
+        + iced::widget::container::Catalog
+        + iced::widget::text::Catalog
+        + Clone
+        + PartialEq
+        + 'static,
+    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
+    <Theme as iced::widget::button::Catalog>::Class<'static>:
+        From<iced::widget::button::StyleFn<'static, Theme>>,
+    <Theme as iced::widget::container::Catalog>::Class<'static>:
+        From<iced::widget::container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
+        From<iced::widget::text::StyleFn<'b, Theme>>,
+{
     pub fn new(
         pane_id: NodeId,
         tabs: Vec<TabInfo>,
         active_tab: NodeId,
         on_event: Rc<dyn Fn(DockAction) -> Message>,
-        class: Rc<StyleFn<'static, Theme>>,
-        theme: Rc<RefCell<Theme>>,
+        class: Rc<<Theme as Catalog>::Class<'static>>,
+        theme: Rc<RefCell<Option<Theme>>>,
         hide_delay: iced::time::Duration,
         show_scrollbar: bool,
     ) -> Self {
-        let resolved = theme.borrow().clone();
-        let layout_style = {
-            let mut style = Catalog::style(&resolved, &class);
-            style.sync_tab_appearance();
-            style
+        let layout_style = match *theme.borrow() {
+            Some(ref t) => {
+                let mut style = Catalog::style(t, &class);
+                style.sync_tab_appearance();
+                style
+            }
+            None => {
+                let mut style = DockStyle::default();
+                style.sync_tab_appearance();
+                style
+            }
         };
         let tabs_row =
             build_tabs_row(&layout_style, &tabs, active_tab, None, None, on_event.clone());
@@ -115,8 +142,19 @@ impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
         }
     }
 
-    fn resolved_theme(&self) -> Theme {
+    fn resolved_theme(&self) -> Option<Theme> {
         self.theme.borrow().clone()
+    }
+
+    fn layout_style_resolved(&self) -> DockStyle {
+        match self.resolved_theme() {
+            Some(ref t) => self.layout_style(t),
+            None => {
+                let mut style = DockStyle::default();
+                style.sync_tab_appearance();
+                style
+            }
+        }
     }
 
     fn layout_style(&self, theme: &Theme) -> DockStyle {
@@ -160,7 +198,7 @@ impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
     }
 }
 
-fn visual_pressed_tab(state: &TabStripState) -> Option<NodeId> {
+fn visual_pressed_tab<Theme>(state: &TabStripState<Theme>) -> Option<NodeId> {
     if state.dragging {
         return None;
     }
@@ -182,14 +220,29 @@ fn tab_label_container_style(background: Color, border_radius: f32) -> container
     }
 }
 
-fn build_tabs_row<Message: Clone + 'static>(
+fn build_tabs_row<Message, Theme, Renderer>(
     style: &DockStyle,
     tabs: &[TabInfo],
     active_tab: NodeId,
     hovered_tab: Option<NodeId>,
     pressed_tab: Option<NodeId>,
     on_event: Rc<dyn Fn(DockAction) -> Message>,
-) -> Element<'static, Message, Theme, iced::Renderer> {
+) -> Element<'static, Message, Theme, Renderer>
+where
+    Message: Clone + 'static,
+    Theme: Catalog
+        + iced::widget::button::Catalog
+        + iced::widget::container::Catalog
+        + iced::widget::text::Catalog
+        + 'static,
+    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
+    <Theme as iced::widget::button::Catalog>::Class<'static>:
+        From<iced::widget::button::StyleFn<'static, Theme>>,
+    <Theme as iced::widget::container::Catalog>::Class<'static>:
+        From<iced::widget::container::StyleFn<'static, Theme>>,
+    for<'a> <Theme as iced::widget::text::Catalog>::Class<'a>:
+        From<iced::widget::text::StyleFn<'a, Theme>>,
+{
     let bar = &style.tab_bar;
     let tab_style = &style.tab;
     let cb = &bar.close_button;
@@ -228,7 +281,7 @@ fn build_tabs_row<Message: Clone + 'static>(
             })
             .height(Length::Fill)
             .center_y(Length::Fill);
-        let close: Element<'_, Message, Theme, iced::Renderer> = if tab.can_close {
+        let close: Element<'_, Message, Theme, Renderer> = if tab.can_close {
             button(
                 container(text(cb.label.clone()).size(cb.text_size))
                     .padding(Padding {
@@ -262,11 +315,8 @@ fn build_tabs_row<Message: Clone + 'static>(
         ]
         .height(Length::Fixed(bar.height))
         .align_y(iced::Alignment::Center);
-        // Every tab uses the same widget tree (mouse_area → container → row) so iced can
-        // diff safely when the active tab changes. Active tabs use a transparent fill here;
-        // the selected background is drawn in `TabStrip::draw`.
         let tab_cell = mouse_area(
-            container(tab_row).style(move |_| tab_label_container_style(label_bg, border_radius)),
+            container(tab_row).style(move |_: &Theme| tab_label_container_style(label_bg, border_radius)),
         );
         strip = strip.push(tab_cell);
     }
@@ -306,10 +356,10 @@ fn insert_marker_color(drop: &crate::style::DropOverlayStyle) -> Color {
 }
 
 /// Horizontal scroll offset of a tab strip widget tree.
-pub(crate) fn scroll_offset(tab_strip_tree: &Tree) -> f32 {
+pub(crate) fn scroll_offset<Theme: 'static>(tab_strip_tree: &Tree) -> f32 {
     tab_strip_tree
         .state
-        .downcast_ref::<TabStripState>()
+        .downcast_ref::<TabStripState<Theme>>()
         .scroll_offset
 }
 
@@ -356,8 +406,8 @@ pub(crate) fn insert_marker_rect_layout(
 }
 
 /// Sync the insertion marker shown during an active tab drag.
-pub(crate) fn set_insert_marker_index(tree: &mut Tree, index: Option<usize>) -> bool {
-    let state = tree.state.downcast_mut::<TabStripState>();
+pub(crate) fn set_insert_marker_index<Theme: 'static>(tree: &mut Tree, index: Option<usize>) -> bool {
+    let state = tree.state.downcast_mut::<TabStripState<Theme>>();
     if state.insert_marker_index == index {
         return false;
     }
@@ -366,8 +416,8 @@ pub(crate) fn set_insert_marker_index(tree: &mut Tree, index: Option<usize>) -> 
 }
 
 /// Disable tab label / close-button hover while a tab drag is active anywhere in the dock.
-pub(crate) fn set_suppress_hover(tree: &mut Tree, suppress: bool) -> bool {
-    let state = tree.state.downcast_mut::<TabStripState>();
+pub(crate) fn set_suppress_hover<Theme: 'static>(tree: &mut Tree, suppress: bool) -> bool {
+    let state = tree.state.downcast_mut::<TabStripState<Theme>>();
     if state.suppress_hover == suppress {
         return false;
     }
@@ -455,11 +505,11 @@ fn scrollbar_metrics(
     })
 }
 
-fn draw_scrollbar(
+fn draw_scrollbar<Renderer: iced::advanced::Renderer>(
     metrics: &ScrollbarMetrics,
     thumb_hovered: bool,
     bar: &crate::style::TabBarStyle,
-    renderer: &mut iced::Renderer,
+    renderer: &mut Renderer,
 ) {
     let color = if thumb_hovered {
         bar.scrollbar_thumb_hovered
@@ -511,35 +561,35 @@ fn cursor_over_tab_bar(tab_bounds: Rectangle, cursor: Cursor) -> bool {
 }
 
 /// Whether this tab strip has an in-progress label drag (before or after threshold).
-pub(crate) fn is_dragging(tab_strip_tree: Option<&Tree>) -> bool {
+pub(crate) fn is_dragging<Theme: 'static>(tab_strip_tree: Option<&Tree>) -> bool {
     tab_strip_tree
         .map(|tree| {
-            let state = tree.state.downcast_ref::<TabStripState>();
+            let state = tree.state.downcast_ref::<TabStripState<Theme>>();
             state.dragging || state.drag_pending
         })
         .unwrap_or(false)
 }
 
 /// Whether a tab label drag has passed the threshold (show grab cursor, etc.).
-pub(crate) fn is_tab_drag_active(tab_strip_tree: Option<&Tree>) -> bool {
+pub(crate) fn is_tab_drag_active<Theme: 'static>(tab_strip_tree: Option<&Tree>) -> bool {
     tab_strip_tree
-        .map(|tree| tree.state.downcast_ref::<TabStripState>().dragging)
+        .map(|tree| tree.state.downcast_ref::<TabStripState<Theme>>().dragging)
         .unwrap_or(false)
 }
 
 /// Pending scrollbar hide deadline, if a delayed hide was scheduled.
-pub(crate) fn pending_hide_deadline(tree: &Tree) -> Option<iced::time::Instant> {
+pub(crate) fn pending_hide_deadline<Theme: 'static>(tree: &Tree) -> Option<iced::time::Instant> {
     tree.state
-        .downcast_ref::<TabStripState>()
+        .downcast_ref::<TabStripState<Theme>>()
         .hide_at
 }
 
 /// Ensure a redraw is scheduled when the hide deadline elapses.
-pub(crate) fn schedule_hide_redraw<Message>(
+pub(crate) fn schedule_hide_redraw<Message, Theme: 'static>(
     tree: &Tree,
     shell: &mut Shell<'_, Message>,
 ) {
-    let Some(deadline) = pending_hide_deadline(tree) else {
+    let Some(deadline) = pending_hide_deadline::<Theme>(tree) else {
         return;
     };
 
@@ -562,7 +612,7 @@ fn tab_row_cursor(tab_bounds: Rectangle, cursor: Cursor, scroll_offset: f32) -> 
 }
 
 /// Sync hover / hide state from a parent widget (e.g. [`TabDock`](crate::widget::tab_dock::TabDock)).
-pub(crate) fn sync_hover_in_tree<Message>(
+pub(crate) fn sync_hover_in_tree<Message, Theme: 'static>(
     tab_strip_tree: &mut Tree,
     tab_bounds: Rectangle,
     cursor: Cursor,
@@ -570,12 +620,12 @@ pub(crate) fn sync_hover_in_tree<Message>(
     show_scrollbar: bool,
     shell: &mut Shell<'_, Message>,
 ) {
-    let state = tab_strip_tree.state.downcast_mut::<TabStripState>();
+    let state = tab_strip_tree.state.downcast_mut::<TabStripState<Theme>>();
     sync_tab_bar_hover(state, tab_bounds, cursor, hide_delay, show_scrollbar, shell);
 }
 
-fn sync_tab_bar_hover<Message>(
-    state: &mut TabStripState,
+fn sync_tab_bar_hover<Message, Theme>(
+    state: &mut TabStripState<Theme>,
     tab_bounds: Rectangle,
     cursor: Cursor,
     hide_delay: iced::time::Duration,
@@ -619,19 +669,30 @@ fn sync_tab_bar_hover<Message>(
     }
 }
 
-impl<Message> Widget<Message, Theme, iced::Renderer> for TabStrip<'_, Message>
+impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer> for TabStrip<'_, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
+    Theme: Catalog
+        + iced::widget::button::Catalog
+        + iced::widget::container::Catalog
+        + iced::widget::text::Catalog
+        + Clone
+        + PartialEq
+        + 'static,
+    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
+    <Theme as iced::widget::button::Catalog>::Class<'static>:
+        From<iced::widget::button::StyleFn<'static, Theme>>,
+    <Theme as iced::widget::container::Catalog>::Class<'static>:
+        From<iced::widget::container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
+        From<iced::widget::text::StyleFn<'b, Theme>>,
 {
     fn tag(&self) -> Tag {
-        Tag::of::<TabStripState>()
+        Tag::of::<TabStripState<Theme>>()
     }
 
     fn state(&self) -> State {
-        State::new(TabStripState {
-            built_theme: self.resolved_theme(),
-            ..TabStripState::default()
-        })
+        State::new(TabStripState::new(self.resolved_theme()))
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -656,10 +717,10 @@ where
     fn layout(
         &mut self,
         tree: &mut Tree,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let style = self.layout_style(&self.resolved_theme());
+        let style = self.layout_style_resolved();
         let bar_height = style.tab_bar.height;
         let max = limits.max();
         let viewport_width = max.width;
@@ -675,7 +736,7 @@ where
         );
         let content_width = row_node.size().width;
 
-        let state = tree.state.downcast_mut::<TabStripState>();
+        let state = tree.state.downcast_mut::<TabStripState<Theme>>();
         state.content_width = content_width;
         state.viewport_width = viewport_width;
         let max_offset = max_scroll_offset(content_width, viewport_width);
@@ -690,7 +751,7 @@ where
     fn draw(
         &self,
         tree: &Tree,
-        renderer: &mut iced::Renderer,
+        renderer: &mut Renderer,
         theme: &Theme,
         style: &renderer::Style,
         layout: Layout<'_>,
@@ -701,7 +762,7 @@ where
         let bar = &dock_style.tab_bar;
         let tab_style = &dock_style.tab;
         let drop_overlay = &dock_style.drop_overlay;
-        let state = tree.state.downcast_ref::<TabStripState>();
+        let state = tree.state.downcast_ref::<TabStripState<Theme>>();
         let tab_bounds = layout.bounds();
         let Some(row_layout) = layout.children().next() else {
             return;
@@ -842,14 +903,14 @@ where
         event: &Event,
         layout: Layout<'_>,
         cursor: Cursor,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
         let tab_bounds = layout.bounds();
-        let theme = self.resolved_theme();
-        let dock_style = self.layout_style(&theme);
+        let current_theme = self.resolved_theme();
+        let dock_style = self.layout_style_resolved();
         let bar = &dock_style.tab_bar;
         let threshold = bar.drag_threshold;
         let cursor_pos = cursor.position();
@@ -857,10 +918,9 @@ where
         let mut row_refresh: Option<(Option<NodeId>, Option<NodeId>)> = None;
 
         {
-        let state = tree.state.downcast_mut::<TabStripState>();
+        let state = tree.state.downcast_mut::<TabStripState<Theme>>();
         let max_offset = max_scroll_offset(state.content_width, state.viewport_width);
 
-        let current_theme = self.resolved_theme();
         if state.built_theme != current_theme {
             state.built_theme = current_theme.clone();
             row_refresh = Some((state.hovered_tab, visual_pressed_tab(state)));
@@ -1020,7 +1080,7 @@ where
                                 state.drag_pending = false;
                                 row_refresh = Some((state.hovered_tab, None));
                                 let drop_edge_fraction =
-                                    self.layout_style(&theme).drop_overlay.edge_fraction;
+                                    self.layout_style_resolved().drop_overlay.edge_fraction;
                                 shell.publish((self.on_event)(DockAction::Tab(
                                     TabAction::DragStarted {
                                         source_pane: self.pane_id,
@@ -1125,10 +1185,12 @@ where
         }
 
         if let Some((hovered, pressed)) = row_refresh {
-            self.refresh_tabs_row(tree, &theme, hovered, pressed);
+            if let Some(ref t) = current_theme {
+                self.refresh_tabs_row(tree, t, hovered, pressed);
+            }
             tree.state
-                .downcast_mut::<TabStripState>()
-                .built_theme = theme.clone();
+                .downcast_mut::<TabStripState<Theme>>()
+                .built_theme = current_theme;
         }
     }
 
@@ -1138,9 +1200,9 @@ where
         layout: Layout<'_>,
         cursor: Cursor,
         viewport: &Rectangle,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
     ) -> mouse::Interaction {
-        let state = tree.state.downcast_ref::<TabStripState>();
+        let state = tree.state.downcast_ref::<TabStripState<Theme>>();
         if state.dragging {
             return mouse::Interaction::Grab;
         }
@@ -1152,7 +1214,7 @@ where
         }
 
         let tab_bounds = layout.bounds();
-        let dock_style = self.layout_style(&self.resolved_theme());
+        let dock_style = self.layout_style_resolved();
         if self.show_scrollbar {
             if let Some(metrics) = scrollbar_metrics(
                 tab_bounds,
@@ -1188,7 +1250,7 @@ where
         &mut self,
         tree: &mut Tree,
         layout: Layout<'_>,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
         if let Some(row_layout) = layout.children().next() {
@@ -1203,11 +1265,26 @@ where
     }
 }
 
-impl<'a, Message> From<TabStrip<'a, Message>> for Element<'a, Message, Theme, iced::Renderer>
+impl<'a, Message, Theme, Renderer> From<TabStrip<'a, Message, Theme, Renderer>>
+    for Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
+    Theme: Catalog
+        + iced::widget::button::Catalog
+        + iced::widget::container::Catalog
+        + iced::widget::text::Catalog
+        + Clone
+        + PartialEq
+        + 'static,
+    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
+    <Theme as iced::widget::button::Catalog>::Class<'static>:
+        From<iced::widget::button::StyleFn<'static, Theme>>,
+    <Theme as iced::widget::container::Catalog>::Class<'static>:
+        From<iced::widget::container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
+        From<iced::widget::text::StyleFn<'b, Theme>>,
 {
-    fn from(widget: TabStrip<'a, Message>) -> Self {
+    fn from(widget: TabStrip<'a, Message, Theme, Renderer>) -> Self {
         Element::new(widget)
     }
 }

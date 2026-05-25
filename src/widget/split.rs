@@ -5,12 +5,12 @@ use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
-use iced::advanced::{Clipboard, Renderer as AdvRenderer, Shell};
+use iced::advanced::{Clipboard, Shell};
 use iced::mouse::{self, Cursor};
-use iced::{Border, Element, Event, Length, Rectangle, Size, Theme};
+use iced::{Border, Element, Event, Length, Rectangle, Size};
 
 use crate::model::{Axis, NodeId};
-use crate::style::{Catalog, DockStyle, StyleFn};
+use crate::style::{Catalog, DockStyle};
 use crate::widget::compose;
 use crate::widget::action::DockAction;
 
@@ -43,25 +43,33 @@ fn pane_main_size(child_layout: &Layout<'_>, is_horizontal: bool) -> f32 {
     }
 }
 
-pub struct SplitContainer<'a, Message> {
+pub struct SplitContainer<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
+where
+    Theme: Catalog,
+    Renderer: iced::advanced::Renderer,
+{
     pub group_id: NodeId,
     pub axis: Axis,
     pub proportions: Vec<f32>,
-    pub children: Vec<Element<'a, Message, Theme, iced::Renderer>>,
+    pub children: Vec<Element<'a, Message, Theme, Renderer>>,
     on_event: Rc<dyn Fn(DockAction) -> Message>,
-    class: Rc<StyleFn<'static, Theme>>,
-    theme: Rc<RefCell<Theme>>,
+    class: Rc<<Theme as Catalog>::Class<'static>>,
+    theme: Rc<RefCell<Option<Theme>>>,
 }
 
-impl<'a, Message> SplitContainer<'a, Message> {
+impl<'a, Message, Theme, Renderer> SplitContainer<'a, Message, Theme, Renderer>
+where
+    Theme: Catalog + Clone,
+    Renderer: iced::advanced::Renderer,
+{
     pub fn new(
         group_id: NodeId,
         axis: Axis,
         proportions: Vec<f32>,
-        children: Vec<Element<'a, Message, Theme, iced::Renderer>>,
+        children: Vec<Element<'a, Message, Theme, Renderer>>,
         on_event: Rc<dyn Fn(DockAction) -> Message>,
-        class: Rc<StyleFn<'static, Theme>>,
-        theme: Rc<RefCell<Theme>>,
+        class: Rc<<Theme as Catalog>::Class<'static>>,
+        theme: Rc<RefCell<Option<Theme>>>,
     ) -> Self {
         Self {
             group_id,
@@ -74,8 +82,11 @@ impl<'a, Message> SplitContainer<'a, Message> {
         }
     }
 
-    fn resolved_theme(&self) -> Theme {
-        self.theme.borrow().clone()
+    fn layout_style_resolved(&self) -> DockStyle {
+        match *self.theme.borrow() {
+            Some(ref t) => Catalog::style(t, &self.class),
+            None => DockStyle::default(),
+        }
     }
 
     fn layout_style(&self, theme: &Theme) -> DockStyle {
@@ -163,8 +174,6 @@ fn compute_pane_sizes(
     let mut sizes: Vec<f32> = props.iter().map(|p| p * available).collect();
     let min_total = min_pane_size * count as f32;
 
-    // When every pane can be at least `min_pane_size`, enforce the floor and trim overflow
-    // only from panes that are still larger than the minimum.
     if min_total <= available {
         for size in &mut sizes {
             *size = size.max(min_pane_size);
@@ -176,9 +185,12 @@ fn compute_pane_sizes(
     sizes
 }
 
-impl<'a, Message> Widget<Message, Theme, iced::Renderer> for SplitContainer<'a, Message>
+impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
+    for SplitContainer<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
+    Theme: Catalog + Clone + 'static,
+    Renderer: iced::advanced::Renderer,
 {
     fn tag(&self) -> Tag {
         Tag::of::<SplitWidgetState>()
@@ -206,10 +218,10 @@ where
     fn layout(
         &mut self,
         tree: &mut Tree,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let dock_style = self.layout_style(&self.resolved_theme());
+        let dock_style = self.layout_style_resolved();
         let splitter_size = dock_style.splitter.size;
         let splitter_gap = dock_style.splitter.gap;
         let is_horizontal = self.axis == Axis::Horizontal;
@@ -299,7 +311,7 @@ where
     fn draw(
         &self,
         tree: &Tree,
-        renderer: &mut iced::Renderer,
+        renderer: &mut Renderer,
         theme: &Theme,
         style: &renderer::Style,
         layout: Layout<'_>,
@@ -376,7 +388,7 @@ where
         event: &Event,
         layout: Layout<'_>,
         cursor: Cursor,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
@@ -402,7 +414,7 @@ where
 
         let pos = layout.position();
         let offset = iced::Vector::new(pos.x, pos.y);
-        let layout_style = self.layout_style(&self.resolved_theme());
+        let layout_style = self.layout_style_resolved();
         let min_pane_main = if is_horizontal {
             layout_style.splitter.min_pane_width
         } else {
@@ -492,7 +504,7 @@ where
         layout: Layout<'_>,
         cursor: Cursor,
         viewport: &Rectangle,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
     ) -> mouse::Interaction {
         let state = tree.state.downcast_ref::<SplitWidgetState>();
         let pos = layout.position();
@@ -529,7 +541,7 @@ where
         &mut self,
         tree: &mut Tree,
         layout: Layout<'_>,
-        renderer: &iced::Renderer,
+        renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
         for (i, child_layout) in layout.children().enumerate() {
@@ -546,11 +558,14 @@ where
     }
 }
 
-impl<'a, Message> From<SplitContainer<'a, Message>> for Element<'a, Message, Theme, iced::Renderer>
+impl<'a, Message, Theme, Renderer> From<SplitContainer<'a, Message, Theme, Renderer>>
+    for Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
+    Theme: Catalog + Clone + 'static,
+    Renderer: iced::advanced::Renderer + 'static,
 {
-    fn from(widget: SplitContainer<'a, Message>) -> Self {
+    fn from(widget: SplitContainer<'a, Message, Theme, Renderer>) -> Self {
         Element::new(widget)
     }
 }

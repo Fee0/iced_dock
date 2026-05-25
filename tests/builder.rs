@@ -81,7 +81,7 @@ fn simple_split_matches_manual_structure() {
 
 #[test]
 fn session_open_focus_close_by_id() {
-    let session = DockSession::from_tree(tabs([panel("a", "A", ContentKey(0))])).expect("session");
+    let session: DockSession = DockSession::from_tree(tabs([panel("a", "A", ContentKey(0))])).expect("session");
     assert_eq!(session.active_panel().as_deref(), Some("a"));
 
     session
@@ -99,7 +99,7 @@ fn session_open_focus_close_by_id() {
 
 #[test]
 fn session_from_tree_sets_layout_dirty() {
-    let session = DockSession::from_tree(tabs([panel("a", "A", ContentKey(0))])).expect("session");
+    let session: DockSession = DockSession::from_tree(tabs([panel("a", "A", ContentKey(0))])).expect("session");
     assert!(session.state().borrow().layout_dirty);
     assert!(session.state().borrow().layout.root_child().is_some());
 }
@@ -107,7 +107,7 @@ fn session_from_tree_sets_layout_dirty() {
 #[test]
 fn named_pane_target_opens_panel() {
     let tree = tabs([panel("a", "A", ContentKey(0))]).named("editor");
-    let session = DockSession::from_tree(tree).expect("session");
+    let session: DockSession = DockSession::from_tree(tree).expect("session");
     session
         .open_panel(PaneTarget::Named("editor".into()), panel("b", "B", ContentKey(1)))
         .expect("open in named pane");
@@ -116,7 +116,7 @@ fn named_pane_target_opens_panel() {
 
 #[test]
 fn widget_state_from_tree() {
-    let state = iced_dock::DockWidgetState::from_tree(tabs([panel("a", "A", ContentKey(0))]))
+    let state = iced_dock::DockWidgetState::<iced::Theme>::from_tree(tabs([panel("a", "A", ContentKey(0))]))
         .expect("state");
     assert!(state.layout_dirty);
     assert!(state.layout.root_child().is_some());

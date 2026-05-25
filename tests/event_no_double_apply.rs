@@ -13,7 +13,7 @@ fn dispatch_close_once_removes_panel() {
     ]))
     .expect("built");
     let panel_b = built.index.panel_node("b").expect("b");
-    let mut state = DockWidgetState::from_built(built, None);
+    let mut state = DockWidgetState::<iced::Theme>::from_built(built, None);
 
     assert!(dispatch_action(
         &mut state,
@@ -31,7 +31,7 @@ fn dispatch_close_once_removes_panel() {
 
 #[test]
 fn session_select_does_not_require_update_handler() {
-    let session = DockSession::from_tree(tabs([
+    let session: DockSession = DockSession::from_tree(tabs([
         panel("a", "A", ContentKey(0)),
         panel("b", "B", ContentKey(1)),
     ]))

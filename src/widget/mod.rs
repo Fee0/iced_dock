@@ -11,3 +11,4 @@ mod tab_strip;
 pub use action::{DockAction, TabAction};
 pub use dock::{dispatch_action, dock, finish_drag, Dock, DockBuilder, DockWidgetState};
 pub use event::DockEvent;
+pub use crate::style::PaneContent;

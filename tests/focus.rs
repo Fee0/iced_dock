@@ -36,13 +36,13 @@ fn nested_layout() -> iced_dock::LayoutTree {
 
 #[test]
 fn from_tree_initializes_focused_pane() {
-    let session = DockSession::from_tree(nested_layout()).expect("session");
+    let session: DockSession = DockSession::from_tree(nested_layout()).expect("session");
     assert!(session.focused_pane().is_some());
 }
 
 #[test]
 fn tab_select_sets_focused_pane() {
-    let session = DockSession::from_tree(nested_layout()).expect("session");
+    let session: DockSession = DockSession::from_tree(nested_layout()).expect("session");
     let initial = session.focused_pane().expect("initial focus");
 
     let built = build_tree(&nested_layout()).expect("build");
@@ -89,7 +89,7 @@ fn pane_focused_updates_focus_without_layout_dirty() {
         focused_pane: Some(pane_a),
         focus_dirty: false,
         layout_dirty: false,
-        resolved_theme: Rc::new(RefCell::new(Theme::Dark)),
+        resolved_theme: Rc::new(RefCell::new(Some(Theme::Dark))),
     };
 
     let changed = dispatch_action(
@@ -108,7 +108,7 @@ fn pane_focused_updates_focus_without_layout_dirty() {
 
 #[test]
 fn active_panel_uses_focused_pane_in_multi_pane_layout() {
-    let session = DockSession::from_tree(nested_layout()).expect("session");
+    let session: DockSession = DockSession::from_tree(nested_layout()).expect("session");
     let built = build_tree(&nested_layout()).expect("built");
 
     let props_panel = built.index.panel_node("props").expect("props");
@@ -125,7 +125,7 @@ fn active_panel_uses_focused_pane_in_multi_pane_layout() {
 
 #[test]
 fn focus_pane_api() {
-    let session = DockSession::from_tree(nested_layout()).expect("session");
+    let session: DockSession = DockSession::from_tree(nested_layout()).expect("session");
     let built = build_tree(&nested_layout()).expect("built");
     let explorer_panel = built.index.panel_node("explorer").expect("explorer");
     let explorer_pane = owning_pane(&built.layout, explorer_panel).expect("pane");
@@ -137,7 +137,7 @@ fn focus_pane_api() {
 
 #[test]
 fn open_panel_active_targets_focused_pane() {
-    let session = DockSession::from_tree(nested_layout()).expect("session");
+    let session: DockSession = DockSession::from_tree(nested_layout()).expect("session");
     let built = build_tree(&nested_layout()).expect("built");
     let output_panel = built.index.panel_node("output").expect("output");
     let output_pane = owning_pane(&built.layout, output_panel).expect("pane");
@@ -259,14 +259,14 @@ fn pane_bounds_map_from_collected_vec() {
 
 #[test]
 fn select_panel_by_string_id() {
-    let session = DockSession::from_tree(nested_layout()).expect("session");
+    let session: DockSession = DockSession::from_tree(nested_layout()).expect("session");
     session.select_panel("preview").expect("select");
     assert_eq!(session.active_panel().as_deref(), Some("preview"));
 }
 
 #[test]
 fn active_panel_in_pane_non_focused() {
-    let session = DockSession::from_tree(nested_layout()).expect("session");
+    let session: DockSession = DockSession::from_tree(nested_layout()).expect("session");
     let built = build_tree(&nested_layout()).expect("built");
     let output_panel = built.index.panel_node("output").expect("output");
     let output_pane = owning_pane(&built.layout, output_panel).expect("pane");
@@ -292,7 +292,7 @@ fn pane_focused_with_panel_activates_tab() {
     let pane = iced_dock::unstable::first_pane(&built.layout).expect("pane");
     let panel_b = built.index.panel_node("b").expect("b");
 
-    let mut state = DockWidgetState::from_built(built, Some(pane));
+    let mut state = DockWidgetState::<iced::Theme>::from_built(built, Some(pane));
     state.layout_dirty = false;
 
     let changed = dispatch_action(
@@ -328,7 +328,7 @@ fn focus_adjacent_moves_focus() {
         })
         .expect("right");
 
-    let session = DockSession::from_built(built, Some(left));
+    let session: DockSession = DockSession::from_built(built, Some(left));
     session.state().borrow_mut().pane_bounds = vec![
         (
             left,
@@ -346,7 +346,7 @@ fn focus_adjacent_moves_focus() {
 
 #[test]
 fn cycle_panel_wraps() {
-    let session = DockSession::from_tree(nested_layout()).expect("session");
+    let session: DockSession = DockSession::from_tree(nested_layout()).expect("session");
     session.select_panel("main").expect("main");
     assert_eq!(session.active_panel().as_deref(), Some("main"));
 
@@ -359,7 +359,7 @@ fn cycle_panel_wraps() {
 
 #[test]
 fn from_tree_with_focus_named_panel() {
-    let session = DockSession::from_tree_with_focus(
+    let session: DockSession = DockSession::from_tree_with_focus(
         nested_layout(),
         InitialFocus::NamedPanel("props".into()),
     )
@@ -378,7 +378,7 @@ fn from_tree_with_focus_named_panel() {
 
 #[test]
 fn clear_focus() {
-    let session = DockSession::from_tree(nested_layout()).expect("session");
+    let session: DockSession = DockSession::from_tree(nested_layout()).expect("session");
     assert!(session.focused_pane().is_some());
     session.clear_focus();
     assert!(session.focused_pane().is_none());
