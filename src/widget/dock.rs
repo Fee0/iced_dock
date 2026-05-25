@@ -637,7 +637,7 @@ where
         let Some(child_tree) = tree.children.first() else {
             return;
         };
-        let _ = Self::with_cached_root(tree, |child| {
+        Self::with_cached_root(tree, |child| {
             child.as_widget().draw(
                 child_tree,
                 renderer,
