@@ -1,0 +1,335 @@
+use iced::widget::{container, text};
+use iced::{Element, Length};
+use iced_dock::{
+    dock, horizontal, panel, single, tabs, ContentKey, DockEvent, DockSession, PanelDef,
+};
+use iced_test::simulator;
+
+#[derive(Debug, Clone)]
+enum Message {
+    Dock(DockEvent),
+}
+
+// ---------------------------------------------------------------------------
+// Session helpers
+// ---------------------------------------------------------------------------
+
+fn two_tab_session() -> DockSession {
+    DockSession::from_tree(
+        tabs([
+            panel("editor", "Editor", ContentKey(0)),
+            panel("terminal", "Terminal", ContentKey(1)),
+        ])
+        .active("editor"),
+    )
+    .expect("valid layout")
+}
+
+fn three_tab_session() -> DockSession {
+    DockSession::from_tree(
+        tabs([
+            panel("editor", "Editor", ContentKey(0)),
+            panel("terminal", "Terminal", ContentKey(1)),
+            panel("output", "Output", ContentKey(2)),
+        ])
+        .active("editor"),
+    )
+    .expect("valid layout")
+}
+
+fn split_session() -> DockSession {
+    DockSession::from_tree(
+        horizontal([
+            tabs([
+                panel("editor", "Editor", ContentKey(0)),
+                panel("terminal", "Terminal", ContentKey(1)),
+            ])
+            .active("editor"),
+            tabs([
+                panel("explorer", "Explorer", ContentKey(10)),
+                panel("search", "Search", ContentKey(11)),
+            ])
+            .active("explorer"),
+        ])
+        .weights([0.7, 0.3]),
+    )
+    .expect("valid layout")
+}
+
+fn non_closable_session() -> DockSession {
+    DockSession::from_tree(
+        tabs([
+            PanelDef::new("pinned", "Pinned", ContentKey(0)).can_close(false),
+            panel("closable", "Closable", ContentKey(1)),
+        ])
+        .active("pinned"),
+    )
+    .expect("valid layout")
+}
+
+// ---------------------------------------------------------------------------
+// View helpers
+// ---------------------------------------------------------------------------
+
+fn view(session: &DockSession) -> Element<'_, Message> {
+    container(
+        dock()
+            .state(session.state())
+            .on_event(Message::Dock)
+            .content(|key| text(format!("Content {}", key.0)).into())
+            .build(),
+    )
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
+}
+
+fn content_label(key: ContentKey) -> &'static str {
+    match key.0 {
+        0 => "Content:editor",
+        1 => "Content:terminal",
+        2 => "Content:output",
+        10 => "Content:explorer",
+        11 => "Content:search",
+        _ => "Content:unknown",
+    }
+}
+
+fn view_with_unique_content(session: &DockSession) -> Element<'_, Message> {
+    container(
+        dock()
+            .state(session.state())
+            .on_event(Message::Dock)
+            .content(|key| text(content_label(key)).into())
+            .build(),
+    )
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
+}
+
+#[test]
+fn clicking_inactive_tab_produces_tab_selected() {
+    let session = two_tab_session();
+    let mut ui = simulator(view(&session));
+
+    let _ = ui.click("Terminal");
+
+    let messages: Vec<_> = ui.into_messages().collect();
+    assert!(
+        messages.iter().any(|msg| matches!(
+            msg,
+            Message::Dock(DockEvent::TabSelected { panel, .. }) if panel == "terminal"
+        )),
+        "expected TabSelected for 'terminal', got: {messages:?}"
+    );
+}
+
+#[test]
+fn find_confirms_tab_labels_present() {
+    let session = two_tab_session();
+    let mut ui = simulator(view(&session));
+
+    ui.find("Editor").expect("'Editor' tab should be visible");
+    ui.find("Terminal")
+        .expect("'Terminal' tab should be visible");
+}
+
+// ---------------------------------------------------------------------------
+// Tab interaction
+// ---------------------------------------------------------------------------
+
+#[test]
+fn clicking_active_tab_still_produces_select() {
+    let session = two_tab_session();
+    let mut ui = simulator(view(&session));
+
+    let _ = ui.click("Editor");
+
+    let messages: Vec<_> = ui.into_messages().collect();
+    assert!(
+        messages.iter().any(|msg| matches!(
+            msg,
+            Message::Dock(DockEvent::TabSelected { panel, .. }) if panel == "editor"
+        )),
+        "expected TabSelected for 'editor', got: {messages:?}"
+    );
+}
+
+#[test]
+fn clicking_close_button_produces_tab_closed() {
+    let session = two_tab_session();
+    let mut ui = simulator(view(&session));
+
+    let _ = ui.click("×");
+
+    let messages: Vec<_> = ui.into_messages().collect();
+    assert!(
+        messages.iter().any(|msg| matches!(
+            msg,
+            Message::Dock(DockEvent::TabClosed { .. })
+        )),
+        "expected TabClosed, got: {messages:?}"
+    );
+}
+
+#[test]
+fn three_tabs_switch_twice() {
+    let session = three_tab_session();
+
+    // Step 1: click Terminal
+    let mut ui = simulator(view(&session));
+    let _ = ui.click("Terminal");
+    let msgs: Vec<_> = ui.into_messages().collect();
+    assert!(
+        msgs.iter().any(|msg| matches!(
+            msg,
+            Message::Dock(DockEvent::TabSelected { panel, .. }) if panel == "terminal"
+        )),
+        "step 1: expected TabSelected for 'terminal', got: {msgs:?}"
+    );
+
+    // Step 2: rebuild view, click Output
+    let mut ui = simulator(view(&session));
+    let _ = ui.click("Output");
+    let msgs: Vec<_> = ui.into_messages().collect();
+    assert!(
+        msgs.iter().any(|msg| matches!(
+            msg,
+            Message::Dock(DockEvent::TabSelected { panel, .. }) if panel == "output"
+        )),
+        "step 2: expected TabSelected for 'output', got: {msgs:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Content verification
+// ---------------------------------------------------------------------------
+
+#[test]
+fn active_content_is_rendered() {
+    let session = two_tab_session();
+    let mut ui = simulator(view_with_unique_content(&session));
+
+    ui.find("Content:editor")
+        .expect("active tab's content should be visible");
+}
+
+#[test]
+fn inactive_content_is_not_rendered() {
+    let session = two_tab_session();
+    let mut ui = simulator(view_with_unique_content(&session));
+
+    assert!(
+        ui.find("Content:terminal").is_err(),
+        "inactive tab's content should NOT be in the widget tree"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Multi-pane layout
+// ---------------------------------------------------------------------------
+
+#[test]
+fn split_layout_renders_all_pane_tabs() {
+    let session = split_session();
+    let mut ui = simulator(view(&session));
+
+    ui.find("Editor").expect("Editor tab visible");
+    ui.find("Terminal").expect("Terminal tab visible");
+    ui.find("Explorer").expect("Explorer tab visible");
+    ui.find("Search").expect("Search tab visible");
+}
+
+#[test]
+fn split_layout_click_tab_in_right_pane() {
+    let session = split_session();
+    let mut ui = simulator(view(&session));
+
+    let _ = ui.click("Search");
+
+    let messages: Vec<_> = ui.into_messages().collect();
+    assert!(
+        messages.iter().any(|msg| matches!(
+            msg,
+            Message::Dock(DockEvent::TabSelected { panel, .. }) if panel == "search"
+        )),
+        "expected TabSelected for 'search', got: {messages:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// State mutation through shared Rc
+// ---------------------------------------------------------------------------
+
+#[test]
+fn click_mutates_shared_session_state() {
+    let session = two_tab_session();
+    let mut ui = simulator(view(&session));
+
+    let _ = ui.click("Terminal");
+    let _ = ui.into_messages().count();
+
+    let state = session.state();
+    let state = state.borrow();
+    let pane = state.focused_pane.expect("a pane should be focused");
+    let active = state
+        .layout
+        .kind(pane)
+        .and_then(|kind| match kind {
+            iced_dock::model::NodeKind::Pane(p) => p.active,
+            _ => None,
+        })
+        .expect("pane should have an active tab");
+    let active_id = state
+        .index
+        .panels
+        .iter()
+        .find_map(|(id, &node)| (node == active).then(|| id.clone()));
+    assert_eq!(
+        active_id.as_deref(),
+        Some("terminal"),
+        "shared state should reflect 'terminal' as active"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Edge cases
+// ---------------------------------------------------------------------------
+
+#[test]
+fn single_panel_layout_renders() {
+    let session =
+        DockSession::from_tree(single(panel("solo", "Solo", ContentKey(0)))).expect("valid");
+    let mut ui = simulator(view_with_unique_content(&session));
+
+    ui.find("Solo").expect("tab label should be visible");
+    ui.find("Content:editor")
+        .expect("content should be rendered");
+}
+
+#[test]
+fn non_closable_tab_has_no_close_button_effect() {
+    let session = non_closable_session();
+    let mut ui = simulator(view(&session));
+
+    ui.find("Pinned").expect("Pinned tab should be visible");
+    ui.find("Closable")
+        .expect("Closable tab should be visible");
+
+    // The first "×" hit belongs to the closable tab (Pinned has no close button).
+    // Clicking it should produce TabClosed for "closable", NOT for "pinned".
+    let _ = ui.click("×");
+    let messages: Vec<_> = ui.into_messages().collect();
+
+    let closed_pinned = messages.iter().any(|msg| {
+        matches!(
+            msg,
+            Message::Dock(DockEvent::TabClosed { panel }) if panel == "pinned"
+        )
+    });
+    assert!(
+        !closed_pinned,
+        "non-closable tab 'pinned' must not emit TabClosed"
+    );
+}
