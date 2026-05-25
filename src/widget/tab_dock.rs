@@ -170,7 +170,7 @@ where
     fn layout_style_or_default(&self) -> DockStyle {
         match self.resolved_theme() {
             Some(ref t) => Catalog::style(t, &self.class),
-            None => DockStyle::default(),
+            None => crate::style::default(&iced::Theme::Dark),
         }
     }
 

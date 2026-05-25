@@ -139,12 +139,6 @@ pub struct DropOverlayStyle {
     pub insert_marker_min_alpha: f32,
 }
 
-impl Default for DockStyle {
-    fn default() -> Self {
-        default(&Theme::Dark)
-    }
-}
-
 impl DockStyle {
     /// Dock chrome derived from the iced theme palette.
     ///

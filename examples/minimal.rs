@@ -2,8 +2,7 @@
 
 use iced::keyboard::{self, Key, Modifiers};
 use iced::widget::{column, container, text};
-use iced::{application, Color, Element, Length, Size, Subscription, Task};
-
+use iced::{application, Element, Length, Size, Subscription, Task, Theme};
 use iced_dock::{
     dock, horizontal, panel as tab, tabs, vertical, ContentKey, Direction, DockEvent, DockSession,
     LayoutTree,
@@ -49,6 +48,7 @@ fn main() -> iced::Result {
             size: Size::new(1200.0, 800.0),
             ..Default::default()
         })
+        .theme(Theme::Dark)
         .run()
 }
 
@@ -119,28 +119,23 @@ fn view(app: &App) -> Element<'_, Message> {
 }
 
 fn panel(key: ContentKey) -> Element<'static, Message> {
-    let fg = Color::from_rgb(0.78, 0.78, 0.82);
-    let muted = Color::from_rgb(0.45, 0.45, 0.5);
-
     let body: Element<'static, Message> = match key.0 {
-        10 => default_panel_body("Properties", "Panel", fg, muted),
-        0 => default_panel_body(
+        10 => panel_body("Properties", "Panel"),
+        0 => panel_body(
             "main.rs",
             "Editor — click to focus pane, Ctrl+Arrow to move focus",
-            fg,
-            muted,
         ),
-        1 => default_panel_body("lib.rs", "Editor", fg, muted),
-        2 => default_panel_body("preview", "Preview", fg, muted),
-        11 => default_panel_body("Output", "Panel", fg, muted),
-        12 => default_panel_body("Explorer", "Sidebar", fg, muted),
-        13 => default_panel_body("Search", "Sidebar", fg, muted),
-        3 => default_panel_body("mod_a.rs", "Editor", fg, muted),
-        4 => default_panel_body("mod_b.rs", "Editor", fg, muted),
-        5 => default_panel_body("mod_c.rs", "Editor", fg, muted),
-        6 => default_panel_body("mod_d.rs", "Editor", fg, muted),
-        7 => default_panel_body("mod_e.rs", "Editor", fg, muted),
-        8 => default_panel_body("mod_f.rs", "Editor", fg, muted),
+        1 => panel_body("lib.rs", "Editor"),
+        2 => panel_body("preview", "Preview"),
+        11 => panel_body("Output", "Panel"),
+        12 => panel_body("Explorer", "Sidebar"),
+        13 => panel_body("Search", "Sidebar"),
+        3 => panel_body("mod_a.rs", "Editor"),
+        4 => panel_body("mod_b.rs", "Editor"),
+        5 => panel_body("mod_c.rs", "Editor"),
+        6 => panel_body("mod_d.rs", "Editor"),
+        7 => panel_body("mod_e.rs", "Editor"),
+        8 => panel_body("mod_f.rs", "Editor"),
         n => return text(format!("Unknown pane {n}")).into(),
     };
 
@@ -153,15 +148,10 @@ fn panel(key: ContentKey) -> Element<'static, Message> {
         .into()
 }
 
-fn default_panel_body(
-    label: &'static str,
-    hint: &'static str,
-    fg: Color,
-    muted: Color,
-) -> Element<'static, Message> {
+fn panel_body(label: &'static str, hint: &'static str) -> Element<'static, Message> {
     column![
-        text(label).size(16).color(fg),
-        text(hint).size(12).color(muted),
+        text(label).size(16),
+        text(hint).size(12).style(text::secondary),
     ]
     .spacing(6)
     .into()

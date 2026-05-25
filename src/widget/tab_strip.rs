@@ -122,7 +122,7 @@ where
                 style
             }
             None => {
-                let mut style = DockStyle::default();
+                let mut style = crate::style::default(&iced::Theme::Dark);
                 style.sync_tab_appearance();
                 style
             }
@@ -150,7 +150,7 @@ where
         match self.resolved_theme() {
             Some(ref t) => self.layout_style(t),
             None => {
-                let mut style = DockStyle::default();
+                let mut style = crate::style::default(&iced::Theme::Dark);
                 style.sync_tab_appearance();
                 style
             }
