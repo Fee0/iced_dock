@@ -5,42 +5,44 @@ use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
-use iced::advanced::{Clipboard, Shell};
+use iced::advanced::{self, Clipboard, Shell};
 use iced::mouse::{self, Cursor};
 use iced::touch;
+use iced::time::Duration;
+use iced::widget::{button, container, text as iced_text};
 use iced::{Element, Event, Length, Rectangle, Size};
 
-use crate::manager::{DockManager, TabBarTarget};
+use crate::manager::{DockManager, DragSession, DropZone, TabBarTarget};
 use crate::model::NodeId;
-use crate::style::{Catalog, DockStyle};
+use crate::style::{self, Catalog, DockStyle};
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::compose;
 use crate::widget::state::DockWidgetState;
 use crate::widget::tab_strip::{self, TabStrip};
 
-fn drop_zone_rect(bounds: Rectangle, zone: crate::manager::DropZone, edge: f32) -> Rectangle {
+fn drop_zone_rect(bounds: Rectangle, zone: DropZone, edge: f32) -> Rectangle {
     let w = bounds.width;
     let h = bounds.height;
     match zone {
-        crate::manager::DropZone::Left => Rectangle {
+        DropZone::Left => Rectangle {
             width: w * edge,
             ..bounds
         },
-        crate::manager::DropZone::Right => Rectangle {
+        DropZone::Right => Rectangle {
             x: bounds.x + w * (1.0 - edge),
             width: w * edge,
             ..bounds
         },
-        crate::manager::DropZone::Top => Rectangle {
+        DropZone::Top => Rectangle {
             height: h * edge,
             ..bounds
         },
-        crate::manager::DropZone::Bottom => Rectangle {
+        DropZone::Bottom => Rectangle {
             y: bounds.y + h * (1.0 - edge),
             height: h * edge,
             ..bounds
         },
-        crate::manager::DropZone::Center => Rectangle {
+        DropZone::Center => Rectangle {
             x: bounds.x + w * edge,
             y: bounds.y + h * edge,
             width: w * (1.0 - 2.0 * edge),
@@ -65,7 +67,7 @@ pub struct TabInfo {
 struct TabDockState;
 
 fn tab_insert_is_noop(
-    session: crate::manager::DragSession,
+    session: DragSession,
     pane_id: NodeId,
     index: usize,
     tabs: &[TabInfo],
@@ -82,7 +84,7 @@ fn tab_insert_is_noop(
 pub struct TabDock<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
 {
     dock_state: Rc<RefCell<DockWidgetState<Theme>>>,
     pub pane_id: NodeId,
@@ -94,7 +96,7 @@ where
     class: Rc<<Theme as Catalog>::Class<'static>>,
     theme: Rc<RefCell<Option<Theme>>>,
     drop_edge_fraction: f32,
-    tab_bar_scrollbar_hide_delay: iced::time::Duration,
+    tab_bar_scrollbar_hide_delay: Duration,
     tab_bar_show_scrollbar: bool,
 }
 
@@ -102,19 +104,19 @@ impl<'a, Message, Theme, Renderer> TabDock<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
     Theme: Catalog
-        + iced::widget::button::Catalog
-        + iced::widget::container::Catalog
-        + iced::widget::text::Catalog
+        + button::Catalog
+        + container::Catalog
+        + iced_text::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
-    <Theme as iced::widget::button::Catalog>::Class<'static>:
-        From<iced::widget::button::StyleFn<'static, Theme>>,
-    <Theme as iced::widget::container::Catalog>::Class<'static>:
-        From<iced::widget::container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
-        From<iced::widget::text::StyleFn<'b, Theme>>,
+    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    <Theme as button::Catalog>::Class<'static>:
+        From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>:
+        From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
+        From<iced_text::StyleFn<'b, Theme>>,
 {
     pub fn new(
         dock_state: Rc<RefCell<DockWidgetState<Theme>>>,
@@ -127,7 +129,7 @@ where
         theme: Rc<RefCell<Option<Theme>>>,
         drag_threshold: f32,
         drop_edge_fraction: f32,
-        tab_bar_scrollbar_hide_delay: iced::time::Duration,
+        tab_bar_scrollbar_hide_delay: Duration,
         tab_bar_show_scrollbar: bool,
     ) -> Self {
         let tab_strip = TabStrip::new(
@@ -163,7 +165,7 @@ where
 impl<Message, Theme, Renderer> TabDock<'_, Message, Theme, Renderer>
 where
     Theme: Catalog + Clone + 'static,
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
 {
     fn resolved_theme(&self) -> Option<Theme> {
         self.theme.borrow().clone()
@@ -176,7 +178,7 @@ where
     fn layout_style_or_default(&self) -> DockStyle {
         match self.resolved_theme() {
             Some(ref t) => Catalog::style(t, &self.class),
-            None => crate::style::default(&iced::Theme::Dark),
+            None => style::default(&iced::Theme::Dark),
         }
     }
 
@@ -217,19 +219,19 @@ impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
 where
     Message: Clone + 'static,
     Theme: Catalog
-        + iced::widget::button::Catalog
-        + iced::widget::container::Catalog
-        + iced::widget::text::Catalog
+        + button::Catalog
+        + container::Catalog
+        + iced_text::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
-    <Theme as iced::widget::button::Catalog>::Class<'static>:
-        From<iced::widget::button::StyleFn<'static, Theme>>,
-    <Theme as iced::widget::container::Catalog>::Class<'static>:
-        From<iced::widget::container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
-        From<iced::widget::text::StyleFn<'b, Theme>>,
+    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    <Theme as button::Catalog>::Class<'static>:
+        From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>:
+        From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
+        From<iced_text::StyleFn<'b, Theme>>,
 {
     fn tag(&self) -> Tag {
         Tag::of::<TabDockState>()
@@ -609,19 +611,19 @@ impl<'a, Message, Theme, Renderer> From<TabDock<'a, Message, Theme, Renderer>>
 where
     Message: Clone + 'static,
     Theme: Catalog
-        + iced::widget::button::Catalog
-        + iced::widget::container::Catalog
-        + iced::widget::text::Catalog
+        + button::Catalog
+        + container::Catalog
+        + iced_text::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
-    <Theme as iced::widget::button::Catalog>::Class<'static>:
-        From<iced::widget::button::StyleFn<'static, Theme>>,
-    <Theme as iced::widget::container::Catalog>::Class<'static>:
-        From<iced::widget::container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
-        From<iced::widget::text::StyleFn<'b, Theme>>,
+    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    <Theme as button::Catalog>::Class<'static>:
+        From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>:
+        From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
+        From<iced_text::StyleFn<'b, Theme>>,
 {
     fn from(widget: TabDock<'a, Message, Theme, Renderer>) -> Self {
         Element::new(widget)

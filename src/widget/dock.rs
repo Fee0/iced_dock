@@ -1,12 +1,15 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use iced::advanced;
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
 use iced::advanced::{Clipboard, Shell};
 use iced::mouse::{self, Cursor};
+use iced::time::Duration;
+use iced::widget::{self, button, container, text as iced_text};
 use iced::{Element, Event, Length, Rectangle, Size};
 
 use crate::model::{ContentKey, Layout as DockLayout, NodeId, NodeKind, Pane};
@@ -21,7 +24,7 @@ use crate::widget::tab_dock::{TabDock, TabInfo};
 struct DockTreeHolder<Message, Theme, Renderer>
 where
     Theme: Catalog,
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
 {
     dock_state: Rc<RefCell<DockWidgetState<Theme>>>,
     root: RefCell<Option<Element<'static, Message, Theme, Renderer>>>,
@@ -30,7 +33,7 @@ where
 pub struct Dock<Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
 {
     content: Rc<dyn Fn(ContentKey) -> PaneContent<'static, Message, Theme, Renderer>>,
     on_event: Rc<dyn Fn(DockEvent) -> Message>,
@@ -40,7 +43,7 @@ where
     min_pane_height: f32,
     drag_threshold: f32,
     drop_edge_fraction: f32,
-    tab_bar_scrollbar_hide_delay: iced::time::Duration,
+    tab_bar_scrollbar_hide_delay: Duration,
     tab_bar_show_scrollbar: bool,
 }
 
@@ -48,19 +51,19 @@ impl<Message, Theme, Renderer> Dock<Message, Theme, Renderer>
 where
     Message: Clone + 'static,
     Theme: Catalog
-        + iced::widget::button::Catalog
-        + iced::widget::container::Catalog
-        + iced::widget::text::Catalog
+        + button::Catalog
+        + container::Catalog
+        + iced_text::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
-    <Theme as iced::widget::button::Catalog>::Class<'static>:
-        From<iced::widget::button::StyleFn<'static, Theme>>,
-    <Theme as iced::widget::container::Catalog>::Class<'static>:
-        From<iced::widget::container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
-        From<iced::widget::text::StyleFn<'b, Theme>>,
+    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    <Theme as button::Catalog>::Class<'static>:
+        From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>:
+        From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
+        From<iced_text::StyleFn<'b, Theme>>,
 {
     pub fn new(
         content: Rc<dyn Fn(ContentKey) -> PaneContent<'static, Message, Theme, Renderer>>,
@@ -75,7 +78,7 @@ where
             min_pane_height: 80.0,
             drag_threshold: 6.0,
             drop_edge_fraction: 0.2,
-            tab_bar_scrollbar_hide_delay: iced::time::Duration::from_secs(1),
+            tab_bar_scrollbar_hide_delay: Duration::from_secs(1),
             tab_bar_show_scrollbar: true,
         }
     }
@@ -107,7 +110,7 @@ where
     ///
     /// Default is one second.
     #[must_use]
-    pub fn tab_bar_scrollbar_hide_delay(mut self, delay: iced::time::Duration) -> Self {
+    pub fn tab_bar_scrollbar_hide_delay(mut self, delay: Duration) -> Self {
         self.tab_bar_scrollbar_hide_delay = delay;
         self
     }
@@ -290,7 +293,7 @@ where
 pub struct DockBuilder<Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
 {
     content: Option<Rc<dyn Fn(ContentKey) -> PaneContent<'static, Message, Theme, Renderer>>>,
     on_event: Option<Rc<dyn Fn(DockEvent) -> Message>>,
@@ -300,14 +303,14 @@ where
     min_pane_height: Option<f32>,
     drag_threshold: Option<f32>,
     drop_edge_fraction: Option<f32>,
-    tab_bar_scrollbar_hide_delay: Option<iced::time::Duration>,
+    tab_bar_scrollbar_hide_delay: Option<Duration>,
     tab_bar_show_scrollbar: Option<bool>,
 }
 
 impl<Message, Theme, Renderer> Default for DockBuilder<Message, Theme, Renderer>
 where
     Theme: Catalog,
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
 {
     fn default() -> Self {
         Self {
@@ -329,19 +332,19 @@ impl<Message, Theme, Renderer> DockBuilder<Message, Theme, Renderer>
 where
     Message: Clone + 'static,
     Theme: Catalog
-        + iced::widget::button::Catalog
-        + iced::widget::container::Catalog
-        + iced::widget::text::Catalog
+        + button::Catalog
+        + container::Catalog
+        + iced_text::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
-    <Theme as iced::widget::button::Catalog>::Class<'static>:
-        From<iced::widget::button::StyleFn<'static, Theme>>,
-    <Theme as iced::widget::container::Catalog>::Class<'static>:
-        From<iced::widget::container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
-        From<iced::widget::text::StyleFn<'b, Theme>>,
+    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    <Theme as button::Catalog>::Class<'static>:
+        From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>:
+        From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
+        From<iced_text::StyleFn<'b, Theme>>,
 {
     pub fn content(
         mut self,
@@ -431,7 +434,7 @@ where
     ///
     /// Default is one second.
     #[must_use]
-    pub fn tab_bar_scrollbar_hide_delay(mut self, delay: iced::time::Duration) -> Self {
+    pub fn tab_bar_scrollbar_hide_delay(mut self, delay: Duration) -> Self {
         self.tab_bar_scrollbar_hide_delay = Some(delay);
         self
     }
@@ -449,7 +452,7 @@ where
     #[must_use]
     pub fn build(self) -> Dock<Message, Theme, Renderer> {
         let content = self.content.unwrap_or_else(|| {
-            Rc::new(|_| PaneContent::new(iced::widget::text("No content")))
+            Rc::new(|_| PaneContent::new(widget::text("No content")))
                 as Rc<dyn Fn(ContentKey) -> PaneContent<'static, Message, Theme, Renderer>>
         });
         let on_event = self
@@ -487,19 +490,19 @@ pub fn dock<Message, Theme, Renderer>() -> DockBuilder<Message, Theme, Renderer>
 where
     Message: Clone + 'static,
     Theme: Catalog
-        + iced::widget::button::Catalog
-        + iced::widget::container::Catalog
-        + iced::widget::text::Catalog
+        + button::Catalog
+        + container::Catalog
+        + iced_text::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
-    <Theme as iced::widget::button::Catalog>::Class<'static>:
-        From<iced::widget::button::StyleFn<'static, Theme>>,
-    <Theme as iced::widget::container::Catalog>::Class<'static>:
-        From<iced::widget::container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
-        From<iced::widget::text::StyleFn<'b, Theme>>,
+    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    <Theme as button::Catalog>::Class<'static>:
+        From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>:
+        From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
+        From<iced_text::StyleFn<'b, Theme>>,
 {
     DockBuilder::default()
 }
@@ -508,19 +511,19 @@ impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer> for Dock<Message
 where
     Message: Clone + 'static,
     Theme: Catalog
-        + iced::widget::button::Catalog
-        + iced::widget::container::Catalog
-        + iced::widget::text::Catalog
+        + button::Catalog
+        + container::Catalog
+        + iced_text::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
-    <Theme as iced::widget::button::Catalog>::Class<'static>:
-        From<iced::widget::button::StyleFn<'static, Theme>>,
-    <Theme as iced::widget::container::Catalog>::Class<'static>:
-        From<iced::widget::container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
-        From<iced::widget::text::StyleFn<'b, Theme>>,
+    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    <Theme as button::Catalog>::Class<'static>:
+        From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>:
+        From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
+        From<iced_text::StyleFn<'b, Theme>>,
 {
     fn tag(&self) -> Tag {
         Tag::of::<DockTreeHolder<Message, Theme, Renderer>>()
@@ -598,7 +601,7 @@ where
         tree: &Tree,
         renderer: &mut Renderer,
         theme: &Theme,
-        style: &iced::advanced::renderer::Style,
+        style: &renderer::Style,
         layout: Layout<'_>,
         cursor: Cursor,
         viewport: &Rectangle,
@@ -764,19 +767,19 @@ impl<Message, Theme, Renderer> From<Dock<Message, Theme, Renderer>>
 where
     Message: Clone + 'static,
     Theme: Catalog
-        + iced::widget::button::Catalog
-        + iced::widget::container::Catalog
-        + iced::widget::text::Catalog
+        + button::Catalog
+        + container::Catalog
+        + iced_text::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
-    <Theme as iced::widget::button::Catalog>::Class<'static>:
-        From<iced::widget::button::StyleFn<'static, Theme>>,
-    <Theme as iced::widget::container::Catalog>::Class<'static>:
-        From<iced::widget::container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
-        From<iced::widget::text::StyleFn<'b, Theme>>,
+    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    <Theme as button::Catalog>::Class<'static>:
+        From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>:
+        From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as iced_text::Catalog>::Class<'b>:
+        From<iced_text::StyleFn<'b, Theme>>,
 {
     fn from(widget: Dock<Message, Theme, Renderer>) -> Self {
         Element::new(widget)

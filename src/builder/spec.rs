@@ -1,4 +1,7 @@
+use std::collections::HashSet;
+
 use crate::model::{Axis, ContentKey};
+use crate::Error;
 
 /// Declarative layout description.
 #[derive(Debug, Clone, PartialEq)]
@@ -160,35 +163,35 @@ pub fn single(def: PanelDef) -> LayoutTree {
 
 /// Validate a layout tree before compilation.
 pub(crate) fn validate_tree(tree: &LayoutTree) -> crate::Result {
-    let mut panel_ids = std::collections::HashSet::new();
-    let mut pane_names = std::collections::HashSet::new();
+    let mut panel_ids = HashSet::new();
+    let mut pane_names = HashSet::new();
     validate_node(tree, &mut panel_ids, &mut pane_names)
 }
 
 fn validate_node(
     tree: &LayoutTree,
-    panel_ids: &mut std::collections::HashSet<String>,
-    pane_names: &mut std::collections::HashSet<String>,
+    panel_ids: &mut HashSet<String>,
+    pane_names: &mut HashSet<String>,
 ) -> crate::Result {
     match tree {
         LayoutTree::Tabs(node) => {
             if node.panels.is_empty() {
-                return Err(crate::Error::EmptyLayout);
+                return Err(Error::EmptyLayout);
             }
             if let Some(name) = &node.name {
                 if !pane_names.insert(name.clone()) {
-                    return Err(crate::Error::DuplicatePaneName(name.clone()));
+                    return Err(Error::DuplicatePaneName(name.clone()));
                 }
             }
             let pane_label = node.name.clone().unwrap_or_else(|| "<unnamed>".into());
             for def in &node.panels {
                 if !panel_ids.insert(def.id.clone()) {
-                    return Err(crate::Error::DuplicatePanelId(def.id.clone()));
+                    return Err(Error::DuplicatePanelId(def.id.clone()));
                 }
             }
             if let Some(active) = &node.active {
                 if !node.panels.iter().any(|p| p.id == *active) {
-                    return Err(crate::Error::UnknownActivePanel {
+                    return Err(Error::UnknownActivePanel {
                         pane_name: pane_label,
                         panel: active.clone(),
                     });
@@ -198,11 +201,11 @@ fn validate_node(
         }
         LayoutTree::Split(node) => {
             if node.children.is_empty() {
-                return Err(crate::Error::EmptyLayout);
+                return Err(Error::EmptyLayout);
             }
             if let Some(weights) = &node.weights {
                 if weights.len() != node.children.len() {
-                    return Err(crate::Error::InvalidWeights {
+                    return Err(Error::InvalidWeights {
                         expected: node.children.len(),
                         got: weights.len(),
                     });

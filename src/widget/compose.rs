@@ -1,7 +1,7 @@
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
 use iced::advanced::widget::{Operation, Tree};
-use iced::advanced::{Clipboard, Shell};
+use iced::advanced::{self, Clipboard, Shell};
 use iced::mouse::{self, Cursor};
 use iced::{Element, Event, Rectangle};
 
@@ -12,7 +12,7 @@ pub fn child_layout<Message, Theme, Renderer>(
     limits: &layout::Limits,
 ) -> layout::Node
 where
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
 {
     child.as_widget_mut().layout(tree, renderer, limits)
 }
@@ -28,7 +28,7 @@ pub fn child_update<Message, Theme, Renderer>(
     shell: &mut Shell<'_, Message>,
     viewport: &Rectangle,
 ) where
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
 {
     child.as_widget_mut().update(
         tree, event, layout, cursor, renderer, clipboard, shell, viewport,
@@ -45,7 +45,7 @@ pub fn child_draw<Message, Theme, Renderer>(
     cursor: Cursor,
     viewport: &Rectangle,
 ) where
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
 {
     child
         .as_widget()
@@ -61,7 +61,7 @@ pub fn child_mouse_interaction<Message, Theme, Renderer>(
     renderer: &Renderer,
 ) -> mouse::Interaction
 where
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
 {
     child
         .as_widget()
@@ -75,7 +75,7 @@ pub fn child_operate<Message, Theme, Renderer>(
     renderer: &Renderer,
     operation: &mut dyn Operation,
 ) where
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
 {
     child
         .as_widget_mut()

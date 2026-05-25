@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
+use std::fmt;
 use std::rc::Rc;
 
 use crate::builder::compile::{
@@ -269,8 +270,8 @@ fn resolve_initial_focus(built: &BuiltLayout, focus: InitialFocus<'_>) -> Result
     }
 }
 
-impl<Theme> std::fmt::Debug for DockSession<Theme> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<Theme> fmt::Debug for DockSession<Theme> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DockSession").finish_non_exhaustive()
     }
 }

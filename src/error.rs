@@ -1,7 +1,9 @@
+use std::result;
+
 use crate::model::{DockOperation, NodeId};
 
 /// Crate-wide result alias.
-pub type Result<T = ()> = std::result::Result<T, Error>;
+pub type Result<T = ()> = result::Result<T, Error>;
 
 /// Unified error type for the docking layout system.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

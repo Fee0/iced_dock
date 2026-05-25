@@ -5,15 +5,17 @@ use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
-use iced::advanced::{Clipboard, Shell};
+use iced::advanced::{self, Clipboard, Shell};
 use iced::keyboard;
 use iced::mouse::{self, Cursor};
+use iced::time::{Duration, Instant};
 use iced::widget::{button, container, mouse_area, row, text, Space};
 use iced::window;
 use iced::{Border, Color, Element, Event, Length, Padding, Rectangle, Size, Vector};
+use iced::Theme as IcedTheme;
 
 use crate::model::NodeId;
-use crate::style::{close_button_style, Catalog, CloseButtonStyle, DockStyle};
+use crate::style::{self, close_button_style, Catalog, CloseButtonStyle, DockStyle, DropOverlayStyle, TabBarStyle};
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::compose;
 use crate::widget::tab_dock::TabInfo;
@@ -29,7 +31,7 @@ struct TabStripState<Theme> {
     viewport_width: f32,
     tab_bar_hovered: bool,
     scrollbar_visible: bool,
-    hide_at: Option<iced::time::Instant>,
+    hide_at: Option<Instant>,
     scrollbar_drag: Option<ScrollbarDrag>,
     scrollbar_thumb_hovered: bool,
     keyboard_modifiers: keyboard::Modifiers,
@@ -72,7 +74,7 @@ impl<Theme> TabStripState<Theme> {
 pub struct TabStrip<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
 {
     pane_id: NodeId,
     tabs: Vec<TabInfo>,
@@ -82,7 +84,7 @@ where
     class: Rc<<Theme as Catalog>::Class<'static>>,
     drag_threshold: f32,
     drop_edge_fraction: f32,
-    hide_delay: iced::time::Duration,
+    hide_delay: Duration,
     show_scrollbar: bool,
     theme: Rc<RefCell<Option<Theme>>>,
 }
@@ -91,19 +93,19 @@ impl<Message, Theme, Renderer> TabStrip<'_, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
     Theme: Catalog
-        + iced::widget::button::Catalog
-        + iced::widget::container::Catalog
-        + iced::widget::text::Catalog
+        + button::Catalog
+        + container::Catalog
+        + text::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
-    <Theme as iced::widget::button::Catalog>::Class<'static>:
-        From<iced::widget::button::StyleFn<'static, Theme>>,
-    <Theme as iced::widget::container::Catalog>::Class<'static>:
-        From<iced::widget::container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
-        From<iced::widget::text::StyleFn<'b, Theme>>,
+    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    <Theme as button::Catalog>::Class<'static>:
+        From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>:
+        From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as text::Catalog>::Class<'b>:
+        From<text::StyleFn<'b, Theme>>,
 {
     pub fn new(
         pane_id: NodeId,
@@ -114,7 +116,7 @@ where
         theme: Rc<RefCell<Option<Theme>>>,
         drag_threshold: f32,
         drop_edge_fraction: f32,
-        hide_delay: iced::time::Duration,
+        hide_delay: Duration,
         show_scrollbar: bool,
     ) -> Self {
         let layout_style = match *theme.borrow() {
@@ -124,7 +126,7 @@ where
                 style
             }
             None => {
-                let mut style = crate::style::default(&iced::Theme::Dark);
+                let mut style = style::default(&IcedTheme::Dark);
                 style.sync_tab_appearance();
                 style
             }
@@ -160,7 +162,7 @@ where
         match self.resolved_theme() {
             Some(ref t) => self.layout_style(t),
             None => {
-                let mut style = crate::style::default(&iced::Theme::Dark);
+                let mut style = style::default(&IcedTheme::Dark);
                 style.sync_tab_appearance();
                 style
             }
@@ -237,17 +239,17 @@ fn build_tabs_row<Message, Theme, Renderer>(
 where
     Message: Clone + 'static,
     Theme: Catalog
-        + iced::widget::button::Catalog
-        + iced::widget::container::Catalog
-        + iced::widget::text::Catalog
+        + button::Catalog
+        + container::Catalog
+        + text::Catalog
         + 'static,
-    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
-    <Theme as iced::widget::button::Catalog>::Class<'static>:
-        From<iced::widget::button::StyleFn<'static, Theme>>,
-    <Theme as iced::widget::container::Catalog>::Class<'static>:
-        From<iced::widget::container::StyleFn<'static, Theme>>,
-    for<'a> <Theme as iced::widget::text::Catalog>::Class<'a>:
-        From<iced::widget::text::StyleFn<'a, Theme>>,
+    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    <Theme as button::Catalog>::Class<'static>:
+        From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>:
+        From<container::StyleFn<'static, Theme>>,
+    for<'a> <Theme as text::Catalog>::Class<'a>:
+        From<text::StyleFn<'a, Theme>>,
 {
     let bar = &style.tab_bar;
     let tab_style = &style.tab;
@@ -357,7 +359,7 @@ fn close_button_bounds(tab_bounds: Rectangle, close: &CloseButtonStyle) -> Recta
     }
 }
 
-fn insert_marker_color(drop: &crate::style::DropOverlayStyle) -> Color {
+fn insert_marker_color(drop: &DropOverlayStyle) -> Color {
     Color {
         a: drop.color.a.max(drop.insert_marker_min_alpha),
         ..drop.color
@@ -476,7 +478,7 @@ struct ScrollbarMetrics {
 
 fn scrollbar_metrics(
     tab_bounds: Rectangle,
-    bar: &crate::style::TabBarStyle,
+    bar: &TabBarStyle,
     scroll_offset: f32,
     content_width: f32,
     viewport_width: f32,
@@ -517,10 +519,10 @@ fn scrollbar_metrics(
     })
 }
 
-fn draw_scrollbar<Renderer: iced::advanced::Renderer>(
+fn draw_scrollbar<Renderer: advanced::Renderer>(
     metrics: &ScrollbarMetrics,
     thumb_hovered: bool,
-    bar: &crate::style::TabBarStyle,
+    bar: &TabBarStyle,
     renderer: &mut Renderer,
 ) {
     let color = if thumb_hovered {
@@ -586,7 +588,7 @@ pub(crate) fn is_tab_drag_active<Theme: 'static>(tab_strip_tree: Option<&Tree>) 
 }
 
 /// Pending scrollbar hide deadline, if a delayed hide was scheduled.
-pub(crate) fn pending_hide_deadline<Theme: 'static>(tree: &Tree) -> Option<iced::time::Instant> {
+pub(crate) fn pending_hide_deadline<Theme: 'static>(tree: &Tree) -> Option<Instant> {
     tree.state.downcast_ref::<TabStripState<Theme>>().hide_at
 }
 
@@ -599,7 +601,7 @@ pub(crate) fn schedule_hide_redraw<Message, Theme: 'static>(
         return;
     };
 
-    if iced::time::Instant::now() >= deadline {
+    if Instant::now() >= deadline {
         Shell::replace_redraw_request(shell, window::RedrawRequest::NextFrame);
         return;
     }
@@ -622,7 +624,7 @@ pub(crate) fn sync_hover_in_tree<Message, Theme: 'static>(
     tab_strip_tree: &mut Tree,
     tab_bounds: Rectangle,
     cursor: Cursor,
-    hide_delay: iced::time::Duration,
+    hide_delay: Duration,
     show_scrollbar: bool,
     shell: &mut Shell<'_, Message>,
 ) {
@@ -634,7 +636,7 @@ fn sync_tab_bar_hover<Message, Theme>(
     state: &mut TabStripState<Theme>,
     tab_bounds: Rectangle,
     cursor: Cursor,
-    hide_delay: iced::time::Duration,
+    hide_delay: Duration,
     show_scrollbar: bool,
     shell: &mut Shell<'_, Message>,
 ) {
@@ -643,7 +645,7 @@ fn sync_tab_bar_hover<Message, Theme>(
     }
 
     if let Some(deadline) = state.hide_at {
-        if iced::time::Instant::now() >= deadline {
+        if Instant::now() >= deadline {
             state.scrollbar_visible = false;
             state.hide_at = None;
         }
@@ -665,7 +667,7 @@ fn sync_tab_bar_hover<Message, Theme>(
             state.tab_bar_hovered = false;
         }
         if state.scrollbar_visible && state.hide_at.is_none() {
-            state.hide_at = Some(iced::time::Instant::now() + hide_delay);
+            state.hide_at = Some(Instant::now() + hide_delay);
         }
         if was_hovered {
             shell.request_redraw();
@@ -678,19 +680,19 @@ impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
 where
     Message: Clone + 'static,
     Theme: Catalog
-        + iced::widget::button::Catalog
-        + iced::widget::container::Catalog
-        + iced::widget::text::Catalog
+        + button::Catalog
+        + container::Catalog
+        + text::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
-    <Theme as iced::widget::button::Catalog>::Class<'static>:
-        From<iced::widget::button::StyleFn<'static, Theme>>,
-    <Theme as iced::widget::container::Catalog>::Class<'static>:
-        From<iced::widget::container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
-        From<iced::widget::text::StyleFn<'b, Theme>>,
+    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    <Theme as button::Catalog>::Class<'static>:
+        From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>:
+        From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as text::Catalog>::Class<'b>:
+        From<text::StyleFn<'b, Theme>>,
 {
     fn tag(&self) -> Tag {
         Tag::of::<TabStripState<Theme>>()
@@ -874,7 +876,7 @@ where
             let scrollbar_fade_in = state.scrollbar_visible
                 && state
                     .hide_at
-                    .is_none_or(|deadline| iced::time::Instant::now() < deadline);
+                    .is_none_or(|deadline| Instant::now() < deadline);
 
             if self.show_scrollbar && overflow && scrollbar_fade_in {
                 if let Some(metrics) = scrollbar_metrics(
@@ -1259,19 +1261,19 @@ impl<'a, Message, Theme, Renderer> From<TabStrip<'a, Message, Theme, Renderer>>
 where
     Message: Clone + 'static,
     Theme: Catalog
-        + iced::widget::button::Catalog
-        + iced::widget::container::Catalog
-        + iced::widget::text::Catalog
+        + button::Catalog
+        + container::Catalog
+        + text::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: iced::advanced::Renderer + iced::advanced::text::Renderer + 'static,
-    <Theme as iced::widget::button::Catalog>::Class<'static>:
-        From<iced::widget::button::StyleFn<'static, Theme>>,
-    <Theme as iced::widget::container::Catalog>::Class<'static>:
-        From<iced::widget::container::StyleFn<'static, Theme>>,
-    for<'b> <Theme as iced::widget::text::Catalog>::Class<'b>:
-        From<iced::widget::text::StyleFn<'b, Theme>>,
+    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    <Theme as button::Catalog>::Class<'static>:
+        From<button::StyleFn<'static, Theme>>,
+    <Theme as container::Catalog>::Class<'static>:
+        From<container::StyleFn<'static, Theme>>,
+    for<'b> <Theme as text::Catalog>::Class<'b>:
+        From<text::StyleFn<'b, Theme>>,
 {
     fn from(widget: TabStrip<'a, Message, Theme, Renderer>) -> Self {
         Element::new(widget)

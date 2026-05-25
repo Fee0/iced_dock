@@ -5,12 +5,12 @@ use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
-use iced::advanced::{Clipboard, Shell};
+use iced::advanced::{self, Clipboard, Shell};
 use iced::mouse::{self, Cursor};
-use iced::{Border, Element, Event, Length, Rectangle, Size};
+use iced::{Border, Element, Event, Length, Rectangle, Size, Theme as IcedTheme};
 
 use crate::model::{Axis, NodeId};
-use crate::style::{Catalog, DockStyle};
+use crate::style::{self, Catalog, DockStyle};
 use crate::widget::action::DockAction;
 use crate::widget::compose;
 
@@ -46,7 +46,7 @@ fn pane_main_size(child_layout: &Layout<'_>, is_horizontal: bool) -> f32 {
 pub struct SplitContainer<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
 {
     pub group_id: NodeId,
     pub axis: Axis,
@@ -62,7 +62,7 @@ where
 impl<'a, Message, Theme, Renderer> SplitContainer<'a, Message, Theme, Renderer>
 where
     Theme: Catalog + Clone,
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
 {
     pub fn new(
         group_id: NodeId,
@@ -91,7 +91,7 @@ where
     fn layout_style_resolved(&self) -> DockStyle {
         match *self.theme.borrow() {
             Some(ref t) => Catalog::style(t, &self.class),
-            None => crate::style::default(&iced::Theme::Dark),
+            None => style::default(&IcedTheme::Dark),
         }
     }
 
@@ -193,7 +193,7 @@ impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
 where
     Message: Clone + 'static,
     Theme: Catalog + Clone + 'static,
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
 {
     fn tag(&self) -> Tag {
         Tag::of::<SplitWidgetState>()
@@ -564,7 +564,7 @@ impl<'a, Message, Theme, Renderer> From<SplitContainer<'a, Message, Theme, Rende
 where
     Message: Clone + 'static,
     Theme: Catalog + Clone + 'static,
-    Renderer: iced::advanced::Renderer + 'static,
+    Renderer: advanced::Renderer + 'static,
 {
     fn from(widget: SplitContainer<'a, Message, Theme, Renderer>) -> Self {
         Element::new(widget)

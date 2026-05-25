@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use iced::Rectangle;
 
+use crate::builder::compile::{build_tree, first_pane, BuiltLayout};
 use crate::builder::DockIndex;
 use crate::factory::Factory;
 use crate::manager::{DockManager, DragSession, TabBarTarget};
@@ -44,14 +45,14 @@ impl<Theme> DockWidgetState<Theme> {
 
     /// Build widget state from a declarative [`LayoutTree`](crate::LayoutTree).
     pub fn from_tree(tree: crate::LayoutTree) -> crate::Result<Self> {
-        let built = crate::builder::compile::build_tree(&tree)?;
-        let focused_pane = crate::builder::compile::first_pane(&built.layout);
+        let built = build_tree(&tree)?;
+        let focused_pane = first_pane(&built.layout);
         Ok(Self::from_built(built, focused_pane))
     }
 
     /// Build widget state from a compiled layout.
     pub fn from_built(
-        built: crate::builder::compile::BuiltLayout,
+        built: BuiltLayout,
         focused_pane: Option<NodeId>,
     ) -> Self {
         Self {
