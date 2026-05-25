@@ -10,7 +10,7 @@ use iced::mouse::{self, Cursor};
 use iced::{Border, Element, Event, Length, Rectangle, Size, Theme};
 
 use crate::model::{Axis, NodeId};
-use crate::style::DockStyle;
+use crate::style::{Catalog, DockStyle, StyleFn};
 use crate::widget::compose;
 use crate::widget::action::DockAction;
 
@@ -49,8 +49,8 @@ pub struct SplitContainer<'a, Message> {
     pub proportions: Vec<f32>,
     pub children: Vec<Element<'a, Message, Theme, iced::Renderer>>,
     on_event: Rc<dyn Fn(DockAction) -> Message>,
-    style: Rc<dyn Fn(&Theme) -> DockStyle>,
-    layout_theme: RefCell<Theme>,
+    class: Rc<StyleFn<'static, Theme>>,
+    theme: Rc<RefCell<Theme>>,
 }
 
 impl<'a, Message> SplitContainer<'a, Message> {
@@ -60,7 +60,8 @@ impl<'a, Message> SplitContainer<'a, Message> {
         proportions: Vec<f32>,
         children: Vec<Element<'a, Message, Theme, iced::Renderer>>,
         on_event: Rc<dyn Fn(DockAction) -> Message>,
-        style: Rc<dyn Fn(&Theme) -> DockStyle>,
+        class: Rc<StyleFn<'static, Theme>>,
+        theme: Rc<RefCell<Theme>>,
     ) -> Self {
         Self {
             group_id,
@@ -68,17 +69,17 @@ impl<'a, Message> SplitContainer<'a, Message> {
             proportions,
             children,
             on_event,
-            style,
-            layout_theme: RefCell::new(Theme::Dark),
+            class,
+            theme,
         }
     }
 
     fn resolved_theme(&self) -> Theme {
-        self.layout_theme.borrow().clone()
+        self.theme.borrow().clone()
     }
 
     fn layout_style(&self, theme: &Theme) -> DockStyle {
-        (self.style)(theme)
+        Catalog::style(theme, &self.class)
     }
 }
 
@@ -305,7 +306,6 @@ where
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
-        *self.layout_theme.borrow_mut() = theme.clone();
         let state = tree.state.downcast_ref::<SplitWidgetState>();
         let dock_style = self.layout_style(theme);
         let split = &dock_style.splitter;

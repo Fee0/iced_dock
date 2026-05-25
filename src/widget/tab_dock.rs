@@ -12,7 +12,7 @@ use iced::{Element, Event, Length, Rectangle, Size, Theme};
 
 use crate::manager::{DockManager, TabBarTarget};
 use crate::model::NodeId;
-use crate::style::DockStyle;
+use crate::style::{Catalog, DockStyle, StyleFn};
 use crate::widget::compose;
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::dock::DockWidgetState;
@@ -87,10 +87,10 @@ pub struct TabDock<'a, Message> {
     pub tab_strip: Element<'a, Message, Theme, iced::Renderer>,
     pub content: Element<'a, Message, Theme, iced::Renderer>,
     on_event: Rc<dyn Fn(DockAction) -> Message>,
-    style: Rc<dyn Fn(&Theme) -> DockStyle>,
+    class: Rc<StyleFn<'static, Theme>>,
+    theme: Rc<RefCell<Theme>>,
     tab_bar_scrollbar_hide_delay: iced::time::Duration,
     tab_bar_show_scrollbar: bool,
-    layout_theme: RefCell<Theme>,
 }
 
 impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
@@ -101,7 +101,8 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
         active_tab: NodeId,
         content: Element<'a, Message, Theme, iced::Renderer>,
         on_event: Rc<dyn Fn(DockAction) -> Message>,
-        style: Rc<dyn Fn(&Theme) -> DockStyle>,
+        class: Rc<StyleFn<'static, Theme>>,
+        theme: Rc<RefCell<Theme>>,
         tab_bar_scrollbar_hide_delay: iced::time::Duration,
         tab_bar_show_scrollbar: bool,
     ) -> Self {
@@ -110,7 +111,8 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
             tabs.clone(),
             active_tab,
             on_event.clone(),
-            style.clone(),
+            Rc::clone(&class),
+            Rc::clone(&theme),
             tab_bar_scrollbar_hide_delay,
             tab_bar_show_scrollbar,
         )
@@ -123,19 +125,19 @@ impl<'a, Message: Clone + 'static> TabDock<'a, Message> {
             tab_strip,
             content,
             on_event,
-            style,
+            class,
+            theme,
             tab_bar_scrollbar_hide_delay,
             tab_bar_show_scrollbar,
-            layout_theme: RefCell::new(Theme::Dark),
         }
     }
 
     fn resolved_theme(&self) -> Theme {
-        self.layout_theme.borrow().clone()
+        self.theme.borrow().clone()
     }
 
     fn layout_style(&self, theme: &Theme) -> DockStyle {
-        (self.style)(theme)
+        Catalog::style(theme, &self.class)
     }
 
     fn is_dragging(&self, tree: &Tree) -> bool {
@@ -256,7 +258,6 @@ where
         viewport: &Rectangle,
     ) {
         self.register_pane_bounds(layout.bounds());
-        *self.layout_theme.borrow_mut() = theme.clone();
 
         let mut dock_style = self.layout_style(theme);
         dock_style.sync_tab_appearance();

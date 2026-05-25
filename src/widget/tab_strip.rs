@@ -15,12 +15,16 @@ use iced::{
 };
 
 use crate::model::NodeId;
-use crate::style::{close_button_style, CloseButtonStyle, DockStyle};
+use crate::style::{close_button_style, Catalog, CloseButtonStyle, DockStyle, StyleFn};
 use crate::widget::compose;
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::tab_dock::TabInfo;
 
-#[derive(Default)]
+#[derive(Debug, Clone, Copy)]
+struct ScrollbarDrag {
+    grab_x: f32,
+}
+
 struct TabStripState {
     scroll_offset: f32,
     content_width: f32,
@@ -39,11 +43,32 @@ struct TabStripState {
     insert_marker_index: Option<usize>,
     /// When true, tab label and close-button hover are disabled (active global tab drag).
     suppress_hover: bool,
+    /// Theme used for the last [`build_tabs_row`] rebuild.
+    built_theme: Theme,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct ScrollbarDrag {
-    grab_x: f32,
+impl Default for TabStripState {
+    fn default() -> Self {
+        Self {
+            scroll_offset: 0.0,
+            content_width: 0.0,
+            viewport_width: 0.0,
+            tab_bar_hovered: false,
+            scrollbar_visible: false,
+            hide_at: None,
+            scrollbar_drag: None,
+            scrollbar_thumb_hovered: false,
+            keyboard_modifiers: keyboard::Modifiers::default(),
+            drag_pending: false,
+            drag_start: None,
+            dragging: false,
+            pressed_tab: None,
+            hovered_tab: None,
+            insert_marker_index: None,
+            suppress_hover: false,
+            built_theme: Theme::Dark,
+        }
+    }
 }
 
 pub struct TabStrip<'a, Message> {
@@ -52,11 +77,10 @@ pub struct TabStrip<'a, Message> {
     active_tab: NodeId,
     tabs_row: Element<'a, Message, Theme, iced::Renderer>,
     on_event: Rc<dyn Fn(DockAction) -> Message>,
-    style: Rc<dyn Fn(&Theme) -> DockStyle>,
+    class: Rc<StyleFn<'static, Theme>>,
     hide_delay: iced::time::Duration,
     show_scrollbar: bool,
-    /// Last theme from [`Widget::draw`]; used in layout/update where iced does not pass theme.
-    layout_theme: RefCell<Theme>,
+    theme: Rc<RefCell<Theme>>,
 }
 
 impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
@@ -65,11 +89,17 @@ impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
         tabs: Vec<TabInfo>,
         active_tab: NodeId,
         on_event: Rc<dyn Fn(DockAction) -> Message>,
-        style: Rc<dyn Fn(&Theme) -> DockStyle>,
+        class: Rc<StyleFn<'static, Theme>>,
+        theme: Rc<RefCell<Theme>>,
         hide_delay: iced::time::Duration,
         show_scrollbar: bool,
     ) -> Self {
-        let layout_style = (style)(&Theme::Dark);
+        let resolved = theme.borrow().clone();
+        let layout_style = {
+            let mut style = Catalog::style(&resolved, &class);
+            style.sync_tab_appearance();
+            style
+        };
         let tabs_row =
             build_tabs_row(&layout_style, &tabs, active_tab, None, None, on_event.clone());
         Self {
@@ -78,19 +108,19 @@ impl<'a, Message: Clone + 'static> TabStrip<'a, Message> {
             active_tab,
             tabs_row,
             on_event,
-            style,
+            class,
             hide_delay,
             show_scrollbar,
-            layout_theme: RefCell::new(Theme::Dark),
+            theme,
         }
     }
 
     fn resolved_theme(&self) -> Theme {
-        self.layout_theme.borrow().clone()
+        self.theme.borrow().clone()
     }
 
     fn layout_style(&self, theme: &Theme) -> DockStyle {
-        let mut style = (self.style)(theme);
+        let mut style = Catalog::style(theme, &self.class);
         style.sync_tab_appearance();
         style
     }
@@ -598,7 +628,10 @@ where
     }
 
     fn state(&self) -> State {
-        State::new(TabStripState::default())
+        State::new(TabStripState {
+            built_theme: self.resolved_theme(),
+            ..TabStripState::default()
+        })
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -664,7 +697,6 @@ where
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
-        *self.layout_theme.borrow_mut() = theme.clone();
         let dock_style = self.layout_style(theme);
         let bar = &dock_style.tab_bar;
         let tab_style = &dock_style.tab;
@@ -827,6 +859,12 @@ where
         {
         let state = tree.state.downcast_mut::<TabStripState>();
         let max_offset = max_scroll_offset(state.content_width, state.viewport_width);
+
+        let current_theme = self.resolved_theme();
+        if state.built_theme != current_theme {
+            state.built_theme = current_theme.clone();
+            row_refresh = Some((state.hovered_tab, visual_pressed_tab(state)));
+        }
 
         if state.suppress_hover && state.hovered_tab.is_some() {
             state.hovered_tab = None;
@@ -1088,6 +1126,9 @@ where
 
         if let Some((hovered, pressed)) = row_refresh {
             self.refresh_tabs_row(tree, &theme, hovered, pressed);
+            tree.state
+                .downcast_mut::<TabStripState>()
+                .built_theme = theme.clone();
         }
     }
 

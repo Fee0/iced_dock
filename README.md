@@ -35,9 +35,10 @@ A docking layout widget for [iced](https://github.com/iced-rs/iced) 0.14. Build 
 
 ### Styling
 
-- **VS Code–inspired dark theme** — `DockStyle::modern_dark()` / `DockStyle::from_theme`.
+- **Palette default** — built-in dock chrome follows the active iced theme via `style::default` / [`Catalog`](src/style.rs) (same idea as `pane_grid`).
+- **Optional IDE presets** — `style::preset::modern_dark()` / `modern_light()` for VS Code–inspired chrome (explicit opt-in via `.style(...)`).
 - **Customizable chrome** — pane borders (including focused accent), tab colors, splitter handles, drop overlays, tab bar metrics, close buttons.
-- **Builder overrides** — `min_pane_width`, `min_pane_height`, tab bar scrollbar visibility and hide delay.
+- **Builder overrides** — `min_pane_width`, `min_pane_height`, tab bar scrollbar visibility and hide delay; `.style(...)`, `.class(...)`.
 
 ### Integration
 
@@ -170,14 +171,29 @@ Helpers:
 
 Use `DockSession::from_tree(tree)` or `iced_dock::unstable::build_tree(&tree)` for standalone compilation.
 
+## Theming
+
+By default, the dock uses [`style::default`](src/style.rs) (colors from `theme.extended_palette()`, layout metrics from the built-in dark preset).
+
+| Goal | Setup |
+|------|--------|
+| Match iced Light/Dark/Custom themes | `dock().build()` with no `.style(...)` |
+| VS Code–style chrome | `.style(iced_dock::preset::modern_dark())` or `preset::modern_light()` |
+| Fixed custom chrome | `.style(iced_dock::constant(my_style))` or `.style(\|t\| { ... })` |
+| Panel interiors | Style your `content` closure (containers, text); not part of dock chrome |
+
+`DockStyle::from_theme` is deprecated; it now resolves to the palette default, not the IDE presets.
+
 ## Dock widget builder
 
 ```rust
+use iced_dock::preset;
+
 dock::<Message>()
     .state(session.state())
     .on_event(Message::Dock)              // map DockEvent → app Message
     .content(|key| view_panel(key))       // Fn + 'static (Rc-friendly)
-    .style(|theme| DockStyle::from_theme(theme))
+    .style(preset::modern_dark())         // optional; omit for palette default
     .min_pane_width(200.0)
     .min_pane_height(120.0)
     .tab_bar_show_scrollbar(false)

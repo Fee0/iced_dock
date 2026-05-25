@@ -1,3 +1,7 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use iced::Theme;
 use iced_dock::unstable::{build_tree, dispatch_action, owning_pane};
 use iced_dock::{
     adjacent_pane, horizontal, pane_bounds_map, panel, tabs, vertical, ContentKey, Direction,
@@ -85,6 +89,7 @@ fn pane_focused_updates_focus_without_layout_dirty() {
         focused_pane: Some(pane_a),
         focus_dirty: false,
         layout_dirty: false,
+        resolved_theme: Rc::new(RefCell::new(Theme::Dark)),
     };
 
     let changed = dispatch_action(

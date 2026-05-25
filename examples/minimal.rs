@@ -2,11 +2,11 @@
 
 use iced::keyboard::{self, Key, Modifiers};
 use iced::widget::{column, container, text};
-use iced::{application, Color, Element, Length, Size, Subscription, Task, Theme};
+use iced::{application, Color, Element, Length, Size, Subscription, Task};
 
 use iced_dock::{
     dock, horizontal, panel as tab, tabs, vertical, ContentKey, Direction, DockEvent, DockSession,
-    DockStyle, LayoutTree,
+    LayoutTree,
 };
 
 fn demo_layout() -> LayoutTree {
@@ -44,7 +44,6 @@ fn demo_layout() -> LayoutTree {
 fn main() -> iced::Result {
     application(App::new, update, view)
         .title("iced_dock — minimal")
-        .theme(Theme::Dark)
         .subscription(subscription)
         .window(iced::window::Settings {
             size: Size::new(1200.0, 800.0),
@@ -103,9 +102,6 @@ fn update(app: &mut App, message: Message) -> Task<Message> {
 }
 
 fn view(app: &App) -> Element<'_, Message> {
-    let dock_style = DockStyle::from_theme(&Theme::Dark);
-    let window_background = dock_style.background.color;
-
     container(
         dock::<Message>()
             .state(app.dock.state())
@@ -114,57 +110,59 @@ fn view(app: &App) -> Element<'_, Message> {
             .min_pane_width(200.0)
             .min_pane_height(120.0)
             .tab_bar_show_scrollbar(false)
-            .style(|theme| DockStyle::from_theme(theme))
             .build(),
     )
     .width(Length::Fill)
     .height(Length::Fill)
     .padding(10)
-    .style(move |_| container::Style {
-        background: Some(window_background.into()),
-        ..Default::default()
-    })
     .into()
 }
 
 fn panel(key: ContentKey) -> Element<'static, Message> {
-    let (label, hint) = match key.0 {
-        0 => ("main.rs", "Editor — click to focus pane, Ctrl+Arrow to move focus"),
-        1 => ("lib.rs", "Editor"),
-        2 => ("preview", "Preview"),
-        10 => ("Properties", "Sidebar"),
-        11 => ("Output", "Panel"),
-        12 => ("Explorer", "Sidebar"),
-        13 => ("Search", "Sidebar"),
-        3 => ("mod_a.rs", "Editor"),
-        4 => ("mod_b.rs", "Editor"),
-        5 => ("mod_c.rs", "Editor"),
-        6 => ("mod_d.rs", "Editor"),
-        7 => ("mod_e.rs", "Editor"),
-        8 => ("mod_f.rs", "Editor"),
-        n => {
-            return text(format!("Unknown pane {n}")).into();
-        }
-    };
-
     let fg = Color::from_rgb(0.78, 0.78, 0.82);
     let muted = Color::from_rgb(0.45, 0.45, 0.5);
 
-    container(
-        column![
-            text(label).size(16).color(fg),
-            text(hint).size(12).color(muted),
-        ]
-        .spacing(6)
-        .padding([20, 24]),
-    )
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .center_x(Length::Fill)
-    .center_y(Length::Fill)
-    .style(|_| container::Style {
-        background: Some(Color::from_rgb(0.145, 0.145, 0.157).into()),
-        ..Default::default()
-    })
+    let body: Element<'static, Message> = match key.0 {
+        10 => default_panel_body("Properties", "Panel", fg, muted),
+        0 => default_panel_body(
+            "main.rs",
+            "Editor — click to focus pane, Ctrl+Arrow to move focus",
+            fg,
+            muted,
+        ),
+        1 => default_panel_body("lib.rs", "Editor", fg, muted),
+        2 => default_panel_body("preview", "Preview", fg, muted),
+        11 => default_panel_body("Output", "Panel", fg, muted),
+        12 => default_panel_body("Explorer", "Sidebar", fg, muted),
+        13 => default_panel_body("Search", "Sidebar", fg, muted),
+        3 => default_panel_body("mod_a.rs", "Editor", fg, muted),
+        4 => default_panel_body("mod_b.rs", "Editor", fg, muted),
+        5 => default_panel_body("mod_c.rs", "Editor", fg, muted),
+        6 => default_panel_body("mod_d.rs", "Editor", fg, muted),
+        7 => default_panel_body("mod_e.rs", "Editor", fg, muted),
+        8 => default_panel_body("mod_f.rs", "Editor", fg, muted),
+        n => return text(format!("Unknown pane {n}")).into(),
+    };
+
+    container(body)
+        .padding([20, 24])
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .into()
+}
+
+fn default_panel_body(
+    label: &'static str,
+    hint: &'static str,
+    fg: Color,
+    muted: Color,
+) -> Element<'static, Message> {
+    column![
+        text(label).size(16).color(fg),
+        text(hint).size(12).color(muted),
+    ]
+    .spacing(6)
     .into()
 }

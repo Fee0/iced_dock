@@ -13,7 +13,7 @@ use crate::builder::DockIndex;
 use crate::factory::Factory;
 use crate::manager::{DockManager, DragSession, TabBarTarget};
 use crate::model::{ContentKey, Layout as DockLayout, NodeId, NodeKind, Pane};
-use crate::style::DockStyle;
+use crate::style::{Catalog, DockStyle, StyleFn};
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::event::{action_to_event, DockEvent};
 use crate::widget::split::SplitContainer;
@@ -35,6 +35,12 @@ pub struct DockWidgetState {
     pub focus_dirty: bool,
     /// Set when the layout tree changes and the cached widget root must rebuild.
     pub layout_dirty: bool,
+    /// Last iced theme from [`Widget::draw`]; survives per-frame dock widget rebuilds.
+    pub resolved_theme: Rc<RefCell<Theme>>,
+}
+
+fn default_resolved_theme() -> Rc<RefCell<Theme>> {
+    Rc::new(RefCell::new(Theme::Dark))
 }
 
 impl DockWidgetState {
@@ -72,6 +78,7 @@ impl DockWidgetState {
             focused_pane,
             focus_dirty: false,
             layout_dirty: true,
+            resolved_theme: default_resolved_theme(),
         }
     }
 }
@@ -90,6 +97,7 @@ impl Default for DockWidgetState {
             focused_pane: None,
             focus_dirty: false,
             layout_dirty: false,
+            resolved_theme: default_resolved_theme(),
         }
     }
 }
@@ -144,7 +152,7 @@ pub struct Dock<Message> {
     content: Rc<dyn Fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>>,
     on_event: Rc<dyn Fn(DockEvent) -> Message>,
     external_state: Option<Rc<RefCell<DockWidgetState>>>,
-    style: Rc<dyn Fn(&Theme) -> DockStyle>,
+    class: Rc<StyleFn<'static, Theme>>,
     tab_bar_scrollbar_hide_delay: iced::time::Duration,
     tab_bar_show_scrollbar: bool,
 }
@@ -158,14 +166,24 @@ impl<Message: Clone + 'static> Dock<Message> {
             content,
             on_event,
             external_state: None,
-            style: Rc::new(DockStyle::from_theme),
+            class: Rc::new(<Theme as Catalog>::default()),
             tab_bar_scrollbar_hide_delay: iced::time::Duration::from_secs(1),
             tab_bar_show_scrollbar: true,
         }
     }
 
+    fn theme_cell(holder: &Rc<RefCell<DockWidgetState>>) -> Rc<RefCell<Theme>> {
+        Rc::clone(&holder.borrow().resolved_theme)
+    }
+
     pub fn style(mut self, style: impl Fn(&Theme) -> DockStyle + 'static) -> Self {
-        self.style = Rc::new(style);
+        self.class = Rc::new(Box::new(style));
+        self
+    }
+
+    /// Sets the style class of the [`Dock`].
+    pub fn class(mut self, class: StyleFn<'static, Theme>) -> Self {
+        self.class = Rc::new(class);
         self
     }
 
@@ -230,7 +248,8 @@ impl<Message: Clone + 'static> Dock<Message> {
                         pg.proportions.clone(),
                         children,
                         on_split,
-                        self.style.clone(),
+                        Rc::clone(&self.class),
+                        Self::theme_cell(holder),
                     )
                     .into(),
                 )
@@ -285,7 +304,8 @@ impl<Message: Clone + 'static> Dock<Message> {
                 active,
                 content,
                 on_tab,
-                self.style.clone(),
+                Rc::clone(&self.class),
+                Self::theme_cell(holder),
                 self.tab_bar_scrollbar_hide_delay,
                 self.tab_bar_show_scrollbar,
             )
@@ -345,7 +365,7 @@ pub struct DockBuilder<Message> {
     content: Option<Rc<dyn Fn(ContentKey) -> Element<'static, Message, Theme, iced::Renderer>>>,
     on_event: Option<Rc<dyn Fn(DockEvent) -> Message>>,
     shared_state: Option<Rc<RefCell<DockWidgetState>>>,
-    style: Option<Rc<dyn Fn(&Theme) -> DockStyle>>,
+    class: Option<Rc<StyleFn<'static, Theme>>>,
     min_pane_width: Option<f32>,
     min_pane_height: Option<f32>,
     tab_bar_scrollbar_hide_delay: Option<iced::time::Duration>,
@@ -358,7 +378,7 @@ impl<Message> Default for DockBuilder<Message> {
             content: None,
             on_event: None,
             shared_state: None,
-            style: None,
+            class: None,
             min_pane_width: None,
             min_pane_height: None,
             tab_bar_scrollbar_hide_delay: None,
@@ -391,14 +411,20 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
     }
 
     pub fn style(mut self, style: impl Fn(&Theme) -> DockStyle + 'static) -> Self {
-        self.style = Some(Rc::new(style));
+        self.class = Some(Rc::new(Box::new(style)));
+        self
+    }
+
+    /// Sets the style class of the [`Dock`].
+    pub fn class(mut self, class: StyleFn<'static, Theme>) -> Self {
+        self.class = Some(Rc::new(class));
         self
     }
 
     /// Minimum width of each pane in horizontal split groups.
     ///
     /// Overrides [`SplitterStyle::min_pane_width`] on the resolved [`DockStyle`].
-    /// Default is `80.0` from [`DockStyle::modern_dark`].
+    /// Default is `80.0` from the active style class (palette default uses [`DockStyle::modern_dark`] metrics).
     pub fn min_pane_width(mut self, min_pane_width: f32) -> Self {
         self.min_pane_width = Some(min_pane_width.max(1.0));
         self
@@ -407,7 +433,7 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
     /// Minimum height of each pane in vertical split groups.
     ///
     /// Overrides [`SplitterStyle::min_pane_height`] on the resolved [`DockStyle`].
-    /// Default is `80.0` from [`DockStyle::modern_dark`].
+    /// Default is `80.0` from the active style class (palette default uses [`DockStyle::modern_dark`] metrics).
     pub fn min_pane_height(mut self, min_pane_height: f32) -> Self {
         self.min_pane_height = Some(min_pane_height.max(1.0));
         self
@@ -443,14 +469,14 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
             .unwrap_or_else(|| Rc::new(|_| panic!("dock().on_event(...) required")));
         let mut dock = Dock::new(content, on_event);
         dock.external_state = self.shared_state;
-        let base_style = self
-            .style
-            .unwrap_or_else(|| Rc::new(DockStyle::from_theme) as Rc<dyn Fn(&Theme) -> DockStyle>);
+        let base_class = self
+            .class
+            .unwrap_or_else(|| Rc::new(<Theme as Catalog>::default()));
         let min_pane_width = self.min_pane_width;
         let min_pane_height = self.min_pane_height;
         if min_pane_width.is_some() || min_pane_height.is_some() {
-            dock.style = Rc::new(move |theme| {
-                let mut style = base_style(theme);
+            dock.class = Rc::new(Box::new(move |theme| {
+                let mut style = base_class(theme);
                 if let Some(width) = min_pane_width {
                     style = style.with_min_pane_width(width);
                 }
@@ -458,9 +484,9 @@ impl<Message: Clone + 'static> DockBuilder<Message> {
                     style = style.with_min_pane_height(height);
                 }
                 style
-            });
+            }));
         } else {
-            dock.style = base_style;
+            dock.class = base_class;
         }
         if let Some(delay) = self.tab_bar_scrollbar_hide_delay {
             dock.tab_bar_scrollbar_hide_delay = delay;
@@ -564,7 +590,14 @@ where
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
-        let dock_style = (self.style)(theme);
+        let dock_state = tree
+            .state
+            .downcast_ref::<DockTreeHolder<Message>>()
+            .dock_state
+            .clone();
+        *dock_state.borrow_mut().resolved_theme.borrow_mut() = theme.clone();
+
+        let dock_style = Catalog::style(theme, &self.class);
         renderer.fill_quad(
             renderer::Quad {
                 bounds: layout.bounds(),
