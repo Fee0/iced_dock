@@ -223,7 +223,7 @@ impl Factory {
         let new_leaf_side = self.side_for_operation(op);
 
         if let Some(parent) = layout.get(split_target).and_then(|e| e.owner) {
-            if let Some(NodeKind::Proportional(ref pg)) = layout.kind(parent) {
+            if let Some(NodeKind::Proportional(pg)) = layout.kind(parent) {
                 if pg.axis == axis {
                     return self.insert_into_proportional(
                         layout,
@@ -468,7 +468,7 @@ impl Factory {
                 Some(NodeKind::Root(r)) => r.child.and_then(|child| {
                     layout
                         .get(child)
-                        .map(|e| matches!(e.kind, NodeKind::Pane(ref p) if p.tabs.is_empty()))
+                        .map(|e| matches!(&e.kind, NodeKind::Pane(p) if p.tabs.is_empty()))
                 }),
                 _ => None,
             };

@@ -87,6 +87,7 @@ where
         Rc::clone(&holder.borrow().resolved_theme)
     }
 
+    #[must_use]
     pub fn style(mut self, style: impl Fn(&Theme) -> DockStyle + 'static) -> Self
     where
         <Theme as Catalog>::Class<'static>: From<StyleFn<'static, Theme>>,
@@ -96,11 +97,13 @@ where
     }
 
     /// Sets the style class of the [`Dock`].
+    #[must_use]
     pub fn class(mut self, class: <Theme as Catalog>::Class<'static>) -> Self {
         self.class = Rc::new(class);
         self
     }
 
+    #[must_use]
     pub fn with_state(mut self, state: Rc<RefCell<DockWidgetState<Theme>>>) -> Self {
         self.external_state = Some(state);
         self
@@ -290,12 +293,15 @@ where
     }
 }
 
+type ContentFn<Message, Theme, Renderer> =
+    Rc<dyn Fn(ContentKey) -> PaneContent<'static, Message, Theme, Renderer>>;
+
 pub struct DockBuilder<Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
     Renderer: advanced::Renderer,
 {
-    content: Option<Rc<dyn Fn(ContentKey) -> PaneContent<'static, Message, Theme, Renderer>>>,
+    content: Option<ContentFn<Message, Theme, Renderer>>,
     on_event: Option<Rc<dyn Fn(DockEvent) -> Message>>,
     shared_state: Option<Rc<RefCell<DockWidgetState<Theme>>>>,
     class: Option<Rc<<Theme as Catalog>::Class<'static>>>,
@@ -346,6 +352,7 @@ where
     for<'b> <Theme as iced_text::Catalog>::Class<'b>:
         From<iced_text::StyleFn<'b, Theme>>,
 {
+    #[must_use]
     pub fn content(
         mut self,
         f: impl Fn(ContentKey) -> Element<'static, Message, Theme, Renderer> + 'static,
@@ -356,6 +363,7 @@ where
 
     /// Like [`content`](Self::content), but the closure returns [`PaneContent`]
     /// for per-pane style overrides.
+    #[must_use]
     pub fn content_styled(
         mut self,
         f: impl Fn(ContentKey) -> PaneContent<'static, Message, Theme, Renderer> + 'static,
@@ -368,16 +376,19 @@ where
     ///
     /// The widget applies layout mutations before this callback; do not call
     /// [`DockSession::dispatch`](crate::DockSession::dispatch) for widget-originated events.
+    #[must_use]
     pub fn on_event(mut self, f: impl Fn(DockEvent) -> Message + 'static) -> Self {
         self.on_event = Some(Rc::new(f));
         self
     }
 
+    #[must_use]
     pub fn state(mut self, state: Rc<RefCell<DockWidgetState<Theme>>>) -> Self {
         self.shared_state = Some(state);
         self
     }
 
+    #[must_use]
     pub fn style(mut self, style: impl Fn(&Theme) -> DockStyle + 'static) -> Self
     where
         <Theme as Catalog>::Class<'static>: From<StyleFn<'static, Theme>>,
@@ -387,6 +398,7 @@ where
     }
 
     /// Sets the style class of the [`Dock`].
+    #[must_use]
     pub fn class(mut self, class: <Theme as Catalog>::Class<'static>) -> Self {
         self.class = Some(Rc::new(class));
         self
@@ -449,11 +461,13 @@ where
         self
     }
 
+    /// # Panics
+    ///
+    /// Panics when [`on_event`](Self::on_event) was not set.
     #[must_use]
     pub fn build(self) -> Dock<Message, Theme, Renderer> {
-        let content = self.content.unwrap_or_else(|| {
+        let content: ContentFn<Message, Theme, Renderer> = self.content.unwrap_or_else(|| {
             Rc::new(|_| PaneContent::new(widget::text("No content")))
-                as Rc<dyn Fn(ContentKey) -> PaneContent<'static, Message, Theme, Renderer>>
         });
         let on_event = self
             .on_event

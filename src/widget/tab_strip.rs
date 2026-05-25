@@ -119,8 +119,8 @@ where
         hide_delay: Duration,
         show_scrollbar: bool,
     ) -> Self {
-        let layout_style = match *theme.borrow() {
-            Some(ref t) => {
+        let layout_style = match &*theme.borrow() {
+            Some(t) => {
                 let mut style = Catalog::style(t, &class);
                 style.sync_tab_appearance();
                 style
@@ -160,7 +160,7 @@ where
 
     fn layout_style_resolved(&self) -> DockStyle {
         match self.resolved_theme() {
-            Some(ref t) => self.layout_style(t),
+            Some(t) => self.layout_style(&t),
             None => {
                 let mut style = style::default(&IcedTheme::Dark);
                 style.sync_tab_appearance();
@@ -924,7 +924,7 @@ where
             let max_offset = max_scroll_offset(state.content_width, state.viewport_width);
 
             if state.built_theme != current_theme {
-                state.built_theme = current_theme.clone();
+                state.built_theme.clone_from(&current_theme);
                 row_refresh = Some((state.hovered_tab, visual_pressed_tab(state)));
             }
 
@@ -1176,7 +1176,7 @@ where
         };
 
         if let Some((hovered, pressed)) = row_refresh {
-            if let Some(ref t) = current_theme {
+            if let Some(t) = &current_theme {
                 self.refresh_tabs_row(tree, t, hovered, pressed);
             }
             tree.state

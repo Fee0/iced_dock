@@ -89,8 +89,8 @@ where
     }
 
     fn layout_style_resolved(&self) -> DockStyle {
-        match *self.theme.borrow() {
-            Some(ref t) => Catalog::style(t, &self.class),
+        match &*self.theme.borrow() {
+            Some(t) => Catalog::style(t, &self.class),
             None => style::default(&IcedTheme::Dark),
         }
     }

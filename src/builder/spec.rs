@@ -74,11 +74,13 @@ impl TabsNode {
         }
     }
 
+    #[must_use]
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self
     }
 
+    #[must_use]
     pub fn active(mut self, panel_id: impl Into<String>) -> Self {
         self.active = Some(panel_id.into());
         self
@@ -103,6 +105,7 @@ impl SplitNode {
         }
     }
 
+    #[must_use]
     pub fn weights(mut self, weights: impl IntoIterator<Item = f32>) -> Self {
         self.weights = Some(weights.into_iter().collect());
         self
@@ -111,6 +114,7 @@ impl SplitNode {
 
 impl LayoutTree {
     /// Set the active tab on a [`Tabs`] node.
+    #[must_use]
     pub fn active(mut self, panel_id: impl Into<String>) -> Self {
         if let Self::Tabs(ref mut node) = self {
             node.active = Some(panel_id.into());
@@ -119,6 +123,7 @@ impl LayoutTree {
     }
 
     /// Assign a stable name to a [`Tabs`] node for [`PaneTarget::Named`](crate::builder::PaneTarget).
+    #[must_use]
     pub fn named(mut self, name: impl Into<String>) -> Self {
         if let Self::Tabs(ref mut node) = self {
             node.name = Some(name.into());
@@ -127,6 +132,7 @@ impl LayoutTree {
     }
 
     /// Set split weights on a [`Split`] node.
+    #[must_use]
     pub fn weights(mut self, weights: impl IntoIterator<Item = f32>) -> Self {
         if let Self::Split(ref mut node) = self {
             node.weights = Some(weights.into_iter().collect());

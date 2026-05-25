@@ -205,6 +205,7 @@ where
     }
 
     /// Override the dock-level style for this pane.
+    #[must_use]
     pub fn style(mut self, style: impl Fn(&Theme) -> DockStyle + 'static) -> Self
     where
         <Theme as Catalog>::Class<'static>: From<StyleFn<'static, Theme>>,
@@ -214,6 +215,7 @@ where
     }
 
     /// Override the dock-level style class for this pane.
+    #[must_use]
     pub fn class(mut self, class: <Theme as Catalog>::Class<'static>) -> Self {
         self.style = Some(class);
         self
@@ -252,7 +254,7 @@ pub fn close_button_style<T>(
                 radius: close.border_radius.into(),
                 ..Border::default()
             },
-            shadow: Default::default(),
+            shadow: iced::Shadow::default(),
             snap: false,
         }
     }

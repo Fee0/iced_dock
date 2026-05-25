@@ -44,7 +44,7 @@ fn compile_tabs(
 ) -> Result<NodeId> {
     let pane_id = factory.create_pane(layout);
     if let Some(NodeKind::Pane(ref mut pane)) = layout.get_mut(pane_id).map(|e| &mut e.kind) {
-        pane.name = node.name.clone();
+        pane.name.clone_from(&node.name);
     }
     if let Some(name) = &node.name {
         index.panes.insert(name.clone(), pane_id);
@@ -52,7 +52,7 @@ fn compile_tabs(
 
     let mut panel_nodes = Vec::with_capacity(node.panels.len());
     for def in &node.panels {
-        let panel_id = insert_panel(factory, layout, index, def)?;
+        let panel_id = insert_panel(factory, layout, index, def);
         factory.add_panel_to_pane(layout, pane_id, panel_id)?;
         panel_nodes.push((def.id.clone(), panel_id));
     }
@@ -88,7 +88,7 @@ fn insert_panel(
     layout: &mut Layout,
     index: &mut DockIndex,
     def: &PanelDef,
-) -> Result<NodeId> {
+) -> NodeId {
     let panel_id = factory.insert_panel(layout, def.id.clone(), def.title.clone(), def.content);
     if let Some(NodeKind::Panel(ref mut panel)) = layout.get_mut(panel_id).map(|e| &mut e.kind) {
         panel.can_close = def.can_close;
@@ -96,7 +96,7 @@ fn insert_panel(
         panel.can_drop = def.can_drop;
     }
     index.panels.insert(def.id.clone(), panel_id);
-    Ok(panel_id)
+    panel_id
 }
 
 /// Insert a panel using widget state (avoids overlapping field borrows).
@@ -108,7 +108,7 @@ pub(crate) fn insert_panel_into_state<Theme>(
     if state.index.panels.contains_key(&def.id) {
         return Err(Error::DuplicatePanelId(def.id.clone()));
     }
-    insert_panel(factory, &mut state.layout, &mut state.index, def)
+    Ok(insert_panel(factory, &mut state.layout, &mut state.index, def))
 }
 
 /// Resolve the first pane in preorder tree walk.
