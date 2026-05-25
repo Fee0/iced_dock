@@ -77,7 +77,6 @@ impl<Theme> DockSession<Theme> {
     }
 
     /// Apply a [`DockAction`] programmatically (not for widget-originated input).
-    #[must_use]
     pub fn dispatch(&self, action: DockAction) -> bool {
         dispatch_action(&mut self.inner.borrow_mut(), action)
     }
@@ -171,7 +170,6 @@ impl<Theme> DockSession<Theme> {
     /// Requires at least one draw pass so [`DockWidgetState::pane_bounds`] is populated
     /// (run the dock widget once or wait for the first frame).
     /// Returns `true` if focus moved to a neighbor.
-    #[must_use]
     pub fn focus_adjacent(&self, direction: Direction) -> bool {
         let Some(pane) = self.focused_pane() else {
             return false;

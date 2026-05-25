@@ -3,7 +3,7 @@ use iced::advanced::renderer;
 use iced::advanced::widget::{Operation, Tree};
 use iced::advanced::{Clipboard, Shell};
 use iced::mouse::{self, Cursor};
-use iced::{Element, Event, Rectangle, Size};
+use iced::{Element, Event, Rectangle};
 
 pub fn child_layout<Message, Theme, Renderer>(
     child: &mut Element<'_, Message, Theme, Renderer>,
