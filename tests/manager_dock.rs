@@ -1,5 +1,5 @@
-use iced_dock::unstable::{DockManager, DragSession, DropZone, Factory, TabBarTarget};
 use iced_dock::model::{Axis, ContentKey, DockOperation, Layout, NodeKind};
+use iced_dock::unstable::{DockManager, DragSession, DropZone, Factory, TabBarTarget};
 
 #[test]
 fn fill_accepts_panel_into_other_pane() {

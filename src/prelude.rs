@@ -5,8 +5,8 @@
 //! ```
 
 pub use crate::builder::{
-    horizontal, panel, single, tabs, vertical, DockSession, InitialFocus, LayoutTree,
-    PanelCycle, PanelDef, PaneTarget,
+    horizontal, panel, single, tabs, vertical, DockSession, InitialFocus, LayoutTree, PaneTarget,
+    PanelCycle, PanelDef,
 };
 pub use crate::model::ContentKey;
 pub use crate::spatial::Direction;

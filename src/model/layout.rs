@@ -26,6 +26,7 @@ pub enum DockOperation {
 }
 
 impl DockOperation {
+    #[must_use]
     pub fn is_edge(self) -> bool {
         !matches!(self, Self::Fill)
     }
@@ -40,6 +41,7 @@ pub enum Axis {
 }
 
 impl Axis {
+    #[must_use]
     pub fn perpendicular(self) -> Self {
         match self {
             Self::Horizontal => Self::Vertical,
@@ -47,6 +49,7 @@ impl Axis {
         }
     }
 
+    #[must_use]
     pub fn for_operation(op: DockOperation) -> Option<Self> {
         match op {
             DockOperation::Left | DockOperation::Right => Some(Self::Horizontal),
@@ -88,6 +91,7 @@ pub struct Layout {
 }
 
 impl Layout {
+    #[must_use]
     pub fn new() -> Self {
         let mut nodes = SlotMap::with_key();
         let root = nodes.insert(NodeEntry {
@@ -97,6 +101,7 @@ impl Layout {
         Self { nodes, root }
     }
 
+    #[must_use]
     pub fn get(&self, id: NodeId) -> Option<&NodeEntry> {
         self.nodes.get(id)
     }
@@ -105,6 +110,7 @@ impl Layout {
         self.nodes.get_mut(id)
     }
 
+    #[must_use]
     pub fn kind(&self, id: NodeId) -> Option<&NodeKind> {
         self.nodes.get(id).map(|e| &e.kind)
     }
@@ -115,10 +121,12 @@ impl Layout {
         }
     }
 
+    #[must_use]
     pub fn is_leaf(&self, id: NodeId) -> bool {
         matches!(self.kind(id), Some(NodeKind::Panel(_)))
     }
 
+    #[must_use]
     pub fn root_child(&self) -> Option<NodeId> {
         match self.kind(self.root)? {
             NodeKind::Root(r) => r.child,

@@ -13,8 +13,8 @@ use iced::{Element, Event, Length, Rectangle, Size};
 use crate::manager::{DockManager, TabBarTarget};
 use crate::model::NodeId;
 use crate::style::{Catalog, DockStyle};
-use crate::widget::compose;
 use crate::widget::action::{DockAction, TabAction};
+use crate::widget::compose;
 use crate::widget::state::DockWidgetState;
 use crate::widget::tab_strip::{self, TabStrip};
 
@@ -160,7 +160,7 @@ where
     }
 }
 
-impl<'a, Message, Theme, Renderer> TabDock<'a, Message, Theme, Renderer>
+impl<Message, Theme, Renderer> TabDock<'_, Message, Theme, Renderer>
 where
     Theme: Catalog + Clone + 'static,
     Renderer: iced::advanced::Renderer,
@@ -192,18 +192,16 @@ where
             .push((self.pane_id, bounds));
     }
 
-    fn register_tab_bar_target(
-        &self,
-        bounds: Rectangle,
-        insert_x: Vec<f32>,
-        scroll_offset: f32,
-    ) {
-        self.dock_state.borrow_mut().tab_bar_targets.push(TabBarTarget {
-            pane: self.pane_id,
-            bounds,
-            insert_x,
-            scroll_offset,
-        });
+    fn register_tab_bar_target(&self, bounds: Rectangle, insert_x: Vec<f32>, scroll_offset: f32) {
+        self.dock_state
+            .borrow_mut()
+            .tab_bar_targets
+            .push(TabBarTarget {
+                pane: self.pane_id,
+                bounds,
+                insert_x,
+                scroll_offset,
+            });
     }
 
     fn register_pane_bounds(&self, bounds: Rectangle) {
@@ -214,8 +212,8 @@ where
     }
 }
 
-impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
-    for TabDock<'a, Message, Theme, Renderer>
+impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
+    for TabDock<'_, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
     Theme: Catalog
@@ -382,15 +380,12 @@ where
                                 )
                             })
                             .or_else(|| {
-                                cursor
-                                    .position_over(bounds)
-                                    .and_then(|point| {
-                                        DockManager::hit_test_drop_zone(
-                                            bounds,
-                                            point,
-                                            self.drop_edge_fraction,
-                                        )
-                                    })
+                                let point = cursor.position_over(bounds)?;
+                                DockManager::hit_test_drop_zone(
+                                    bounds,
+                                    point,
+                                    self.drop_edge_fraction,
+                                )
                             })
                     })
                     .flatten();
@@ -423,9 +418,11 @@ where
     ) {
         let dragging = self.is_dragging(tree);
 
-        let is_picked = self.dock_state.borrow().drag.is_some_and(|session| {
-            session.source_pane == self.pane_id
-        });
+        let is_picked = self
+            .dock_state
+            .borrow()
+            .drag
+            .is_some_and(|session| session.source_pane == self.pane_id);
 
         if let Some(content_layout) = layout.children().nth(1) {
             self.register_drop_target(content_layout.bounds());
@@ -464,15 +461,10 @@ where
             );
 
             let marker_index = self.dock_state.borrow().drag.and_then(|session| {
-                session.tab_insert.and_then(|(pane, index)| {
-                    if pane == self.pane_id
-                        && !tab_insert_is_noop(session, self.pane_id, index, &self.tabs)
-                    {
-                        Some(index)
-                    } else {
-                        None
-                    }
-                })
+                let (pane, index) = session.tab_insert?;
+                (pane == self.pane_id
+                    && !tab_insert_is_noop(session, self.pane_id, index, &self.tabs))
+                .then_some(index)
             });
             if tab_strip::set_insert_marker_index::<Theme>(&mut tree.children[0], marker_index) {
                 shell.request_redraw();

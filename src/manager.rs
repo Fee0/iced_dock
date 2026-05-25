@@ -17,6 +17,7 @@ pub enum DropZone {
 }
 
 impl DropZone {
+    #[must_use]
     pub fn to_operation(self) -> DockOperation {
         match self {
             Self::Center => DockOperation::Fill,
@@ -51,6 +52,7 @@ pub struct DragSession {
 }
 
 impl DragSession {
+    #[must_use]
     pub fn new(source_pane: NodeId, source_panel: NodeId, drop_edge_fraction: f32) -> Self {
         Self {
             source_pane,
@@ -75,6 +77,7 @@ impl DockManager {
         }
     }
 
+    #[must_use]
     pub fn validate(
         &self,
         layout: &Layout,
@@ -101,6 +104,7 @@ impl DockManager {
         }
     }
 
+    #[must_use]
     pub fn is_target_visible(&self, layout: &Layout, target: NodeId) -> bool {
         matches!(
             layout.kind(target),
@@ -140,6 +144,7 @@ impl DockManager {
     /// Map pointer position inside `bounds` to a drop zone.
     ///
     /// `edge_fraction` is clamped to `0.0..=0.5` (same as [`crate::DropOverlayStyle::edge_fraction`]).
+    #[must_use]
     pub fn hit_test_drop_zone(
         bounds: Rectangle,
         point: iced::Point,
@@ -170,6 +175,7 @@ impl DockManager {
     }
 
     /// Find the pane under `point` and the drop zone within it.
+    #[must_use]
     pub fn hit_test_pane(
         point: iced::Point,
         targets: &[(NodeId, Rectangle)],
@@ -179,14 +185,13 @@ impl DockManager {
         for &(id, bounds) in targets {
             if bounds.contains(point) {
                 let area = bounds.width * bounds.height;
-                if best.map(|(_, _, a)| area < a).unwrap_or(true) {
+                if best.is_none_or(|(_, _, a)| area < a) {
                     best = Some((id, bounds, area));
                 }
             }
         }
-        best.and_then(|(id, bounds, _)| {
-            Self::hit_test_drop_zone(bounds, point, edge_fraction).map(|zone| (id, zone))
-        })
+        let (id, bounds, _) = best?;
+        Self::hit_test_drop_zone(bounds, point, edge_fraction).map(|zone| (id, zone))
     }
 
     fn insertion_index_at(insert_x: &[f32], x: f32) -> usize {
@@ -197,7 +202,7 @@ impl DockManager {
             return 0;
         }
         for i in 0..insert_x.len() - 1 {
-            let threshold = (insert_x[i] + insert_x[i + 1]) / 2.0;
+            let threshold = f32::midpoint(insert_x[i], insert_x[i + 1]);
             if x < threshold {
                 return i;
             }
@@ -206,6 +211,7 @@ impl DockManager {
     }
 
     /// Find the tab bar under `point` and the insertion index within it.
+    #[must_use]
     pub fn hit_test_tab_insert(
         point: iced::Point,
         targets: &[TabBarTarget],
@@ -216,7 +222,7 @@ impl DockManager {
                 continue;
             }
             let area = target.bounds.width * target.bounds.height;
-            if best.map(|(_, a, _)| area < a).unwrap_or(true) {
+            if best.is_none_or(|(_, a, _)| area < a) {
                 let layout_x = point.x + target.scroll_offset;
                 let index = Self::insertion_index_at(&target.insert_x, layout_x);
                 best = Some((target.pane, area, index));

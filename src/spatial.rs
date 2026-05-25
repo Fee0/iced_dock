@@ -25,6 +25,7 @@ fn overlaps_perpendicular(a: iced::Rectangle, b: iced::Rectangle, horizontal: bo
 ///
 /// `pane_bounds` maps each visible pane id to its absolute screen bounds (collected each
 /// draw pass). Unlike a single-point probe, this tolerates splitter gaps between panes.
+#[must_use]
 pub fn adjacent_pane(
     pane: NodeId,
     direction: Direction,
@@ -51,7 +52,7 @@ pub fn adjacent_pane(
             continue;
         }
 
-        if best.map(|(_, best_dist)| distance < best_dist).unwrap_or(true) {
+        if best.is_none_or(|(_, best_dist)| distance < best_dist) {
             best = Some((id, distance));
         }
     }
@@ -60,6 +61,9 @@ pub fn adjacent_pane(
 }
 
 /// Build a map from the transient `(NodeId, Rectangle)` list collected during draw.
-pub fn pane_bounds_map(pane_bounds: &[(NodeId, iced::Rectangle)]) -> HashMap<NodeId, iced::Rectangle> {
+#[must_use]
+pub fn pane_bounds_map(
+    pane_bounds: &[(NodeId, iced::Rectangle)],
+) -> HashMap<NodeId, iced::Rectangle> {
     pane_bounds.iter().copied().collect()
 }

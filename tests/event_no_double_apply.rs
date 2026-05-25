@@ -1,9 +1,7 @@
 //! Regression: a single close/select must not apply layout mutations twice.
 
 use iced_dock::unstable::{build_tree, dispatch_action};
-use iced_dock::{
-    panel, tabs, ContentKey, DockAction, DockSession, DockWidgetState, TabAction,
-};
+use iced_dock::{panel, tabs, ContentKey, DockAction, DockSession, DockWidgetState, TabAction};
 
 #[test]
 fn dispatch_close_once_removes_panel() {
@@ -24,7 +22,7 @@ fn dispatch_close_once_removes_panel() {
 
     let second = dispatch_action(
         &mut state,
-        DockAction::Tab(TabAction::Close { panel: panel_b })
+        DockAction::Tab(TabAction::Close { panel: panel_b }),
     );
     assert!(!second);
 }

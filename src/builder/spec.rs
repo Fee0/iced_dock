@@ -34,16 +34,19 @@ impl PanelDef {
         }
     }
 
+    #[must_use]
     pub fn can_close(mut self, value: bool) -> Self {
         self.can_close = value;
         self
     }
 
+    #[must_use]
     pub fn can_drag(mut self, value: bool) -> Self {
         self.can_drag = value;
         self
     }
 
+    #[must_use]
     pub fn can_drop(mut self, value: bool) -> Self {
         self.can_drop = value;
         self
@@ -150,6 +153,7 @@ pub fn vertical(children: impl IntoIterator<Item = LayoutTree>) -> LayoutTree {
 }
 
 /// Single panel occupying the full dock area.
+#[must_use]
 pub fn single(def: PanelDef) -> LayoutTree {
     LayoutTree::Tabs(TabsNode::new([def]))
 }

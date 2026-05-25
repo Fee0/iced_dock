@@ -68,16 +68,6 @@ where
         .mouse_interaction(tree, layout, cursor, viewport, renderer)
 }
 
-#[allow(dead_code)]
-pub fn child_size<Message, Theme, Renderer>(
-    child: &Element<'_, Message, Theme, Renderer>,
-) -> Size<iced::Length>
-where
-    Renderer: iced::advanced::Renderer,
-{
-    child.as_widget().size()
-}
-
 pub fn child_operate<Message, Theme, Renderer>(
     child: &mut Element<'_, Message, Theme, Renderer>,
     tree: &mut Tree,

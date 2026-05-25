@@ -13,6 +13,7 @@ impl DockStyle {
     /// Layout metrics match [`Self::modern_dark`]; colors come from
     /// [`Theme::extended_palette`]. This is the default for [`super::Catalog`] and
     /// [`crate::dock`] when no `.style(...)` is set.
+    #[must_use]
     pub fn from_palette(theme: &Theme) -> Self {
         default(theme)
     }
@@ -21,6 +22,7 @@ impl DockStyle {
     #[deprecated(
         note = "use style::default(theme) for palette styling, or preset::modern_* for IDE chrome"
     )]
+    #[must_use]
     pub fn from_theme(theme: &Theme) -> Self {
         default(theme)
     }
@@ -29,6 +31,7 @@ impl DockStyle {
     ///
     /// Not applied automatically — use [`preset::modern_dark`] with
     /// [`crate::dock::Dock::style`] to opt in.
+    #[must_use]
     pub fn modern_dark() -> Self {
         let canvas = Color::from_rgb(0.094, 0.094, 0.106);
         let tab_bar_bg = Color::from_rgb(0.118, 0.118, 0.133);
@@ -116,6 +119,7 @@ impl DockStyle {
     ///
     /// Not applied automatically — use [`preset::modern_light`] with
     /// [`crate::dock::Dock::style`] to opt in.
+    #[must_use]
     pub fn modern_light() -> Self {
         let canvas = Color::from_rgb(0.92, 0.92, 0.94);
         let tab_bar_bg = Color::from_rgb(0.88, 0.88, 0.9);
@@ -201,6 +205,7 @@ impl DockStyle {
 }
 
 /// The default [`DockStyle`] for a [`Theme`], using [`Theme::extended_palette`].
+#[must_use]
 pub fn default(theme: &Theme) -> DockStyle {
     let palette = theme.extended_palette();
     let canvas = palette.background.base.color;
@@ -274,11 +279,13 @@ pub mod preset {
     use iced::Theme;
 
     /// VS Code–inspired dark chrome regardless of [`Theme`].
+    #[must_use]
     pub fn modern_dark() -> StyleFn<'static, Theme> {
         Box::new(|_| DockStyle::modern_dark())
     }
 
     /// VS Code–inspired light chrome regardless of [`Theme`].
+    #[must_use]
     pub fn modern_light() -> StyleFn<'static, Theme> {
         Box::new(|_| DockStyle::modern_light())
     }

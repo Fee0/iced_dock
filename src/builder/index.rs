@@ -11,9 +11,10 @@ pub struct DockIndex {
 }
 
 impl DockIndex {
+    #[must_use]
     pub fn rebuild_from_layout(layout: &Layout) -> Self {
         let mut index = Self::default();
-        for (id, entry) in layout.nodes.iter() {
+        for (id, entry) in &layout.nodes {
             match &entry.kind {
                 NodeKind::Panel(panel) => {
                     index.panels.insert(panel.id.clone(), id);
@@ -33,10 +34,12 @@ impl DockIndex {
         self.panels.keys()
     }
 
+    #[must_use]
     pub fn pane_node(&self, name: &str) -> Option<NodeId> {
         self.panes.get(name).copied()
     }
 
+    #[must_use]
     pub fn panel_node(&self, id: &str) -> Option<NodeId> {
         self.panels.get(id).copied()
     }

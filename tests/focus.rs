@@ -5,7 +5,7 @@ use iced::Theme;
 use iced_dock::unstable::{build_tree, dispatch_action, owning_pane};
 use iced_dock::{
     adjacent_pane, horizontal, pane_bounds_map, panel, tabs, vertical, ContentKey, Direction,
-    DockAction, DockSession, DockWidgetState, InitialFocus, PanelCycle, PaneTarget, TabAction,
+    DockAction, DockSession, DockWidgetState, InitialFocus, PaneTarget, PanelCycle, TabAction,
 };
 
 fn nested_layout() -> iced_dock::LayoutTree {
@@ -281,13 +281,11 @@ fn active_panel_in_pane_non_focused() {
 
 #[test]
 fn pane_focused_with_panel_activates_tab() {
-    let built = build_tree(&horizontal([
-        tabs([
-            panel("a", "A", ContentKey(0)),
-            panel("b", "B", ContentKey(1)),
-        ])
-        .active("a"),
-    ]))
+    let built = build_tree(&horizontal([tabs([
+        panel("a", "A", ContentKey(0)),
+        panel("b", "B", ContentKey(1)),
+    ])
+    .active("a")]))
     .expect("built");
     let pane = iced_dock::unstable::first_pane(&built.layout).expect("pane");
     let panel_b = built.index.panel_node("b").expect("b");

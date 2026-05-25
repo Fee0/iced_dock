@@ -38,7 +38,11 @@ pub enum DockEvent {
 }
 
 /// Map an applied [`DockAction`] to a public [`DockEvent`], if any.
-pub fn action_to_event(layout: &Layout, index: &DockIndex, action: &DockAction) -> Option<DockEvent> {
+pub fn action_to_event(
+    layout: &Layout,
+    index: &DockIndex,
+    action: &DockAction,
+) -> Option<DockEvent> {
     match action {
         DockAction::Tab(tab) => tab_action_to_event(layout, index, tab),
         DockAction::PaneFocused { pane, panel } => Some(DockEvent::PaneFocused {
@@ -56,7 +60,11 @@ pub fn action_to_event(layout: &Layout, index: &DockIndex, action: &DockAction) 
     }
 }
 
-fn tab_action_to_event(layout: &Layout, index: &DockIndex, action: &TabAction) -> Option<DockEvent> {
+fn tab_action_to_event(
+    layout: &Layout,
+    index: &DockIndex,
+    action: &TabAction,
+) -> Option<DockEvent> {
     match action {
         TabAction::Select { pane, panel } => Some(DockEvent::TabSelected {
             pane: pane_name(layout, *pane),
@@ -80,10 +88,11 @@ pub(crate) fn panel_id(layout: &Layout, index: &DockIndex, panel: NodeId) -> Opt
         .iter()
         .find_map(|(id, node)| (*node == panel).then(|| id.clone()))
         .or_else(|| {
-            layout.get(panel).and_then(|e| match &e.kind {
+            let e = layout.get(panel)?;
+            match &e.kind {
                 NodeKind::Panel(p) => Some(p.id.clone()),
                 _ => None,
-            })
+            }
         })
 }
 

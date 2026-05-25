@@ -1,5 +1,5 @@
-use iced_dock::unstable::Factory;
 use iced_dock::model::{Axis, ContentKey, DockOperation, Layout, NodeId, NodeKind};
+use iced_dock::unstable::Factory;
 
 #[test]
 fn split_merges_into_same_axis_parent() {
@@ -107,7 +107,9 @@ fn adjust_splitter_middle_only_moves_adjacent_pair() {
     let mut layout = Layout::new();
     let group = three_pane_group(&factory, &mut layout);
 
-    factory.adjust_splitter(&mut layout, group, 1, 0.25).unwrap();
+    factory
+        .adjust_splitter(&mut layout, group, 1, 0.25)
+        .unwrap();
 
     let NodeKind::Proportional(pg) = layout.kind(group).unwrap() else {
         panic!("expected proportional group");
@@ -124,9 +126,7 @@ fn adjust_splitter_four_pane_keeps_outer_panes_fixed() {
     let mut layout = Layout::new();
     let group = four_pane_group(&factory, &mut layout);
 
-    factory
-        .adjust_splitter(&mut layout, group, 1, 0.5)
-        .unwrap();
+    factory.adjust_splitter(&mut layout, group, 1, 0.5).unwrap();
 
     let NodeKind::Proportional(pg) = layout.kind(group).unwrap() else {
         panic!("expected proportional group");

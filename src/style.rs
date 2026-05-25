@@ -175,6 +175,7 @@ impl Catalog for Theme {
 }
 
 /// Wrap a fixed [`DockStyle`] for use with [`crate::dock`]'s `.style(...)` builder.
+#[must_use]
 pub fn constant<T>(style: DockStyle) -> StyleFn<'static, T> {
     Box::new(move |_| style.clone())
 }
@@ -245,11 +246,7 @@ pub fn close_button_style<T>(
             _ => (close.background, close.text_color),
         };
         button::Style {
-            background: if background.a > 0.0 {
-                Some(Background::Color(background))
-            } else {
-                None
-            },
+            background: (background.a > 0.0).then_some(Background::Color(background)),
             text_color,
             border: Border {
                 radius: close.border_radius.into(),

@@ -11,6 +11,7 @@ pub struct ProportionalGroup {
 }
 
 impl ProportionalGroup {
+    #[must_use]
     pub fn new(axis: Axis, children: Vec<NodeId>) -> Self {
         let n = children.len();
         let proportions = if n == 0 { Vec::new() } else { vec![1.0; n] };

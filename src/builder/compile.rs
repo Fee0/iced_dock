@@ -112,6 +112,7 @@ pub(crate) fn insert_panel_into_state<Theme>(
 }
 
 /// Resolve the first pane in preorder tree walk.
+#[must_use]
 pub fn first_pane(layout: &Layout) -> Option<NodeId> {
     let root = layout.root_child()?;
     first_pane_walk(layout, root)
@@ -133,22 +134,22 @@ fn first_pane_walk(layout: &Layout, node: NodeId) -> Option<NodeId> {
 }
 
 /// Find the pane that owns a panel node.
+#[must_use]
 pub fn owning_pane(layout: &Layout, panel: NodeId) -> Option<NodeId> {
-    layout.get(panel).and_then(|e| e.owner)
+    let e = layout.get(panel)?;
+    e.owner
 }
 
 /// Pane that owns a panel identified by string id.
+#[must_use]
 pub fn pane_for_panel(layout: &Layout, index: &DockIndex, panel_id: &str) -> Option<NodeId> {
     let panel = index.panel_node(panel_id)?;
     owning_pane(layout, panel)
 }
 
 /// Active panel id string in a specific pane.
-pub fn active_panel_in_pane(
-    layout: &Layout,
-    index: &DockIndex,
-    pane: NodeId,
-) -> Option<String> {
+#[must_use]
+pub fn active_panel_in_pane(layout: &Layout, index: &DockIndex, pane: NodeId) -> Option<String> {
     let NodeKind::Pane(pane_state) = layout.kind(pane)? else {
         return None;
     };

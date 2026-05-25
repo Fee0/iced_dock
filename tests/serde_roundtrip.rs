@@ -1,8 +1,6 @@
-use iced_dock::unstable::{build_tree, BuiltLayout};
-use iced_dock::{
-    horizontal, panel, tabs, vertical, ContentKey, Layout, LayoutTree,
-};
 use iced_dock::model::NodeKind;
+use iced_dock::unstable::{build_tree, BuiltLayout};
+use iced_dock::{horizontal, panel, tabs, vertical, ContentKey, Layout, LayoutTree};
 
 fn nested_layout() -> LayoutTree {
     horizontal([

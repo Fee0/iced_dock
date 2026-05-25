@@ -11,8 +11,8 @@ use iced::{Border, Element, Event, Length, Rectangle, Size};
 
 use crate::model::{Axis, NodeId};
 use crate::style::{Catalog, DockStyle};
-use crate::widget::compose;
 use crate::widget::action::DockAction;
+use crate::widget::compose;
 
 #[derive(Default)]
 struct SplitWidgetState {
@@ -129,10 +129,7 @@ fn shrink_to_fit(sizes: &mut [f32], min_pane_size: f32, available: f32) {
         if excess <= 1e-4 {
             return;
         }
-        let flexible_sum: f32 = sizes
-            .iter()
-            .map(|&s| (s - min_pane_size).max(0.0))
-            .sum();
+        let flexible_sum: f32 = sizes.iter().map(|&s| (s - min_pane_size).max(0.0)).sum();
         if flexible_sum <= 1e-4 {
             return;
         }
@@ -191,8 +188,8 @@ fn compute_pane_sizes(
     sizes
 }
 
-impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
-    for SplitContainer<'a, Message, Theme, Renderer>
+impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
+    for SplitContainer<'_, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
     Theme: Catalog + Clone + 'static,
@@ -262,7 +259,7 @@ where
         let mut children_nodes = Vec::with_capacity(count);
         state.splitter_bounds.clear();
 
-        let mut offset = 0.0f32;
+        let mut offset = 0.0_f32;
         for (i, child) in self.children.iter_mut().enumerate() {
             let pane_main = pane_sizes.get(i).copied().unwrap_or(0.0);
             let child_limits = if is_horizontal {
@@ -348,7 +345,7 @@ where
 
         for (idx, &bounds) in state.splitter_bounds.iter().enumerate() {
             let abs = bounds + offset;
-            let hovered = cursor_pos.map(|p| abs.contains(p)).unwrap_or(false);
+            let hovered = cursor_pos.is_some_and(|p| abs.contains(p));
             let dragging_this = state.drag_splitter == Some(idx);
             let color = if dragging_this {
                 split.drag_color
@@ -461,8 +458,7 @@ where
                             cursor_pos.y
                         };
                         let delta = cursor_main - state.drag_start_cursor;
-                        let pair_total =
-                            state.drag_start_left_size + state.drag_start_right_size;
+                        let pair_total = state.drag_start_left_size + state.drag_start_right_size;
                         let min_left = min_pane_main.min(pair_total);
                         let max_left = (pair_total - min_pane_main).max(min_left);
                         let new_left =
@@ -491,13 +487,14 @@ where
                 }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
-                if state.drag_splitter.is_some() => {
-                    state.drag_splitter = None;
-                    state.hovered_splitter = cursor
-                        .position()
-                        .and_then(|p| splitter_under_cursor(p, &state.splitter_bounds, offset));
-                    shell.request_redraw();
-                }
+                if state.drag_splitter.is_some() =>
+            {
+                state.drag_splitter = None;
+                state.hovered_splitter = cursor
+                    .position()
+                    .and_then(|p| splitter_under_cursor(p, &state.splitter_bounds, offset));
+                shell.request_redraw();
+            }
             _ => {}
         }
     }

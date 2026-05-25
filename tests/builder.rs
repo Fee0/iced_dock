@@ -1,7 +1,6 @@
 use iced_dock::unstable::build_tree;
 use iced_dock::{
-    horizontal, panel, tabs, vertical, ContentKey, DockSession, Error, LayoutTree,
-    PaneTarget,
+    horizontal, panel, tabs, vertical, ContentKey, DockSession, Error, LayoutTree, PaneTarget,
 };
 
 fn nested_layout() -> LayoutTree {
@@ -34,7 +33,9 @@ fn nested_layout() -> LayoutTree {
 fn nested_layout_produces_horizontal_root() {
     let built = build_tree(&nested_layout()).expect("nested layout should compile");
     let root = built.layout.root_child().expect("root child");
-    let iced_dock::model::NodeKind::Proportional(pg) = built.layout.kind(root).expect("proportional root") else {
+    let iced_dock::model::NodeKind::Proportional(pg) =
+        built.layout.kind(root).expect("proportional root")
+    else {
         panic!("expected proportional root");
     };
     assert_eq!(pg.children.len(), 2);
@@ -81,7 +82,8 @@ fn simple_split_matches_manual_structure() {
 
 #[test]
 fn session_open_focus_close_by_id() {
-    let session: DockSession = DockSession::from_tree(tabs([panel("a", "A", ContentKey(0))])).expect("session");
+    let session: DockSession =
+        DockSession::from_tree(tabs([panel("a", "A", ContentKey(0))])).expect("session");
     assert_eq!(session.active_panel().as_deref(), Some("a"));
 
     session
@@ -99,7 +101,8 @@ fn session_open_focus_close_by_id() {
 
 #[test]
 fn session_from_tree_sets_layout_dirty() {
-    let session: DockSession = DockSession::from_tree(tabs([panel("a", "A", ContentKey(0))])).expect("session");
+    let session: DockSession =
+        DockSession::from_tree(tabs([panel("a", "A", ContentKey(0))])).expect("session");
     assert!(session.state().borrow().layout_dirty);
     assert!(session.state().borrow().layout.root_child().is_some());
 }
@@ -109,15 +112,22 @@ fn named_pane_target_opens_panel() {
     let tree = tabs([panel("a", "A", ContentKey(0))]).named("editor");
     let session: DockSession = DockSession::from_tree(tree).expect("session");
     session
-        .open_panel(PaneTarget::Named("editor".into()), panel("b", "B", ContentKey(1)))
+        .open_panel(
+            PaneTarget::Named("editor".into()),
+            panel("b", "B", ContentKey(1)),
+        )
         .expect("open in named pane");
     assert!(session.panel_ids().contains(&"b".into()));
 }
 
 #[test]
 fn widget_state_from_tree() {
-    let state = iced_dock::DockWidgetState::<iced::Theme>::from_tree(tabs([panel("a", "A", ContentKey(0))]))
-        .expect("state");
+    let state = iced_dock::DockWidgetState::<iced::Theme>::from_tree(tabs([panel(
+        "a",
+        "A",
+        ContentKey(0),
+    )]))
+    .expect("state");
     assert!(state.layout_dirty);
     assert!(state.layout.root_child().is_some());
 }

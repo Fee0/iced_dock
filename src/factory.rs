@@ -157,16 +157,17 @@ impl Factory {
         to_index: usize,
     ) -> Result {
         let from = match layout.kind(pane) {
-            Some(NodeKind::Pane(p)) => p
-                .tabs
-                .iter()
-                .position(|&id| id == panel)
-                .ok_or(Error::InvalidTabIndex {
-                    pane,
-                    from: 0,
-                    to: to_index,
-                    len: p.tabs.len(),
-                })?,
+            Some(NodeKind::Pane(p)) => {
+                p.tabs
+                    .iter()
+                    .position(|&id| id == panel)
+                    .ok_or(Error::InvalidTabIndex {
+                        pane,
+                        from: 0,
+                        to: to_index,
+                        len: p.tabs.len(),
+                    })?
+            }
             _ => return Err(Error::NotPane { node: pane }),
         };
 
@@ -336,9 +337,7 @@ impl Factory {
 
     fn resolve_split_target(&self, layout: &Layout, target: NodeId) -> Result<NodeId> {
         match layout.kind(target) {
-            Some(NodeKind::Pane(_))
-            | Some(NodeKind::Proportional(_))
-            | Some(NodeKind::Panel(_)) => Ok(target),
+            Some(NodeKind::Pane(_) | NodeKind::Proportional(_) | NodeKind::Panel(_)) => Ok(target),
             _ => Err(Error::InvalidSplitTarget { node: target }),
         }
     }

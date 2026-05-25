@@ -62,6 +62,7 @@ impl<Theme> DockSession<Theme> {
     }
 
     /// Build a session from a compiled layout and index.
+    #[must_use]
     pub fn from_built(built: BuiltLayout, focused_pane: Option<NodeId>) -> Self {
         let state = DockWidgetState::from_built(built, focused_pane);
         Self {
@@ -70,11 +71,13 @@ impl<Theme> DockSession<Theme> {
     }
 
     /// Shared widget state for the iced dock builder.
+    #[must_use]
     pub fn state(&self) -> Rc<RefCell<DockWidgetState<Theme>>> {
         self.inner.clone()
     }
 
     /// Apply a [`DockAction`] programmatically (not for widget-originated input).
+    #[must_use]
     pub fn dispatch(&self, action: DockAction) -> bool {
         dispatch_action(&mut self.inner.borrow_mut(), action)
     }
@@ -100,9 +103,7 @@ impl<Theme> DockSession<Theme> {
         let panel_node = self
             .panel_node(panel_id)
             .ok_or_else(|| Error::UnknownPanel(panel_id.into()))?;
-        let pane_id = self
-            .pane_for_panel(panel_id)
-            .ok_or(Error::InvalidTarget)?;
+        let pane_id = self.pane_for_panel(panel_id).ok_or(Error::InvalidTarget)?;
         self.dispatch(DockAction::Tab(TabAction::Select {
             pane: pane_id,
             panel: panel_node,
@@ -123,45 +124,45 @@ impl<Theme> DockSession<Theme> {
     }
 
     /// All known panel ids.
+    #[must_use]
     pub fn panel_ids(&self) -> Vec<String> {
-        self.inner
-            .borrow()
-            .index
-            .panel_ids()
-            .cloned()
-            .collect()
+        self.inner.borrow().index.panel_ids().cloned().collect()
     }
 
     /// Panel node id for a string panel id.
+    #[must_use]
     pub fn panel_node(&self, panel_id: &str) -> Option<NodeId> {
         self.inner.borrow().index.panel_node(panel_id)
     }
 
     /// Pane that owns a panel identified by string id.
+    #[must_use]
     pub fn pane_for_panel(&self, panel_id: &str) -> Option<NodeId> {
         let state = self.inner.borrow();
         pane_for_panel(&state.layout, &state.index, panel_id)
     }
 
     /// Pane that last received focus, if any.
+    #[must_use]
     pub fn focused_pane(&self) -> Option<NodeId> {
         self.inner.borrow().focused_pane
     }
 
     /// Whether the given pane currently has global focus.
+    #[must_use]
     pub fn is_pane_focused(&self, pane: NodeId) -> bool {
         self.focused_pane() == Some(pane)
     }
 
     /// Focus a pane by id (does not change the active tab).
     pub fn focus_pane(&self, pane: NodeId) -> Result {
-        if !matches!(self.inner.borrow().layout.kind(pane), Some(NodeKind::Pane(_))) {
+        if !matches!(
+            self.inner.borrow().layout.kind(pane),
+            Some(NodeKind::Pane(_))
+        ) {
             return Err(Error::InvalidTarget);
         }
-        self.dispatch(DockAction::PaneFocused {
-            pane,
-            panel: None,
-        });
+        self.dispatch(DockAction::PaneFocused { pane, panel: None });
         Ok(())
     }
 
@@ -170,6 +171,7 @@ impl<Theme> DockSession<Theme> {
     /// Requires at least one draw pass so [`DockWidgetState::pane_bounds`] is populated
     /// (run the dock widget once or wait for the first frame).
     /// Returns `true` if focus moved to a neighbor.
+    #[must_use]
     pub fn focus_adjacent(&self, direction: Direction) -> bool {
         let Some(pane) = self.focused_pane() else {
             return false;
@@ -223,6 +225,7 @@ impl<Theme> DockSession<Theme> {
     }
 
     /// Currently focused panel id (active tab in the focused pane), if any.
+    #[must_use]
     pub fn active_panel(&self) -> Option<String> {
         let state = self.inner.borrow();
         let pane = state.focused_pane?;
@@ -230,6 +233,7 @@ impl<Theme> DockSession<Theme> {
     }
 
     /// Active panel id string in a specific pane (regardless of global focus).
+    #[must_use]
     pub fn active_panel_in_pane(&self, pane: NodeId) -> Option<String> {
         let state = self.inner.borrow();
         active_panel_in_pane(&state.layout, &state.index, pane)
@@ -243,12 +247,10 @@ impl<Theme> DockSession<Theme> {
                 .index
                 .pane_node(name.as_ref())
                 .ok_or_else(|| Error::UnknownPane(name.to_string())),
-            PaneTarget::Active => self
-                .inner
-                .borrow()
-                .focused_pane
-                .ok_or(Error::InvalidTarget),
-            PaneTarget::First => first_pane(&self.inner.borrow().layout).ok_or(Error::InvalidTarget),
+            PaneTarget::Active => self.inner.borrow().focused_pane.ok_or(Error::InvalidTarget),
+            PaneTarget::First => {
+                first_pane(&self.inner.borrow().layout).ok_or(Error::InvalidTarget)
+            }
         }
     }
 }
@@ -261,9 +263,11 @@ fn resolve_initial_focus(built: &BuiltLayout, focus: InitialFocus<'_>) -> Result
             .pane_node(name.as_ref())
             .ok_or_else(|| Error::UnknownPane(name.to_string()))
             .map(Some),
-        InitialFocus::NamedPanel(panel_id) => pane_for_panel(&built.layout, &built.index, panel_id.as_ref())
-            .ok_or_else(|| Error::UnknownPanel(panel_id.to_string()))
-            .map(Some),
+        InitialFocus::NamedPanel(panel_id) => {
+            pane_for_panel(&built.layout, &built.index, panel_id.as_ref())
+                .ok_or_else(|| Error::UnknownPanel(panel_id.to_string()))
+                .map(Some)
+        }
     }
 }
 

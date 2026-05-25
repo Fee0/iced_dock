@@ -1,5 +1,5 @@
-use iced_dock::unstable::Factory;
 use iced_dock::model::{ContentKey, Layout, NodeKind};
+use iced_dock::unstable::Factory;
 
 #[test]
 fn fill_and_close_collapses_empty_pane() {

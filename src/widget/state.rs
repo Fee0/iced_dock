@@ -103,12 +103,7 @@ pub fn finish_drag<Theme>(state: &mut DockWidgetState<Theme>, cursor: Option<ice
     };
 
     let mut session = session;
-    DockManager::update_drag_hover_full(
-        &mut session,
-        cursor,
-        &drop_targets,
-        &tab_bar_targets,
-    );
+    DockManager::update_drag_hover_full(&mut session, cursor, &drop_targets, &tab_bar_targets);
     let mut changed = false;
     if let Some((pane, index)) = session.tab_insert {
         if DockManager
@@ -149,9 +144,12 @@ pub fn dispatch_action<Theme>(state: &mut DockWidgetState<Theme>, action: DockAc
             }
             TabAction::Close { panel } => {
                 if factory.close(&mut state.layout, panel).is_ok() {
-                    if let Some(id) = state.index.panels.iter().find_map(|(s, &n)| {
-                        (n == panel).then(|| s.clone())
-                    }) {
+                    if let Some(id) = state
+                        .index
+                        .panels
+                        .iter()
+                        .find_map(|(s, &n)| (n == panel).then(|| s.clone()))
+                    {
                         state.index.panels.remove(&id);
                     }
                     state.layout_dirty = true;

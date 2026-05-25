@@ -37,8 +37,8 @@ pub mod unstable;
 pub mod widget;
 
 pub use builder::{
-    horizontal, panel, single, tabs, vertical, DockSession, InitialFocus, LayoutTree, PanelCycle,
-    PaneTarget, PanelDef, SplitNode, TabsNode,
+    horizontal, panel, single, tabs, vertical, DockSession, InitialFocus, LayoutTree, PaneTarget,
+    PanelCycle, PanelDef, SplitNode, TabsNode,
 };
 pub use error::{Error, Result};
 pub use model::{ContentKey, Layout};

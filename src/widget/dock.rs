@@ -106,6 +106,7 @@ where
     /// Delay before the tab-bar scrollbar hides after the pointer leaves the tab bar.
     ///
     /// Default is one second.
+    #[must_use]
     pub fn tab_bar_scrollbar_hide_delay(mut self, delay: iced::time::Duration) -> Self {
         self.tab_bar_scrollbar_hide_delay = delay;
         self
@@ -115,6 +116,7 @@ where
     ///
     /// When `false`, tabs can still be scrolled with the mouse wheel (and Shift+wheel).
     /// Default is `true`.
+    #[must_use]
     pub fn tab_bar_show_scrollbar(mut self, show: bool) -> Self {
         self.tab_bar_show_scrollbar = show;
         self
@@ -169,9 +171,10 @@ where
             }
             NodeKind::Pane(p) => self.build_pane(holder, layout, node, p),
             NodeKind::Panel(_) => None,
-            NodeKind::Root(_) => layout
-                .root_child()
-                .and_then(|c| self.build_node(holder, layout, c)),
+            NodeKind::Root(_) => {
+                let c = layout.root_child()?;
+                self.build_node(holder, layout, c)
+            }
         }
     }
 
@@ -208,8 +211,7 @@ where
         let pane_content = (self.content)(content_key);
         let pane_class = pane_content
             .style
-            .map(Rc::new)
-            .unwrap_or_else(|| Rc::clone(&self.class));
+            .map_or_else(|| Rc::clone(&self.class), Rc::new);
         let content = pane_content.element;
 
         let h = holder.clone();
@@ -252,9 +254,11 @@ where
             .clone();
         let new_root = self.build_root_child(&dock_state);
         {
-            let holder = tree.state.downcast_mut::<DockTreeHolder<Message, Theme, Renderer>>();
-            holder.root.replace(new_root);
-        }
+            let holder = tree
+                .state
+                .downcast_mut::<DockTreeHolder<Message, Theme, Renderer>>();
+            holder.root.replace(new_root)
+        };
         if let Some(child) = tree
             .state
             .downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>()
@@ -276,10 +280,11 @@ where
         tree: &Tree,
         f: impl FnOnce(&Element<'static, Message, Theme, Renderer>) -> R,
     ) -> Option<R> {
-        let holder = tree.state.downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>();
+        let holder = tree
+            .state
+            .downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>();
         holder.root.borrow().as_ref().map(f)
     }
-
 }
 
 pub struct DockBuilder<Message, Theme = iced::Theme, Renderer = iced::Renderer>
@@ -388,6 +393,7 @@ where
     ///
     /// Split drags stop when an adjacent pair would shrink a pane below this width.
     /// Default is `80.0`.
+    #[must_use]
     pub fn min_pane_width(mut self, min_pane_width: f32) -> Self {
         self.min_pane_width = Some(min_pane_width.max(1.0));
         self
@@ -397,6 +403,7 @@ where
     ///
     /// Split drags stop when an adjacent pair would shrink a pane below this height.
     /// Default is `80.0`.
+    #[must_use]
     pub fn min_pane_height(mut self, min_pane_height: f32) -> Self {
         self.min_pane_height = Some(min_pane_height.max(1.0));
         self
@@ -405,6 +412,7 @@ where
     /// Minimum pointer movement before a tab label press becomes a dock drag.
     ///
     /// Default is `6.0`.
+    #[must_use]
     pub fn drag_threshold(mut self, threshold: f32) -> Self {
         self.drag_threshold = Some(threshold.max(0.0));
         self
@@ -413,6 +421,7 @@ where
     /// Fraction of pane edge used for edge drop bands (0.0–0.5).
     ///
     /// Default is `0.2`.
+    #[must_use]
     pub fn drop_edge_fraction(mut self, fraction: f32) -> Self {
         self.drop_edge_fraction = Some(fraction.clamp(0.0, 0.5));
         self
@@ -421,10 +430,8 @@ where
     /// Delay before the tab-bar scrollbar hides after the pointer leaves the tab bar.
     ///
     /// Default is one second.
-    pub fn tab_bar_scrollbar_hide_delay(
-        mut self,
-        delay: iced::time::Duration,
-    ) -> Self {
+    #[must_use]
+    pub fn tab_bar_scrollbar_hide_delay(mut self, delay: iced::time::Duration) -> Self {
         self.tab_bar_scrollbar_hide_delay = Some(delay);
         self
     }
@@ -433,11 +440,13 @@ where
     ///
     /// When `false`, tabs can still be scrolled with the mouse wheel (and Shift+wheel).
     /// Default is `true`.
+    #[must_use]
     pub fn tab_bar_show_scrollbar(mut self, show: bool) -> Self {
         self.tab_bar_show_scrollbar = Some(show);
         self
     }
 
+    #[must_use]
     pub fn build(self) -> Dock<Message, Theme, Renderer> {
         let content = self.content.unwrap_or_else(|| {
             Rc::new(|_| PaneContent::new(iced::widget::text("No content")))
@@ -473,6 +482,7 @@ where
     }
 }
 
+#[must_use]
 pub fn dock<Message, Theme, Renderer>() -> DockBuilder<Message, Theme, Renderer>
 where
     Message: Clone + 'static,
@@ -494,8 +504,7 @@ where
     DockBuilder::default()
 }
 
-impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
-    for Dock<Message, Theme, Renderer>
+impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer> for Dock<Message, Theme, Renderer>
 where
     Message: Clone + 'static,
     Theme: Catalog
@@ -699,7 +708,9 @@ where
         viewport: &Rectangle,
         renderer: &Renderer,
     ) -> mouse::Interaction {
-        let holder = tree.state.downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>();
+        let holder = tree
+            .state
+            .downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>();
         if holder.dock_state.borrow().drag.is_some() {
             return mouse::Interaction::Grab;
         }
@@ -771,4 +782,3 @@ where
         Element::new(widget)
     }
 }
-

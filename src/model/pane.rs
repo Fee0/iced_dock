@@ -41,6 +41,7 @@ impl Default for Pane {
 }
 
 impl Pane {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             name: None,
@@ -49,6 +50,7 @@ impl Pane {
         }
     }
 
+    #[must_use]
     pub fn active_index(&self) -> Option<usize> {
         let active = self.active?;
         self.tabs.iter().position(|&id| id == active)
