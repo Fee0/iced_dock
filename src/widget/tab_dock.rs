@@ -15,7 +15,7 @@ use crate::model::NodeId;
 use crate::style::{Catalog, DockStyle};
 use crate::widget::compose;
 use crate::widget::action::{DockAction, TabAction};
-use crate::widget::dock::DockWidgetState;
+use crate::widget::state::DockWidgetState;
 use crate::widget::tab_strip::{self, TabStrip};
 
 fn drop_zone_rect(bounds: Rectangle, zone: crate::manager::DropZone, edge: f32) -> Rectangle {
