@@ -260,8 +260,8 @@ where
             let holder = tree
                 .state
                 .downcast_mut::<DockTreeHolder<Message, Theme, Renderer>>();
-            holder.root.replace(new_root)
-        };
+            holder.root.replace(new_root);
+        }
         if let Some(child) = tree
             .state
             .downcast_ref::<DockTreeHolder<Message, Theme, Renderer>>()
