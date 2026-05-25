@@ -93,6 +93,7 @@ where
     on_event: Rc<dyn Fn(DockAction) -> Message>,
     class: Rc<<Theme as Catalog>::Class<'static>>,
     theme: Rc<RefCell<Option<Theme>>>,
+    drop_edge_fraction: f32,
     tab_bar_scrollbar_hide_delay: iced::time::Duration,
     tab_bar_show_scrollbar: bool,
 }
@@ -124,6 +125,8 @@ where
         on_event: Rc<dyn Fn(DockAction) -> Message>,
         class: Rc<<Theme as Catalog>::Class<'static>>,
         theme: Rc<RefCell<Option<Theme>>>,
+        drag_threshold: f32,
+        drop_edge_fraction: f32,
         tab_bar_scrollbar_hide_delay: iced::time::Duration,
         tab_bar_show_scrollbar: bool,
     ) -> Self {
@@ -134,6 +137,8 @@ where
             on_event.clone(),
             Rc::clone(&class),
             Rc::clone(&theme),
+            drag_threshold,
+            drop_edge_fraction,
             tab_bar_scrollbar_hide_delay,
             tab_bar_show_scrollbar,
         )
@@ -148,6 +153,7 @@ where
             on_event,
             class,
             theme,
+            drop_edge_fraction,
             tab_bar_scrollbar_hide_delay,
             tab_bar_show_scrollbar,
         }
@@ -372,7 +378,7 @@ where
                                 DockManager::hit_test_drop_zone(
                                     bounds,
                                     point,
-                                    dock_style.drop_overlay.edge_fraction,
+                                    self.drop_edge_fraction,
                                 )
                             })
                             .or_else(|| {
@@ -382,7 +388,7 @@ where
                                         DockManager::hit_test_drop_zone(
                                             bounds,
                                             point,
-                                            dock_style.drop_overlay.edge_fraction,
+                                            self.drop_edge_fraction,
                                         )
                                     })
                             })
@@ -391,8 +397,7 @@ where
 
                 if let Some(zone) = zone {
                     let highlight = dock_style.drop_overlay.color;
-                    let edge = dock_style.drop_overlay.edge_fraction;
-                    let zone_bounds = drop_zone_rect(bounds, zone, edge);
+                    let zone_bounds = drop_zone_rect(bounds, zone, self.drop_edge_fraction);
                     renderer.fill_quad(
                         renderer::Quad {
                             bounds: zone_bounds,

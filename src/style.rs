@@ -63,8 +63,6 @@ pub struct TabBarStyle {
     pub spacing: f32,
     /// Outer padding of the tab row: `[vertical, horizontal]`.
     pub padding: [f32; 2],
-    /// Minimum pointer movement before a tab label press becomes a dock drag.
-    pub drag_threshold: f32,
     pub close_button: CloseButtonStyle,
     /// Line drawn along the bottom of the tab strip; `None` disables it.
     pub separator: Option<TabBarSeparatorStyle>,
@@ -113,14 +111,6 @@ pub struct SplitterStyle {
     pub size: f32,
     /// Extra space between panes (shows [`DockBackgroundStyle::color`]).
     pub gap: f32,
-    /// Minimum width of each pane in horizontal split groups.
-    ///
-    /// Split drags stop when an adjacent pair would shrink a pane below this width.
-    pub min_pane_width: f32,
-    /// Minimum height of each pane in vertical split groups.
-    ///
-    /// Split drags stop when an adjacent pair would shrink a pane below this height.
-    pub min_pane_height: f32,
     /// Drawn when idle (typically fully transparent).
     pub idle_color: Color,
     pub hover_color: Color,
@@ -131,8 +121,6 @@ pub struct SplitterStyle {
 #[derive(Debug, Clone)]
 pub struct DropOverlayStyle {
     pub color: Color,
-    /// Fraction of pane edge used for edge drop bands (0.0–0.5).
-    pub edge_fraction: f32,
     /// Width of the vertical insertion marker in the tab bar during drag.
     pub insert_marker_width: f32,
     /// Minimum alpha for the tab-bar insertion marker (derived from [`Self::color`]).
@@ -193,7 +181,6 @@ impl DockStyle {
                 background: tab_bar_bg,
                 spacing: 0.0,
                 padding: [0.0, 0.0],
-                drag_threshold: 6.0,
                 close_button: CloseButtonStyle {
                     label: "×".into(),
                     text_size: 15.0,
@@ -233,15 +220,12 @@ impl DockStyle {
             splitter: SplitterStyle {
                 size: 0.5,
                 gap: 10.0,
-                min_pane_width: 80.0,
-                min_pane_height: 80.0,
                 idle_color: Color::TRANSPARENT,
                 hover_color: Color::from_rgba(0.99, 0.99, 0.99, 0.99),
                 drag_color: Color::from_rgba(0.99, 0.99, 0.99, 0.99),
             },
             drop_overlay: DropOverlayStyle {
                 color: Color::from_rgba(0.38, 0.62, 0.98, 0.28),
-                edge_fraction: 0.2,
                 insert_marker_width: 3.0,
                 insert_marker_min_alpha: 0.65,
             },
@@ -284,7 +268,6 @@ impl DockStyle {
                 background: tab_bar_bg,
                 spacing: 0.0,
                 padding: [0.0, 0.0],
-                drag_threshold: 6.0,
                 close_button: CloseButtonStyle {
                     label: "×".into(),
                     text_size: 15.0,
@@ -324,15 +307,12 @@ impl DockStyle {
             splitter: SplitterStyle {
                 size: 0.5,
                 gap: 10.0,
-                min_pane_width: 80.0,
-                min_pane_height: 80.0,
                 idle_color: Color::TRANSPARENT,
                 hover_color: Color::from_rgba(0.2, 0.2, 0.25, 0.35),
                 drag_color: Color::from_rgba(0.2, 0.2, 0.25, 0.5),
             },
             drop_overlay: DropOverlayStyle {
                 color: Color::from_rgba(0.12, 0.45, 0.92, 0.25),
-                edge_fraction: 0.2,
                 insert_marker_width: 3.0,
                 insert_marker_min_alpha: 0.65,
             },
@@ -354,17 +334,6 @@ impl DockStyle {
         self.sync_active_tab_with_window();
     }
 
-    /// Set the minimum pane width for horizontal splits.
-    pub fn with_min_pane_width(mut self, min_pane_width: f32) -> Self {
-        self.splitter.min_pane_width = min_pane_width.max(1.0);
-        self
-    }
-
-    /// Set the minimum pane height for vertical splits.
-    pub fn with_min_pane_height(mut self, min_pane_height: f32) -> Self {
-        self.splitter.min_pane_height = min_pane_height.max(1.0);
-        self
-    }
 }
 
 /// The default [`DockStyle`] for a [`Theme`], using [`Theme::extended_palette`].

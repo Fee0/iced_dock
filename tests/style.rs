@@ -5,7 +5,6 @@ use iced_dock::{constant, default, preset, Catalog, DockStyle};
 fn palette_default_has_sane_metrics() {
     let style = default(&Theme::Dark);
     assert!(style.tab_bar.height > 0.0);
-    assert!(style.tab_bar.drag_threshold > 0.0);
     assert!(style.tab_bar.scrollbar_height > 0.0);
     assert!(style.tab_bar.close_button.size > 0.0);
     assert!(style.splitter.size > 0.0);
@@ -67,12 +66,10 @@ fn palette_default_has_focused_border() {
 }
 
 #[test]
-fn with_min_pane_width_and_height_update_splitter_style() {
-    let style = default(&Theme::Dark)
-        .with_min_pane_width(120.0)
-        .with_min_pane_height(64.0);
-    assert_eq!(style.splitter.min_pane_width, 120.0);
-    assert_eq!(style.splitter.min_pane_height, 64.0);
+fn splitter_style_has_visual_fields_only() {
+    let style = default(&Theme::Dark);
+    assert!(style.splitter.size > 0.0);
+    assert!(style.splitter.gap > 0.0);
 }
 
 #[test]

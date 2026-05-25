@@ -1,5 +1,4 @@
 use iced_dock::unstable::{DockManager, DragSession, DropZone, Factory, TabBarTarget};
-use iced_dock::DockStyle;
 use iced_dock::model::{Axis, ContentKey, DockOperation, Layout, NodeKind};
 
 #[test]
@@ -25,7 +24,7 @@ fn hit_test_respects_custom_edge_fraction() {
         width: 100.0,
         height: 100.0,
     };
-    let edge = DockStyle::modern_dark().drop_overlay.edge_fraction;
+    let edge = 0.2;
     assert_eq!(
         DockManager::hit_test_drop_zone(bounds, iced::Point::new(15.0, 50.0), edge),
         Some(DropZone::Left)

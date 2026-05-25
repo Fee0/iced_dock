@@ -157,6 +157,10 @@ where
     on_event: Rc<dyn Fn(DockEvent) -> Message>,
     external_state: Option<Rc<RefCell<DockWidgetState<Theme>>>>,
     class: Rc<<Theme as Catalog>::Class<'static>>,
+    min_pane_width: f32,
+    min_pane_height: f32,
+    drag_threshold: f32,
+    drop_edge_fraction: f32,
     tab_bar_scrollbar_hide_delay: iced::time::Duration,
     tab_bar_show_scrollbar: bool,
 }
@@ -188,6 +192,10 @@ where
             on_event,
             external_state: None,
             class: Rc::new(<Theme as Catalog>::default()),
+            min_pane_width: 80.0,
+            min_pane_height: 80.0,
+            drag_threshold: 6.0,
+            drop_edge_fraction: 0.2,
             tab_bar_scrollbar_hide_delay: iced::time::Duration::from_secs(1),
             tab_bar_show_scrollbar: true,
         }
@@ -274,6 +282,8 @@ where
                         on_split,
                         Rc::clone(&self.class),
                         Self::theme_cell(holder),
+                        self.min_pane_width,
+                        self.min_pane_height,
                     )
                     .into(),
                 )
@@ -336,6 +346,8 @@ where
                 on_tab,
                 pane_class,
                 Self::theme_cell(holder),
+                self.drag_threshold,
+                self.drop_edge_fraction,
                 self.tab_bar_scrollbar_hide_delay,
                 self.tab_bar_show_scrollbar,
             )
@@ -402,6 +414,8 @@ where
     class: Option<Rc<<Theme as Catalog>::Class<'static>>>,
     min_pane_width: Option<f32>,
     min_pane_height: Option<f32>,
+    drag_threshold: Option<f32>,
+    drop_edge_fraction: Option<f32>,
     tab_bar_scrollbar_hide_delay: Option<iced::time::Duration>,
     tab_bar_show_scrollbar: Option<bool>,
 }
@@ -419,6 +433,8 @@ where
             class: None,
             min_pane_width: None,
             min_pane_height: None,
+            drag_threshold: None,
+            drop_edge_fraction: None,
             tab_bar_scrollbar_hide_delay: None,
             tab_bar_show_scrollbar: None,
         }
@@ -491,8 +507,8 @@ where
 
     /// Minimum width of each pane in horizontal split groups.
     ///
-    /// Overrides [`SplitterStyle::min_pane_width`] on the resolved [`DockStyle`].
-    /// Default is `80.0` from the active style class (palette default uses [`DockStyle::modern_dark`] metrics).
+    /// Split drags stop when an adjacent pair would shrink a pane below this width.
+    /// Default is `80.0`.
     pub fn min_pane_width(mut self, min_pane_width: f32) -> Self {
         self.min_pane_width = Some(min_pane_width.max(1.0));
         self
@@ -500,10 +516,26 @@ where
 
     /// Minimum height of each pane in vertical split groups.
     ///
-    /// Overrides [`SplitterStyle::min_pane_height`] on the resolved [`DockStyle`].
-    /// Default is `80.0` from the active style class (palette default uses [`DockStyle::modern_dark`] metrics).
+    /// Split drags stop when an adjacent pair would shrink a pane below this height.
+    /// Default is `80.0`.
     pub fn min_pane_height(mut self, min_pane_height: f32) -> Self {
         self.min_pane_height = Some(min_pane_height.max(1.0));
+        self
+    }
+
+    /// Minimum pointer movement before a tab label press becomes a dock drag.
+    ///
+    /// Default is `6.0`.
+    pub fn drag_threshold(mut self, threshold: f32) -> Self {
+        self.drag_threshold = Some(threshold.max(0.0));
+        self
+    }
+
+    /// Fraction of pane edge used for edge drop bands (0.0–0.5).
+    ///
+    /// Default is `0.2`.
+    pub fn drop_edge_fraction(mut self, fraction: f32) -> Self {
+        self.drop_edge_fraction = Some(fraction.clamp(0.0, 0.5));
         self
     }
 
@@ -527,10 +559,7 @@ where
         self
     }
 
-    pub fn build(self) -> Dock<Message, Theme, Renderer>
-    where
-        <Theme as Catalog>::Class<'static>: From<StyleFn<'static, Theme>>,
-    {
+    pub fn build(self) -> Dock<Message, Theme, Renderer> {
         let content = self.content.unwrap_or_else(|| {
             Rc::new(|_| PaneContent::new(iced::widget::text("No content")))
                 as Rc<dyn Fn(ContentKey) -> PaneContent<'static, Message, Theme, Renderer>>
@@ -540,25 +569,20 @@ where
             .unwrap_or_else(|| Rc::new(|_| panic!("dock().on_event(...) required")));
         let mut dock = Dock::new(content, on_event);
         dock.external_state = self.shared_state;
-        let base_class = self
+        dock.class = self
             .class
             .unwrap_or_else(|| Rc::new(<Theme as Catalog>::default()));
-        let min_pane_width = self.min_pane_width;
-        let min_pane_height = self.min_pane_height;
-        if min_pane_width.is_some() || min_pane_height.is_some() {
-            let wrapped: StyleFn<'static, Theme> = Box::new(move |theme| {
-                let mut style = Catalog::style(theme, &*base_class);
-                if let Some(width) = min_pane_width {
-                    style = style.with_min_pane_width(width);
-                }
-                if let Some(height) = min_pane_height {
-                    style = style.with_min_pane_height(height);
-                }
-                style
-            });
-            dock.class = Rc::new(wrapped.into());
-        } else {
-            dock.class = base_class;
+        if let Some(w) = self.min_pane_width {
+            dock.min_pane_width = w;
+        }
+        if let Some(h) = self.min_pane_height {
+            dock.min_pane_height = h;
+        }
+        if let Some(t) = self.drag_threshold {
+            dock.drag_threshold = t;
+        }
+        if let Some(f) = self.drop_edge_fraction {
+            dock.drop_edge_fraction = f;
         }
         if let Some(delay) = self.tab_bar_scrollbar_hide_delay {
             dock.tab_bar_scrollbar_hide_delay = delay;

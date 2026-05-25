@@ -55,6 +55,8 @@ where
     on_event: Rc<dyn Fn(DockAction) -> Message>,
     class: Rc<<Theme as Catalog>::Class<'static>>,
     theme: Rc<RefCell<Option<Theme>>>,
+    min_pane_width: f32,
+    min_pane_height: f32,
 }
 
 impl<'a, Message, Theme, Renderer> SplitContainer<'a, Message, Theme, Renderer>
@@ -70,6 +72,8 @@ where
         on_event: Rc<dyn Fn(DockAction) -> Message>,
         class: Rc<<Theme as Catalog>::Class<'static>>,
         theme: Rc<RefCell<Option<Theme>>>,
+        min_pane_width: f32,
+        min_pane_height: f32,
     ) -> Self {
         Self {
             group_id,
@@ -79,6 +83,8 @@ where
             on_event,
             class,
             theme,
+            min_pane_width,
+            min_pane_height,
         }
     }
 
@@ -226,9 +232,9 @@ where
         let splitter_gap = dock_style.splitter.gap;
         let is_horizontal = self.axis == Axis::Horizontal;
         let min_pane_main = if is_horizontal {
-            dock_style.splitter.min_pane_width
+            self.min_pane_width
         } else {
-            dock_style.splitter.min_pane_height
+            self.min_pane_height
         };
 
         let state = tree.state.downcast_mut::<SplitWidgetState>();
@@ -414,11 +420,10 @@ where
 
         let pos = layout.position();
         let offset = iced::Vector::new(pos.x, pos.y);
-        let layout_style = self.layout_style_resolved();
         let min_pane_main = if is_horizontal {
-            layout_style.splitter.min_pane_width
+            self.min_pane_width
         } else {
-            layout_style.splitter.min_pane_height
+            self.min_pane_height
         };
 
         match event {

@@ -82,6 +82,8 @@ where
     tabs_row: Element<'a, Message, Theme, Renderer>,
     on_event: Rc<dyn Fn(DockAction) -> Message>,
     class: Rc<<Theme as Catalog>::Class<'static>>,
+    drag_threshold: f32,
+    drop_edge_fraction: f32,
     hide_delay: iced::time::Duration,
     show_scrollbar: bool,
     theme: Rc<RefCell<Option<Theme>>>,
@@ -112,6 +114,8 @@ where
         on_event: Rc<dyn Fn(DockAction) -> Message>,
         class: Rc<<Theme as Catalog>::Class<'static>>,
         theme: Rc<RefCell<Option<Theme>>>,
+        drag_threshold: f32,
+        drop_edge_fraction: f32,
         hide_delay: iced::time::Duration,
         show_scrollbar: bool,
     ) -> Self {
@@ -136,6 +140,8 @@ where
             tabs_row,
             on_event,
             class,
+            drag_threshold,
+            drop_edge_fraction,
             hide_delay,
             show_scrollbar,
             theme,
@@ -912,7 +918,7 @@ where
         let current_theme = self.resolved_theme();
         let dock_style = self.layout_style_resolved();
         let bar = &dock_style.tab_bar;
-        let threshold = bar.drag_threshold;
+        let threshold = self.drag_threshold;
         let cursor_pos = cursor.position();
         let over_tab_bar = cursor_over_tab_bar(tab_bounds, cursor);
         let mut row_refresh: Option<(Option<NodeId>, Option<NodeId>)> = None;
@@ -1079,8 +1085,7 @@ where
                                 state.dragging = true;
                                 state.drag_pending = false;
                                 row_refresh = Some((state.hovered_tab, None));
-                                let drop_edge_fraction =
-                                    self.layout_style_resolved().drop_overlay.edge_fraction;
+                                let drop_edge_fraction = self.drop_edge_fraction;
                                 shell.publish((self.on_event)(DockAction::Tab(
                                     TabAction::DragStarted {
                                         source_pane: self.pane_id,
