@@ -1,85 +1,11 @@
 # iced_dock
 
 A docking layout widget for [iced](https://github.com/iced-rs/iced) 0.14. Build IDE-style UIs with resizable split
-panes, tabbed document areas, drag-and-drop tab docking, and pane focus — all integrated with iced's widget tree.
+panes, tabbed document areas, drag-and-drop tab docking, pane focus, persistence, hot keys.
 
 ## Screenshot
 
 ![Digraph viewer: controls, byte rail, and matrix heatmap](assets/screenshot.png)
-
-## Features
-
-### Layout
-
-- **Declarative layout trees** — describe your dock as nested horizontal/vertical splits and tabbed panes using a small
-  builder API (`horizontal`, `vertical`, `tabs`, `panel`).
-- **Runtime layout graph** — splits, tab order, and active tabs live in a mutable `Layout` backed by stable `NodeId`
-  handles (slotmap arena).
-- **Proportional splits** — resize panes by dragging splitters; optional initial weights per split group.
-- **Minimum pane sizes** — configurable minimum width/height so splits cannot collapse panes below usable size.
-
-### Tabs
-
-- **Tabbed panes** — each pane hosts one or more panels (tabs) with a single active tab visible at a time.
-- **Tab bar** — click to select, close button per tab (when enabled), horizontal scroll for overflow (mouse wheel and
-  optional scrollbar thumb).
-- **Tab drag-and-drop** — drag tabs to reorder within a pane, move to another pane's tab bar, or dock into content drop
-  zones.
-- **Per-panel flags** — `can_close`, `can_drag`, and `can_drop` on each panel definition.
-
-### Drag-and-drop docking
-
-- **Content drop zones** — while dragging a tab, edge bands (left/right/top/bottom) and a center zone on target panes
-  show where the panel will land.
-- **Drop operations** — center fill replaces/joins tabs; edge drops split the target pane in that direction.
-- **Tab bar insertion** — dropping on a tab strip inserts at the hovered position (takes priority over content zones).
-- **Cross-pane moves** — panels can move between panes; empty panes collapse and the tree is simplified automatically.
-
-### Pane focus
-
-- **Focused pane** — one pane has global focus at a time (accent border), separate from which tab is active inside each
-  pane.
-- **Click to focus** — clicking a pane's content area focuses that pane and emits `DockEvent::PaneFocused`.
-- **Tab click** — selects the tab and focuses its pane.
-- **Keyboard navigation** — `DockSession::focus_adjacent` or the lower-level `adjacent_pane` helper (gap-tolerant); wire
-  to `Ctrl+Arrow` or similar in your app.
-- **Pane targets** — open new panels into the focused pane (`PaneTarget::Active`), a named pane, or the first pane in
-  tree order.
-
-### Styling
-
-- **Generic `Theme`** — `Dock<Message, Theme, Renderer>` is generic over `Theme: Catalog` (same pattern as `pane_grid`).
-  Default type parameters (`Theme = iced::Theme`, `Renderer = iced::Renderer`) keep existing code unchanged.
-- **Palette default** — built-in dock chrome follows the active iced theme via `style::default` / [
-  `Catalog`](src/style.rs).
-- **Optional IDE presets** — `style::preset::modern_dark()` / `modern_light()` for VS Code–inspired chrome (explicit
-  opt-in via `.style(...)`).
-- **Per-pane styling** — the content closure can return `PaneContent` with a per-pane style override, giving individual
-  panes different tab bars, borders, and chrome.
-- **Customizable chrome** — pane borders (including focused accent), tab colors, splitter handles, drop overlays, tab
-  bar metrics, close buttons.
-- **Builder overrides** — `min_pane_width`, `min_pane_height`, tab bar scrollbar visibility and hide delay;
-  `.style(...)`, `.class(...)`.
-
-### Integration
-
-- **iced widget** — `dock()` builder returns a `Dock` widget that plugs into any iced `Element` tree.
-- **Observation events** — [`DockEvent`] uses string panel/pane ids (no slotmap handles in app code).
-- **Widget-owned mutations** — user input is applied inside the dock before your `on_event` callback; use `update` for
-  side effects only.
-- **Content mapping** — closure `ContentKey → Element`; store shared app state in `Rc` if needed.
-
-### Runtime API
-
-- **`DockSession`** — open, focus, and close panels by string id; shares one `DockWidgetState` with the widget.
-- **`DockWidgetState`** — layout graph, string index, drag session, focused pane, pane bounds.
-- **`iced_dock::unstable`** — `Factory`, `DockManager`, `dispatch_action`, `build_tree`, and other low-level helpers.
-
-### Persistence (optional)
-
-- **`serde` feature** — serialize/deserialize declarative `LayoutTree` and runtime `Layout`.
-- Prefer **`LayoutTree`** for workspace templates. Runtime **`Layout`** is for session restore in the same app version;
-  slotmap `NodeId` values are not stable semantic handles across refactors.
 
 ## Quick start
 
@@ -87,7 +13,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-iced_dock = { path = ".." }  # or from git/crates.io when published
+iced_dock = { git = "https://github.com/Fee0/iced_dock.git" }
 iced = { version = "0.14", features = ["wgpu"] }
 ```
 
@@ -135,7 +61,7 @@ fn panel_content(key: ContentKey) -> Element<'static, Message> {
 
 fn update(_app: &mut App, message: Message) {
     if let Message::Dock(_event) = message {
-        // Layout already updated by the widget — log, sync title bar, etc.
+        // log, sync title bar, etc.
     }
 }
 ```
@@ -319,30 +245,6 @@ Import `iced_dock::unstable` for `Factory`, `DockManager`, `dispatch_action`, `b
 and compile helpers.
 
 Use `iced_dock::model` for `Layout`, `NodeId`, and graph types when persisting or introspecting the arena.
-
-## Serialization
-
-```toml
-iced_dock = { version = "0.1", features = ["serde"] }
-```
-
-- **`LayoutTree`** — workspace templates (recommended for defaults)
-- **`Layout`** — full runtime state after user edits (same app version)
-
-## Project structure
-
-```
-src/
-  builder/     LayoutTree, DockSession, compile
-  model/       Layout graph (Panel, Pane, NodeId)
-  unstable/    Factory, DockManager, build_tree, dispatch_action
-  spatial/     adjacent_pane
-  style/       DockStyle
-  widget/      Dock, DockEvent, DockAction
-  prelude.rs   Common imports
-examples/
-  minimal.rs   IDE-style demo
-```
 
 ## License
 
