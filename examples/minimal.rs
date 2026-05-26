@@ -4,7 +4,8 @@ use iced::keyboard::{self, Key};
 use iced::widget::{column, container, text};
 use iced::{application, Element, Length, Size, Subscription, Task, Theme};
 use iced_dock::{
-    dock, horizontal, panel as tab, tabs, vertical, Direction, DockEvent, DockSession, LayoutTree,
+    dock, horizontal, panel as tab, tabs, vertical, Direction, DockEvent, DockSession,
+    InitialFocus, LayoutTree,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -88,7 +89,8 @@ struct App {
 impl App {
     fn new() -> Self {
         Self {
-            dock: DockSession::from_tree(demo_layout()).expect("failed to build demo layout"),
+            dock: DockSession::from_tree_with_focus(demo_layout(), InitialFocus::NamedPanel("main".into()))
+                .expect("failed to build demo layout"),
         }
     }
 }
@@ -149,7 +151,7 @@ fn panel_content(key: Content) -> Element<'static, Message> {
     let (label, hint) = match key {
         Content::Explorer   => ("Explorer",      "File tree"),
         Content::Search     => ("Search",        "Workspace search"),
-        Content::MainRs     => ("main.rs",       "Editor — Ctrl+Arrow to move focus between panes"),
+        Content::MainRs     => ("main.rs",       "Editor — ⌘/Ctrl+Arrow to move focus between panes"),
         Content::LibRs      => ("lib.rs",        "Editor"),
         Content::ModA       => ("mod_a.rs",      "Editor"),
         Content::ModB       => ("mod_b.rs",      "Editor"),
