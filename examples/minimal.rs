@@ -1,6 +1,6 @@
 //! Demo: classical IDE layout — left sidebar, editor tabs, right sidebar, bottom panel.
 
-use iced::keyboard::{self, Key, Modifiers};
+use iced::keyboard::{self, Key};
 use iced::widget::{column, container, text};
 use iced::{application, Element, Length, Size, Subscription, Task, Theme};
 use iced_dock::{
@@ -104,7 +104,7 @@ fn subscription(_app: &App) -> Subscription<Message> {
         let keyboard::Event::KeyPressed { key, modifiers, .. } = event else {
             return None;
         };
-        if !modifiers.contains(Modifiers::CTRL) {
+        if !modifiers.command() {
             return None;
         }
         let direction = match key {

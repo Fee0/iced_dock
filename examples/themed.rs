@@ -4,7 +4,7 @@
 //! use the default palette-derived style. Drag tabs between panes to see
 //! styles follow their host pane, not the tab.
 
-use iced::keyboard::{self, Key, Modifiers};
+use iced::keyboard::{self, Key};
 use iced::widget::{column, container, text};
 use iced::{application, Border, Color, Element, Length, Size, Subscription, Task};
 
@@ -114,7 +114,7 @@ fn subscription(_app: &App) -> Subscription<Message> {
         let keyboard::Event::KeyPressed { key, modifiers, .. } = event else {
             return None;
         };
-        if !modifiers.contains(Modifiers::CTRL) {
+        if !modifiers.command() {
             return None;
         }
         let direction = match key {
