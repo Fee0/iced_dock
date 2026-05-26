@@ -73,10 +73,14 @@ pub struct TabBarStyle {
     pub scrollbar_height: f32,
     /// Minimum width of the scrollbar thumb.
     pub scrollbar_thumb_min_width: f32,
+    /// Scrollbar track color.
+    pub scrollbar_track: Color,
     /// Scrollbar thumb color when the tab bar is hovered.
     pub scrollbar_thumb: Color,
     /// Scrollbar thumb color while the thumb is hovered or dragged.
     pub scrollbar_thumb_hovered: Color,
+    /// Scrollbar thumb border color.
+    pub scrollbar_thumb_border: Color,
 }
 
 /// Bottom edge line on the tab strip.

@@ -80,10 +80,12 @@ impl DockStyle {
                     color: Color::from_rgba(0.0, 0.0, 0.0, 0.35),
                     height: 1.0,
                 }),
-                scrollbar_height: 4.0,
-                scrollbar_thumb_min_width: 2.0,
-                scrollbar_thumb: Color::from_rgba(1.0, 1.0, 1.0, 0.28),
-                scrollbar_thumb_hovered: Color::from_rgba(1.0, 1.0, 1.0, 0.45),
+                scrollbar_height: 6.0,
+                scrollbar_thumb_min_width: 24.0,
+                scrollbar_track: Color::from_rgba(0.0, 0.0, 0.0, 0.28),
+                scrollbar_thumb: Color::from_rgb(0.38, 0.62, 0.98),
+                scrollbar_thumb_hovered: Color::from_rgb(0.53, 0.72, 0.99),
+                scrollbar_thumb_border: Color::from_rgba(0.0, 0.0, 0.0, 0.40),
             },
             tab: TabStyle {
                 text_size: 12.0,
@@ -169,10 +171,12 @@ impl DockStyle {
                     color: Color::from_rgba(0.0, 0.0, 0.0, 0.12),
                     height: 1.0,
                 }),
-                scrollbar_height: 4.0,
-                scrollbar_thumb_min_width: 2.0,
-                scrollbar_thumb: Color::from_rgba(0.0, 0.0, 0.0, 0.22),
-                scrollbar_thumb_hovered: Color::from_rgba(0.0, 0.0, 0.0, 0.38),
+                scrollbar_height: 6.0,
+                scrollbar_thumb_min_width: 24.0,
+                scrollbar_track: Color::from_rgba(0.0, 0.0, 0.0, 0.16),
+                scrollbar_thumb: Color::from_rgb(0.12, 0.45, 0.92),
+                scrollbar_thumb_hovered: Color::from_rgb(0.08, 0.38, 0.82),
+                scrollbar_thumb_border: Color::from_rgba(1.0, 1.0, 1.0, 0.24),
             },
             tab: TabStyle {
                 text_size: 12.0,
@@ -230,8 +234,18 @@ pub fn default(theme: &Theme) -> DockStyle {
         Color::from_rgba(0.0, 0.0, 0.0, 0.08)
     };
     let separator_alpha = if palette.is_dark { 0.35 } else { 0.12 };
-    let scrollbar_thumb = palette.background.strong.color.scale_alpha(0.35);
-    let scrollbar_thumb_hovered = palette.background.strong.color.scale_alpha(0.55);
+    let scrollbar_track = palette.background.strong.color.scale_alpha(if palette.is_dark {
+        0.28
+    } else {
+        0.16
+    });
+    let scrollbar_thumb = palette.primary.base.color;
+    let scrollbar_thumb_hovered = palette.primary.strong.color;
+    let scrollbar_thumb_border = if palette.is_dark {
+        Color::from_rgba(0.0, 0.0, 0.0, 0.34)
+    } else {
+        Color::from_rgba(1.0, 1.0, 1.0, 0.24)
+    };
     let splitter_hover = palette.primary.base.color;
     let splitter_drag = palette.primary.strong.color;
     let radius = 0.0;
@@ -258,8 +272,12 @@ pub fn default(theme: &Theme) -> DockStyle {
         color: Color::from_rgba(0.0, 0.0, 0.0, separator_alpha),
         height: 1.0,
     });
+    style.tab_bar.scrollbar_height = 6.0;
+    style.tab_bar.scrollbar_thumb_min_width = 24.0;
+    style.tab_bar.scrollbar_track = scrollbar_track;
     style.tab_bar.scrollbar_thumb = scrollbar_thumb;
     style.tab_bar.scrollbar_thumb_hovered = scrollbar_thumb_hovered;
+    style.tab_bar.scrollbar_thumb_border = scrollbar_thumb_border;
     style.tab.inactive_background = tab_inactive;
     style.tab.inactive_text = text_muted;
     style.tab.hovered_background = hover_overlay;

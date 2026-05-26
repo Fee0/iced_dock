@@ -496,7 +496,7 @@ fn scrollbar_metrics(
     let thumb_height = bar.scrollbar_height.max(1.0);
     let track = Rectangle {
         x: tab_bounds.x,
-        y: tab_bounds.y + tab_bounds.height - thumb_height,
+        y: tab_bounds.y,
         width: tab_bounds.width,
         height: thumb_height,
     };
@@ -530,24 +530,37 @@ fn draw_scrollbar<Renderer: advanced::Renderer>(
     bar: &TabBarStyle,
     renderer: &mut Renderer,
 ) {
-    let color = if thumb_hovered {
+    let thumb_color = if thumb_hovered {
         bar.scrollbar_thumb_hovered
     } else {
         bar.scrollbar_thumb
     };
-    if color.a <= 0.0 {
+    if thumb_color.a <= 0.0 {
         return;
     }
+
     renderer.fill_quad(
         renderer::Quad {
-            bounds: metrics.thumb,
+            bounds: metrics.track,
             border: iced::Border {
                 radius: (bar.scrollbar_height * 0.5).into(),
                 ..iced::Border::default()
             },
             ..renderer::Quad::default()
         },
-        color,
+        bar.scrollbar_track,
+    );
+    renderer.fill_quad(
+        renderer::Quad {
+            bounds: metrics.thumb,
+            border: iced::Border {
+                width: 1.0,
+                color: bar.scrollbar_thumb_border,
+                radius: (bar.scrollbar_height * 0.5).into(),
+            },
+            ..renderer::Quad::default()
+        },
+        thumb_color,
     );
 }
 
@@ -875,12 +888,7 @@ where
                 }
             });
 
-            let scrollbar_fade_in = state.scrollbar_visible
-                && state
-                    .hide_at
-                    .is_none_or(|deadline| Instant::now() < deadline);
-
-            if self.show_scrollbar && overflow && scrollbar_fade_in {
+            if self.show_scrollbar && overflow {
                 if let Some(metrics) = scrollbar_metrics(
                     tab_bounds,
                     bar,

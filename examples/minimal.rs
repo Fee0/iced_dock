@@ -126,7 +126,9 @@ fn subscription(_app: &App) -> Subscription<Message> {
 
 fn update(app: &mut App, message: Message) -> Task<Message> {
     match message {
-        Message::Dock(_event) => {}
+        Message::Dock(_event) => {
+            // listen for dock events here
+        }
         Message::FocusAdjacent(direction) => {
             app.dock.focus_adjacent(direction);
         }
@@ -142,7 +144,7 @@ fn view(app: &App) -> Element<'_, Message> {
             .content(panel_content)
             .min_pane_width(160.0)
             .min_pane_height(80.0)
-            .tab_bar_show_scrollbar(false)
+            .tab_bar_show_scrollbar(true)
             .build(),
     )
     .width(Length::Fill)
