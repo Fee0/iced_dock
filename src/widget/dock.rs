@@ -305,12 +305,12 @@ where
     on_event: Option<Rc<dyn Fn(DockEvent) -> Message>>,
     shared_state: Option<Rc<RefCell<DockWidgetState<K, Theme>>>>,
     class: Option<Rc<<Theme as Catalog>::Class<'static>>>,
-    min_pane_width: Option<f32>,
-    min_pane_height: Option<f32>,
-    drag_threshold: Option<f32>,
-    drop_edge_fraction: Option<f32>,
-    tab_bar_scrollbar_hide_delay: Option<Duration>,
-    tab_bar_show_scrollbar: Option<bool>,
+    min_pane_width: f32,
+    min_pane_height: f32,
+    drag_threshold: f32,
+    drop_edge_fraction: f32,
+    tab_bar_scrollbar_hide_delay: Duration,
+    tab_bar_show_scrollbar: bool,
 }
 
 impl<K, Message, Theme, Renderer> Default for DockBuilder<K, Message, Theme, Renderer>
@@ -324,12 +324,12 @@ where
             on_event: None,
             shared_state: None,
             class: None,
-            min_pane_width: None,
-            min_pane_height: None,
-            drag_threshold: None,
-            drop_edge_fraction: None,
-            tab_bar_scrollbar_hide_delay: None,
-            tab_bar_show_scrollbar: None,
+            min_pane_width: 80.0,
+            min_pane_height: 80.0,
+            drag_threshold: 6.0,
+            drop_edge_fraction: 0.2,
+            tab_bar_scrollbar_hide_delay: Duration::from_secs(1),
+            tab_bar_show_scrollbar: false,
         }
     }
 }
@@ -409,7 +409,7 @@ where
     /// Default is `80.0`.
     #[must_use]
     pub fn min_pane_width(mut self, min_pane_width: f32) -> Self {
-        self.min_pane_width = Some(min_pane_width.max(1.0));
+        self.min_pane_width = min_pane_width.max(1.0);
         self
     }
 
@@ -419,7 +419,7 @@ where
     /// Default is `80.0`.
     #[must_use]
     pub fn min_pane_height(mut self, min_pane_height: f32) -> Self {
-        self.min_pane_height = Some(min_pane_height.max(1.0));
+        self.min_pane_height = min_pane_height.max(1.0);
         self
     }
 
@@ -428,7 +428,7 @@ where
     /// Default is `6.0`.
     #[must_use]
     pub fn drag_threshold(mut self, threshold: f32) -> Self {
-        self.drag_threshold = Some(threshold.max(0.0));
+        self.drag_threshold = threshold.max(0.0);
         self
     }
 
@@ -437,7 +437,7 @@ where
     /// Default is `0.2`.
     #[must_use]
     pub fn drop_edge_fraction(mut self, fraction: f32) -> Self {
-        self.drop_edge_fraction = Some(fraction.clamp(0.0, 0.5));
+        self.drop_edge_fraction = fraction.clamp(0.0, 0.5);
         self
     }
 
@@ -446,7 +446,7 @@ where
     /// Default is one second.
     #[must_use]
     pub fn tab_bar_scrollbar_hide_delay(mut self, delay: Duration) -> Self {
-        self.tab_bar_scrollbar_hide_delay = Some(delay);
+        self.tab_bar_scrollbar_hide_delay = delay;
         self
     }
 
@@ -456,7 +456,7 @@ where
     /// Default is `true`.
     #[must_use]
     pub fn tab_bar_show_scrollbar(mut self, show: bool) -> Self {
-        self.tab_bar_show_scrollbar = Some(show);
+        self.tab_bar_show_scrollbar = show;
         self
     }
 
@@ -471,30 +471,20 @@ where
         let on_event = self
             .on_event
             .unwrap_or_else(|| Rc::new(|_| panic!("dock().on_event(...) required")));
-        let mut dock = Dock::new(content, on_event);
-        dock.external_state = self.shared_state;
-        dock.class = self
-            .class
-            .unwrap_or_else(|| Rc::new(<Theme as Catalog>::default()));
-        if let Some(w) = self.min_pane_width {
-            dock.min_pane_width = w;
+        Dock {
+            content,
+            on_event,
+            external_state: self.shared_state,
+            class: self
+                .class
+                .unwrap_or_else(|| Rc::new(<Theme as Catalog>::default())),
+            min_pane_width: self.min_pane_width,
+            min_pane_height: self.min_pane_height,
+            drag_threshold: self.drag_threshold,
+            drop_edge_fraction: self.drop_edge_fraction,
+            tab_bar_scrollbar_hide_delay: self.tab_bar_scrollbar_hide_delay,
+            tab_bar_show_scrollbar: self.tab_bar_show_scrollbar,
         }
-        if let Some(h) = self.min_pane_height {
-            dock.min_pane_height = h;
-        }
-        if let Some(t) = self.drag_threshold {
-            dock.drag_threshold = t;
-        }
-        if let Some(f) = self.drop_edge_fraction {
-            dock.drop_edge_fraction = f;
-        }
-        if let Some(delay) = self.tab_bar_scrollbar_hide_delay {
-            dock.tab_bar_scrollbar_hide_delay = delay;
-        }
-        if let Some(show) = self.tab_bar_show_scrollbar {
-            dock.tab_bar_show_scrollbar = show;
-        }
-        dock
     }
 }
 
