@@ -1,11 +1,11 @@
 # iced_dock
 
 A docking layout widget for [iced](https://github.com/iced-rs/iced) 0.14. Resizable splits, tabbed panes, drag-and-drop
-docking, focus tracking, keyboard navigation.
+docking, focus tracking, keyboard navigation, tab groups, tabs overflow handling.
 
 ![Digraph viewer: controls, byte rail, and matrix heatmap](assets/screenshot.png)
 
-## Quick start
+## Example
 
 ```toml
 [dependencies]
@@ -14,66 +14,93 @@ iced = { version = "0.14", features = ["wgpu"] }
 ```
 
 ```rust
-use iced_dock::{dock, horizontal, panel, tabs, DockEvent, DockSession, LayoutTree};
+use iced::{Element, Length};
+use iced::widget::{container, text};
+use iced_dock::{
+    dock, horizontal, panel as tab, tabs, DockEvent, DockSession,
+    InitialFocus, LayoutTree,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum Panel { Editor, Sidebar }
+enum Panel {
+    Explorer,
+    Editor,
+    Terminal,
+}
 
-let tree: LayoutTree<Panel> = horizontal([
-    tabs([panel("editor", "Editor", Panel::Editor)]),
-    tabs([panel("sidebar", "Sidebar", Panel::Sidebar)]),
-])
-.weights([0.7, 0.3]);
+fn layout() -> LayoutTree<Panel> {
+    horizontal([
+        tabs([
+            tab("explorer", "Explorer", Panel::Explorer),
+        ])
+            .group("tools"),
 
-let session = DockSession::from_tree(tree);
+        tabs([
+            tab("editor", "main.rs", Panel::Editor),
+        ])
+            .group("documents"),
 
-dock()
-    .state(session.state())
-    .on_event(Message::Dock)
-    .content(|key| match key {
-        Panel::Editor  => iced::widget::text("Editor").into(),
-        Panel::Sidebar => iced::widget::text("Sidebar").into(),
-    })
-    .build()
+        tabs([
+            tab("terminal", "Terminal", Panel::Terminal),
+        ])
+            .group("tools"),
+    ])
+        .weights([0.2, 0.6, 0.2])
+}
+
+struct App {
+    dock: DockSession<Panel>,
+}
+
+impl App {
+    fn new() -> Self {
+        Self {
+            dock: DockSession::from_tree_with_focus(
+                layout(),
+                InitialFocus::NamedPanel("editor".into()),
+            )
+                .unwrap(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum Message {
+    Dock(DockEvent),
+}
+
+fn update(app: &mut App, message: Message) {
+    match message {
+        Message::Dock(event) => {
+            // Handle dock events here
+        }
+    }
+}
+
+fn view(app: &App) -> Element<'_, Message> {
+    container(
+        dock()
+            .state(app.dock.state())
+            .on_event(Message::Dock)
+            .content(panel_content)
+            .build(),
+    )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+}
+
+fn panel_content(panel: Panel) -> Element<'static, Message> {
+    let label = match panel {
+        Panel::Explorer => "Explorer",
+        Panel::Editor => "Editor",
+        Panel::Terminal => "Terminal",
+    };
+
+    container(text(label))
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center(Length::Fill)
+        .into()
+}
 ```
-
-## Layout builder
-
-- `tabs([...])` — tabbed pane
-- `horizontal([...])` / `vertical([...])` — split groups
-- `single(panel(...))` — one panel filling the dock
-- `.active("id")` — initial active tab
-- `.named("name")` — register pane for `PaneTarget::Named`
-- `.weights([...])` — split proportions
-
-## Theming
-
-Omit `.style(...)` to inherit the iced theme palette. Use presets for opinionated looks:
-
-```rust
-dock().style(iced_dock::preset::modern_dark()).build()
-```
-
-Per-pane overrides via `PaneContent::new(element).style(|_| DockStyle::modern_dark())`.
-
-## DockSession
-
-| Method                    | Purpose                             |
-|---------------------------|-------------------------------------|
-| `from_tree`               | Build from `LayoutTree`             |
-| `dispatch(action)`        | Apply `DockAction` programmatically |
-| `open_panel(target, def)` | Add and activate a panel            |
-| `select_panel(id)`        | Activate tab + focus pane           |
-| `close_panel(id)`         | Close tab, collapse empty panes     |
-| `focus_adjacent(dir)`     | Move focus between panes            |
-| `cycle_panel(cycle)`      | Next/prev tab in focused pane       |
-
-## Events
-
-`DockEvent` variants: `TabSelected`, `TabClosed`, `PaneFocused`, `SplitResized`, `DragStarted`, `DragMoved`,
-`DragEnded`, `DragCancelled`, `LayoutChanged`.
-
-## Keyboard navigation
-
-The crate doesn't subscribe to keys. Use `session.focus_adjacent(Direction::Right)` after the first frame. See
-`examples/minimal.rs` for `Ctrl+Arrow` setup.
