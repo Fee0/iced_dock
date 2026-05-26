@@ -18,7 +18,7 @@ use crate::{Error, Result};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PaneTarget {
     /// Open in the pane registered with [`TabsNode::named`](crate::builder::TabsNode::named).
-    Named(Cow<'static, str>),
+    Named(String),
     /// Open in the pane that last received focus.
     Active,
     /// Open in the first pane encountered in a preorder tree walk.
@@ -51,7 +51,7 @@ pub struct DockSession<K, Theme = iced::Theme> {
 
 impl<K, Theme> DockSession<K, Theme>
 where
-    K: Copy + 'static,
+    K: Copy,
 {
     /// Build a session from a declarative layout tree.
     pub fn from_tree(tree: LayoutTree<K>) -> Result<Self> {
@@ -248,8 +248,8 @@ where
                 .inner
                 .borrow()
                 .index
-                .pane_node(name.as_ref())
-                .ok_or_else(|| Error::UnknownPane(name.to_string())),
+                .pane_node(name)
+                .ok_or_else(|| Error::UnknownPane(name.clone())),
             PaneTarget::Active => self.inner.borrow().focused_pane.ok_or(Error::InvalidTarget),
             PaneTarget::First => {
                 first_pane(&self.inner.borrow().layout).ok_or(Error::InvalidTarget)
