@@ -129,7 +129,7 @@ impl<K> SplitNode<K> {
 }
 
 impl<K: Copy> LayoutTree<K> {
-    /// Set the active tab on a [`Tabs`] node.
+    /// Set the active tab on a `Tabs` node.
     #[must_use]
     pub fn active(mut self, panel_id: impl Into<String>) -> Self {
         if let Self::Tabs(ref mut node) = self {
@@ -138,7 +138,7 @@ impl<K: Copy> LayoutTree<K> {
         self
     }
 
-    /// Assign a stable name to a [`Tabs`] node for [`PaneTarget::Named`](crate::builder::PaneTarget).
+    /// Assign a stable name to a `Tabs` node for [`PaneTarget::Named`](crate::builder::PaneTarget).
     #[must_use]
     pub fn named(mut self, name: impl Into<String>) -> Self {
         if let Self::Tabs(ref mut node) = self {
@@ -147,7 +147,7 @@ impl<K: Copy> LayoutTree<K> {
         self
     }
 
-    /// Set split weights on a [`Split`] node.
+    /// Set split weights on a `Split` node.
     #[must_use]
     pub fn weights(mut self, weights: impl IntoIterator<Item = f32>) -> Self {
         if let Self::Split(ref mut node) = self {
@@ -156,7 +156,7 @@ impl<K: Copy> LayoutTree<K> {
         self
     }
 
-    /// Assign a tab group to a [`Tabs`] node.
+    /// Assign a tab group to a `Tabs` node.
     #[must_use]
     pub fn group(mut self, g: impl Into<String>) -> Self {
         if let Self::Tabs(ref mut node) = self {

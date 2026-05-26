@@ -34,7 +34,7 @@ impl DropZone {
 pub struct TabBarTarget {
     pub pane: NodeId,
     pub bounds: Rectangle,
-    /// Layout-space X for each insertion slot (same coordinates as tab [`Layout::bounds`]).
+    /// Layout-space X for each insertion slot (same coordinates as tab layout bounds).
     pub insert_x: Vec<f32>,
     pub scroll_offset: f32,
 }
@@ -47,7 +47,7 @@ pub struct DragSession {
     pub hover_target: Option<NodeId>,
     pub operation: Option<DockOperation>,
     pub tab_insert: Option<(NodeId, usize)>,
-    /// Edge band size for content drop zones; matches [`crate::DropOverlayStyle::edge_fraction`].
+    /// Edge band size for content drop zones.
     pub drop_edge_fraction: f32,
 }
 
@@ -159,7 +159,7 @@ impl DockManager {
 
     /// Map pointer position inside `bounds` to a drop zone.
     ///
-    /// `edge_fraction` is clamped to `0.0..=0.5` (same as [`crate::DropOverlayStyle::edge_fraction`]).
+    /// `edge_fraction` is clamped to `0.0..=0.5`.
     #[must_use]
     pub fn hit_test_drop_zone(
         bounds: Rectangle,

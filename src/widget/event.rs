@@ -6,32 +6,53 @@ use crate::widget::action::{DockAction, TabAction};
 
 /// User-visible dock notification. The widget applies layout changes before this is delivered;
 /// do not call [`DockSession::dispatch`](crate::DockSession::dispatch) for widget-originated input.
+///
+/// Map these to your application message type via
+/// [`DockBuilder::on_event`](crate::widget::DockBuilder::on_event).
 #[derive(Debug, Clone, PartialEq)]
 pub enum DockEvent {
+    /// A tab was activated within a pane.
     TabSelected {
+        /// String name of the containing pane, if one was set.
         pane: Option<String>,
+        /// String id of the selected panel.
         panel: String,
     },
+    /// A tab was closed.
     TabClosed {
+        /// String id of the closed panel.
         panel: String,
     },
+    /// A pane received user focus (content click or tab select).
     PaneFocused {
+        /// String name of the focused pane, if one was set.
         pane: Option<String>,
+        /// String id of the active panel in the focused pane, if any.
         panel: Option<String>,
     },
+    /// A splitter between two panes was dragged.
     SplitResized {
+        /// Zero-based index of the splitter within its split group.
         splitter_index: usize,
+        /// New fraction of the adjacent pair's space allocated to the left/top pane.
         pair_ratio: f32,
     },
+    /// A tab drag gesture started.
     DragStarted {
+        /// String id of the panel being dragged.
         panel: String,
     },
+    /// The pointer moved during a tab drag.
     DragMoved {
+        /// Current pointer position.
         cursor: iced::Point,
     },
+    /// The pointer was released, ending a tab drag.
     DragEnded {
+        /// Pointer position at the moment of release.
         cursor: iced::Point,
     },
+    /// The tab drag was cancelled.
     DragCancelled,
     /// Structural layout change (tab close, dock drop, split resize, etc.).
     LayoutChanged,

@@ -18,9 +18,9 @@
 //!
 //! ## Serialization
 //!
-//! Enable the `serde` feature to derive [`serde::Serialize`] and [`serde::Deserialize`] on layout
+//! Enable the `serde` feature to derive `Serialize` and `Deserialize` on layout
 //! types. Prefer declarative [`LayoutTree`] for workspace templates. Runtime [`Layout`] captures
-//! split/tab state after user edits within the same application version; slotmap [`NodeId`] values
+//! split/tab state after user edits within the same application version; slotmap `NodeId` values
 //! are not stable semantic handles across refactors.
 
 pub mod builder;

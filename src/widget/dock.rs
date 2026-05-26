@@ -32,6 +32,19 @@ where
     root: Option<Element<'static, Message, Theme, Renderer>>,
 }
 
+/// The top-level docking widget.
+///
+/// `Dock` renders a full split/tab layout from a [`DockWidgetState`] and
+/// rebuilds its internal element tree whenever the layout changes.
+/// Use the [`dock()`] free function to obtain a [`DockBuilder`] for
+/// ergonomic construction.
+///
+/// # Type parameters
+///
+/// * `K` — Content key type stored in each panel (e.g. an enum of panel kinds).
+/// * `Message` — The application message type.
+/// * `Theme` — The iced theme (must implement [`Catalog`]).
+/// * `Renderer` — The iced renderer.
 pub struct Dock<K, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
@@ -83,6 +96,9 @@ where
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
+    /// Create a `Dock` directly from shared closures.
+    ///
+    /// Prefer [`dock()`] + [`DockBuilder`] for a more ergonomic API.
     pub fn new(
         content: Rc<dyn Fn(K) -> PaneContent<'static, Message, Theme, Renderer>>,
         on_event: Rc<dyn Fn(DockEvent) -> Message>,
@@ -122,6 +138,7 @@ where
         Rc::clone(&holder.borrow().resolved_theme)
     }
 
+    /// Override the dock chrome style with a closure.
     #[must_use]
     pub fn style(mut self, style: impl Fn(&Theme) -> DockStyle + 'static) -> Self
     where
@@ -138,6 +155,8 @@ where
         self
     }
 
+    /// Attach shared widget state so the dock reads layout from an external
+    /// [`DockWidgetState`] (typically obtained from [`DockSession::state`](crate::DockSession::state)).
     #[must_use]
     pub fn with_state(mut self, state: Rc<RefCell<DockWidgetState<K, Theme>>>) -> Self {
         self.external_state = Some(state);
@@ -346,6 +365,18 @@ where
 type ContentFn<K, Message, Theme, Renderer> =
     Rc<dyn Fn(K) -> PaneContent<'static, Message, Theme, Renderer>>;
 
+/// Builder for constructing a [`Dock`] widget with ergonomic chained setters.
+///
+/// Obtained via [`dock()`]. At minimum, call [`content`](Self::content),
+/// [`on_event`](Self::on_event), [`state`](Self::state), and [`build`](Self::build):
+///
+/// ```ignore
+/// dock()
+///     .state(session.state())
+///     .on_event(Message::DockEvent)
+///     .content(|key| view_panel(key))
+///     .build()
+/// ```
 pub struct DockBuilder<K, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
@@ -435,6 +466,7 @@ where
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
+    /// Set the content factory that maps a panel key `K` to its [`Element`].
     #[must_use]
     pub fn content(
         mut self,
@@ -465,12 +497,15 @@ where
         self
     }
 
+    /// Attach shared widget state (typically obtained from
+    /// [`DockSession::state`](crate::DockSession::state)).
     #[must_use]
     pub fn state(mut self, state: Rc<RefCell<DockWidgetState<K, Theme>>>) -> Self {
         self.shared_state = Some(state);
         self
     }
 
+    /// Override the dock chrome style with a closure.
     #[must_use]
     pub fn style(mut self, style: impl Fn(&Theme) -> DockStyle + 'static) -> Self
     where
@@ -687,6 +722,10 @@ where
     }
 }
 
+/// Create a [`DockBuilder`] for constructing a [`Dock`] widget.
+///
+/// This is the primary entry point for building a dock layout in your view
+/// function. See [`DockBuilder`] for the full set of configuration options.
 #[must_use]
 pub fn dock<K, Message, Theme, Renderer>() -> DockBuilder<K, Message, Theme, Renderer>
 where

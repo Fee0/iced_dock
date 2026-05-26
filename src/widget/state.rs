@@ -11,12 +11,22 @@ use crate::model::{Layout as DockLayout, NodeId, NodeKind};
 use crate::widget::action::{DockAction, TabAction};
 
 /// Persistent docking state (stored in the widget [`Tree`](iced::advanced::widget::tree::Tree)).
+///
+/// Shared between the [`Dock`](crate::Dock) widget and the application via
+/// `Rc<RefCell<DockWidgetState<K, Theme>>>`. Obtain one from
+/// [`DockSession::state`](crate::DockSession::state) or
+/// [`DockWidgetState::from_tree`].
 #[derive(Debug, Clone)]
 pub struct DockWidgetState<K, Theme = iced::Theme> {
+    /// The underlying split/tab layout graph.
     pub layout: DockLayout<K>,
+    /// String-id lookup index, rebuilt automatically when the layout changes.
     pub index: DockIndex,
+    /// Active tab-drag session, if a drag is in progress.
     pub drag: Option<DragSession>,
+    /// Per-frame pane content drop targets (rebuilt each layout pass).
     pub drop_targets: Vec<(NodeId, Rectangle)>,
+    /// Per-frame tab-bar drop targets (rebuilt each layout pass).
     pub tab_bar_targets: Vec<TabBarTarget>,
     /// Absolute bounds of each visible pane, collected each draw pass.
     pub pane_bounds: Vec<(NodeId, Rectangle)>,
@@ -26,7 +36,7 @@ pub struct DockWidgetState<K, Theme = iced::Theme> {
     pub focus_dirty: bool,
     /// Set when the layout tree changes and the cached widget root must rebuild.
     pub layout_dirty: bool,
-    /// Last iced theme from [`Widget::draw`]; survives per-frame dock widget rebuilds.
+    /// Last iced theme from the draw pass; survives per-frame dock widget rebuilds.
     pub resolved_theme: Rc<RefCell<Option<Theme>>>,
 }
 
@@ -128,7 +138,7 @@ pub fn finish_drag<K, Theme>(
 
 /// Apply a [`DockAction`] to dock state (programmatic / session API).
 ///
-/// Does not emit [`DockEvent`] values. After a successful structural change, call
+/// Does not emit [`DockEvent`](crate::DockEvent) values. After a successful structural change, call
 /// [`DockWidgetState::sync_index`] or rely on the widget's next layout pass.
 pub fn dispatch_action<K, Theme>(
     state: &mut DockWidgetState<K, Theme>,

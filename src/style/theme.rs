@@ -20,7 +20,7 @@ impl DockStyle {
     /// VS Code–inspired dark preset (flat panes, subtle chrome).
     ///
     /// Not applied automatically — use [`preset::modern_dark`] with
-    /// [`crate::dock::Dock::style`] to opt in.
+    /// [`Dock::style`](crate::Dock::style) to opt in.
     #[must_use]
     pub fn modern_dark() -> Self {
         let canvas = Color::from_rgb(0.094, 0.094, 0.106);
@@ -92,7 +92,7 @@ impl DockStyle {
     /// VS Code–inspired light preset.
     ///
     /// Not applied automatically — use [`preset::modern_light`] with
-    /// [`crate::dock::Dock::style`] to opt in.
+    /// [`Dock::style`](crate::Dock::style) to opt in.
     #[must_use]
     pub fn modern_light() -> Self {
         let canvas = Color::from_rgb(0.92, 0.92, 0.94);

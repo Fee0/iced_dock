@@ -26,13 +26,16 @@ pub struct DockStyle {
 /// Background fill for the dock root.
 #[derive(Debug, Clone)]
 pub struct DockBackgroundStyle {
+    /// Fill color visible in gaps between panes and behind splitters.
     pub color: Color,
 }
 
 /// Pane window frame.
 #[derive(Debug, Clone)]
 pub struct WindowStyle {
+    /// Content area background fill.
     pub background: Color,
+    /// Border drawn around each pane.
     pub border: Border,
     /// Border drawn when this pane has focus. Falls back to [`Self::border`] when `None`.
     pub focused_border: Option<Border>,
@@ -43,17 +46,24 @@ pub struct WindowStyle {
 pub struct CloseButtonStyle {
     /// Label shown on the close control (default `"×"`).
     pub label: String,
+    /// Text color in the default (idle) state.
     pub text_color: Color,
+    /// Background color in the default (idle) state.
     pub background: Color,
+    /// Background color when the close button is hovered.
     pub hovered_background: Color,
+    /// Text color when the close button is hovered.
     pub hovered_text: Color,
+    /// Corner radius applied to the close button.
     pub border_radius: f32,
 }
 
 /// Tab strip container (paint only).
 #[derive(Debug, Clone)]
 pub struct TabBarStyle {
+    /// Background fill behind the tab strip row.
     pub background: Color,
+    /// Appearance of the per-tab close button.
     pub close_button: CloseButtonStyle,
     /// Separator color drawn along the bottom of the tab strip; `None` disables it.
     pub separator: Option<Color>,
@@ -71,17 +81,26 @@ pub struct TabBarStyle {
 /// Individual tab label colors.
 #[derive(Debug, Clone)]
 pub struct TabStyle {
+    /// Corner radius applied to tab labels.
     pub border_radius: f32,
+    /// Background color of non-selected tabs.
     pub inactive_background: Color,
+    /// Text color of non-selected tabs.
     pub inactive_text: Color,
+    /// Background color when a tab is hovered.
     pub hovered_background: Color,
+    /// Text color when a tab is hovered.
     pub hovered_text: Color,
+    /// Background color while a tab is pressed (mouse down).
     pub pressed_background: Color,
+    /// Text color while a tab is pressed.
     pub pressed_text: Color,
-    /// Matches [`WindowStyle::background`] for the active tab.
+    /// Background color of the selected tab. Typically matches
+    /// [`WindowStyle::background`] so the tab blends into the pane content.
     pub active_background: Color,
+    /// Text color of the selected tab.
     pub active_text: Color,
-    /// Bottom accent color on the active tab.
+    /// Bottom accent bar color on the selected tab.
     pub active_accent: Color,
 }
 
@@ -90,13 +109,16 @@ pub struct TabStyle {
 pub struct SplitterStyle {
     /// Drawn when idle (typically fully transparent).
     pub idle_color: Color,
+    /// Color when the pointer hovers over the splitter.
     pub hover_color: Color,
+    /// Color while the splitter is being dragged.
     pub drag_color: Color,
 }
 
 /// Drop-zone highlight during tab drag.
 #[derive(Debug, Clone)]
 pub struct DropOverlayStyle {
+    /// Highlight color for valid drop zones.
     pub color: Color,
     /// Color shown when the drag would be rejected (e.g. group mismatch).
     pub blocked_color: Color,
@@ -163,7 +185,9 @@ pub struct PaneContent<'a, Message, Theme = iced::Theme, Renderer = iced::Render
 where
     Theme: Catalog,
 {
+    /// The widget tree rendered inside this pane.
     pub element: iced::Element<'a, Message, Theme, Renderer>,
+    /// Optional per-pane style override. When `None`, the dock-level style applies.
     pub style: Option<<Theme as Catalog>::Class<'static>>,
 }
 
@@ -171,6 +195,7 @@ impl<'a, Message, Theme, Renderer> PaneContent<'a, Message, Theme, Renderer>
 where
     Theme: Catalog,
 {
+    /// Wrap an element as pane content with no style override.
     pub fn new(element: impl Into<iced::Element<'a, Message, Theme, Renderer>>) -> Self {
         Self {
             element: element.into(),
@@ -209,7 +234,8 @@ where
     }
 }
 
-/// Ghost close button for tab close controls.
+/// Convert a [`CloseButtonStyle`] into an iced [`button::Style`] closure
+/// suitable for use with [`iced::widget::Button::style`].
 pub fn close_button_style<T>(
     close: &CloseButtonStyle,
 ) -> impl Fn(&T, button::Status) -> button::Style + Clone {
