@@ -122,7 +122,7 @@ fn named_pane_target_opens_panel() {
 
 #[test]
 fn widget_state_from_tree() {
-    let state = iced_dock::DockWidgetState::<u32, iced::Theme>::from_tree(tabs([panel(
+    let state = iced_dock::DockWidgetState::<u32>::from_tree(tabs([panel(
         "a",
         "A",
         0u32,

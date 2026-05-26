@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use iced::Rectangle;
 
 use crate::builder::compile::{build_tree, first_pane, BuiltLayout};
@@ -10,14 +7,13 @@ use crate::manager::{DockManager, DragSession, TabBarTarget};
 use crate::model::{Layout as DockLayout, NodeId, NodeKind};
 use crate::widget::action::{DockAction, TabAction};
 
-/// Persistent docking state (stored in the widget [`Tree`](iced::advanced::widget::tree::Tree)).
+/// Persistent docking state shared between the [`Dock`](crate::Dock) widget
+/// and the application via `Rc<RefCell<DockWidgetState<K>>>`.
 ///
-/// Shared between the [`Dock`](crate::Dock) widget and the application via
-/// `Rc<RefCell<DockWidgetState<K, Theme>>>`. Obtain one from
-/// [`DockSession::state`](crate::DockSession::state) or
+/// Obtain one from [`DockSession::state`](crate::DockSession::state) or
 /// [`DockWidgetState::from_tree`].
 #[derive(Debug, Clone)]
-pub struct DockWidgetState<K, Theme = iced::Theme> {
+pub struct DockWidgetState<K> {
     /// The underlying split/tab layout graph.
     pub layout: DockLayout<K>,
     /// String-id lookup index, rebuilt automatically when the layout changes.
@@ -36,11 +32,9 @@ pub struct DockWidgetState<K, Theme = iced::Theme> {
     pub focus_dirty: bool,
     /// Set when the layout tree changes and the cached widget root must rebuild.
     pub layout_dirty: bool,
-    /// Last iced theme from the draw pass; survives per-frame dock widget rebuilds.
-    pub resolved_theme: Rc<RefCell<Option<Theme>>>,
 }
 
-impl<K, Theme> DockWidgetState<K, Theme> {
+impl<K> DockWidgetState<K> {
     /// Rebuild string-id index from the current layout graph.
     pub fn sync_index(&mut self) {
         self.index = DockIndex::rebuild_from_layout(&self.layout);
@@ -75,12 +69,11 @@ impl<K, Theme> DockWidgetState<K, Theme> {
             focused_pane,
             focus_dirty: false,
             layout_dirty: true,
-            resolved_theme: Rc::new(RefCell::new(None)),
         }
     }
 }
 
-impl<K, Theme> Default for DockWidgetState<K, Theme> {
+impl<K> Default for DockWidgetState<K> {
     fn default() -> Self {
         let layout = DockLayout::new();
         let index = DockIndex::rebuild_from_layout(&layout);
@@ -94,14 +87,13 @@ impl<K, Theme> Default for DockWidgetState<K, Theme> {
             focused_pane: None,
             focus_dirty: false,
             layout_dirty: false,
-            resolved_theme: Rc::new(RefCell::new(None)),
         }
     }
 }
 
 /// End an active drag at `cursor`, applying a drop when valid.
-pub fn finish_drag<K, Theme>(
-    state: &mut DockWidgetState<K, Theme>,
+pub fn finish_drag<K>(
+    state: &mut DockWidgetState<K>,
     cursor: Option<iced::Point>,
 ) -> bool {
     let Some(cursor) = cursor else {
@@ -140,8 +132,8 @@ pub fn finish_drag<K, Theme>(
 ///
 /// Does not emit [`DockEvent`](crate::DockEvent) values. After a successful structural change, call
 /// [`DockWidgetState::sync_index`] or rely on the widget's next layout pass.
-pub fn dispatch_action<K, Theme>(
-    state: &mut DockWidgetState<K, Theme>,
+pub fn dispatch_action<K>(
+    state: &mut DockWidgetState<K>,
     action: DockAction,
 ) -> bool {
     let factory = Factory;

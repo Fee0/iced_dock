@@ -110,9 +110,9 @@ fn insert_panel<K: Copy>(
 }
 
 /// Insert a panel using widget state (avoids overlapping field borrows).
-pub(crate) fn insert_panel_into_state<K: Copy, Theme>(
+pub(crate) fn insert_panel_into_state<K: Copy>(
     factory: &Factory,
-    state: &mut DockWidgetState<K, Theme>,
+    state: &mut DockWidgetState<K>,
     def: &PanelDef<K>,
 ) -> Result<NodeId> {
     if state.index.panels.contains_key(&def.id) {

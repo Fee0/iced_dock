@@ -1,6 +1,5 @@
-//! Observation events emitted to the application (string panel / pane ids).
+//! Observation events emitted to the application.
 
-use crate::builder::DockIndex;
 use crate::model::{Layout, NodeId, NodeKind};
 use crate::widget::action::{DockAction, TabAction};
 
@@ -10,25 +9,25 @@ use crate::widget::action::{DockAction, TabAction};
 /// Map these to your application message type via
 /// [`DockBuilder::on_event`](crate::widget::DockBuilder::on_event).
 #[derive(Debug, Clone, PartialEq)]
-pub enum DockEvent {
+pub enum DockEvent<K> {
     /// A tab was activated within a pane.
     TabSelected {
         /// String name of the containing pane, if one was set.
         pane: Option<String>,
-        /// String id of the selected panel.
-        panel: String,
+        /// Content key of the selected panel.
+        panel: K,
     },
     /// A tab was closed.
     TabClosed {
-        /// String id of the closed panel.
-        panel: String,
+        /// Content key of the closed panel.
+        panel: K,
     },
     /// A pane received user focus (content click or tab select).
     PaneFocused {
         /// String name of the focused pane, if one was set.
         pane: Option<String>,
-        /// String id of the active panel in the focused pane, if any.
-        panel: Option<String>,
+        /// Content key of the active panel in the focused pane, if any.
+        panel: Option<K>,
     },
     /// A splitter between two panes was dragged.
     SplitResized {
@@ -39,8 +38,8 @@ pub enum DockEvent {
     },
     /// A tab drag gesture started.
     DragStarted {
-        /// String id of the panel being dragged.
-        panel: String,
+        /// Content key of the panel being dragged.
+        panel: K,
     },
     /// The pointer moved during a tab drag.
     DragMoved {
@@ -59,16 +58,15 @@ pub enum DockEvent {
 }
 
 /// Map an applied [`DockAction`] to a public [`DockEvent`], if any.
-pub fn action_to_event<K>(
+pub fn action_to_event<K: Clone>(
     layout: &Layout<K>,
-    index: &DockIndex,
     action: &DockAction,
-) -> Option<DockEvent> {
+) -> Option<DockEvent<K>> {
     match action {
-        DockAction::Tab(tab) => tab_action_to_event(layout, index, tab),
+        DockAction::Tab(tab) => tab_action_to_event(layout, tab),
         DockAction::PaneFocused { pane, panel } => Some(DockEvent::PaneFocused {
             pane: pane_name(layout, *pane),
-            panel: panel.and_then(|p| panel_id(layout, index, p)),
+            panel: panel.and_then(|p| panel_key(layout, p)),
         }),
         DockAction::SplitDrag {
             splitter_index,
@@ -81,21 +79,20 @@ pub fn action_to_event<K>(
     }
 }
 
-fn tab_action_to_event<K>(
+fn tab_action_to_event<K: Clone>(
     layout: &Layout<K>,
-    index: &DockIndex,
     action: &TabAction,
-) -> Option<DockEvent> {
+) -> Option<DockEvent<K>> {
     match action {
         TabAction::Select { pane, panel } => Some(DockEvent::TabSelected {
             pane: pane_name(layout, *pane),
-            panel: panel_id(layout, index, *panel)?,
+            panel: panel_key(layout, *panel)?,
         }),
         TabAction::Close { panel } => Some(DockEvent::TabClosed {
-            panel: panel_id(layout, index, *panel)?,
+            panel: panel_key(layout, *panel)?,
         }),
         TabAction::DragStarted { source_panel, .. } => Some(DockEvent::DragStarted {
-            panel: panel_id(layout, index, *source_panel)?,
+            panel: panel_key(layout, *source_panel)?,
         }),
         TabAction::DragMoved { cursor } => Some(DockEvent::DragMoved { cursor: *cursor }),
         TabAction::DragEnded { cursor } => Some(DockEvent::DragEnded { cursor: *cursor }),
@@ -103,18 +100,11 @@ fn tab_action_to_event<K>(
     }
 }
 
-pub(crate) fn panel_id<K>(layout: &Layout<K>, index: &DockIndex, panel: NodeId) -> Option<String> {
-    index
-        .panels
-        .iter()
-        .find_map(|(id, node)| (*node == panel).then(|| id.clone()))
-        .or_else(|| {
-            let e = layout.get(panel)?;
-            match &e.kind {
-                NodeKind::Panel(p) => Some(p.id.clone()),
-                _ => None,
-            }
-        })
+fn panel_key<K: Clone>(layout: &Layout<K>, panel: NodeId) -> Option<K> {
+    match layout.kind(panel)? {
+        NodeKind::Panel(p) => Some(p.content.clone()),
+        _ => None,
+    }
 }
 
 fn pane_name<K>(layout: &Layout<K>, pane: NodeId) -> Option<String> {

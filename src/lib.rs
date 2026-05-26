@@ -25,10 +25,8 @@
 
 pub mod builder;
 pub mod error;
-#[doc(hidden)]
-pub mod factory;
-#[doc(hidden)]
-pub mod manager;
+pub(crate) mod factory;
+pub(crate) mod manager;
 pub mod model;
 pub mod prelude;
 pub mod spatial;

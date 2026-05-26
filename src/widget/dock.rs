@@ -22,38 +22,42 @@ use crate::widget::split::SplitContainer;
 use crate::widget::state::{dispatch_action, DockWidgetState};
 use crate::widget::tab_dock::{TabDock, TabInfo};
 
-/// Tree state: layout data + cached root element (must match `tree.children`).
-struct DockTreeHolder<K, Message, Theme, Renderer>
+/// Persistent tree state shared across frames. Holds the dock layout state
+/// and a cached theme reference for the layout pass (which doesn't receive `&Theme`).
+struct DockTreeHolder<K, Theme>
 where
     Theme: Catalog,
-    Renderer: advanced::Renderer,
 {
-    dock_state: Rc<RefCell<DockWidgetState<K, Theme>>>,
-    root: Option<Element<'static, Message, Theme, Renderer>>,
+    dock_state: Rc<RefCell<DockWidgetState<K>>>,
+    resolved_theme: Rc<RefCell<Option<Theme>>>,
 }
 
 /// The top-level docking widget.
 ///
 /// `Dock` renders a full split/tab layout from a [`DockWidgetState`] and
-/// rebuilds its internal element tree whenever the layout changes.
+/// rebuilds its internal element tree each layout pass (following the same
+/// pattern as iced's `responsive()` widget).
+///
 /// Use the [`dock()`] free function to obtain a [`DockBuilder`] for
 /// ergonomic construction.
 ///
 /// # Type parameters
 ///
+/// * `'a` — View lifetime (matches the application's `view(&self)` borrow).
 /// * `K` — Content key type stored in each panel (e.g. an enum of panel kinds).
 /// * `Message` — The application message type.
 /// * `Theme` — The iced theme (must implement [`Catalog`]).
 /// * `Renderer` — The iced renderer.
-pub struct Dock<K, Message, Theme = iced::Theme, Renderer = iced::Renderer>
+pub struct Dock<'a, K, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
     Renderer: advanced::Renderer,
 {
-    content: Rc<dyn Fn(K) -> PaneContent<'static, Message, Theme, Renderer>>,
-    on_event: Rc<dyn Fn(DockEvent) -> Message>,
-    external_state: Option<Rc<RefCell<DockWidgetState<K, Theme>>>>,
+    content: Box<dyn Fn(K) -> PaneContent<'a, Message, Theme, Renderer> + 'a>,
+    on_event: Rc<dyn Fn(DockEvent<K>) -> Message>,
+    external_state: Option<Rc<RefCell<DockWidgetState<K>>>>,
     class: Rc<<Theme as Catalog>::Class<'static>>,
+    root: Element<'a, Message, Theme, Renderer>,
     tab_bar_height: f32,
     tab_bar_spacing: f32,
     tab_bar_padding: [f32; 2],
@@ -79,7 +83,7 @@ where
     tab_bar_show_scrollbar: bool,
 }
 
-impl<K, Message, Theme, Renderer> Dock<K, Message, Theme, Renderer>
+impl<'a, K, Message, Theme, Renderer> Dock<'a, K, Message, Theme, Renderer>
 where
     K: Copy + 'static,
     Message: Clone + 'static,
@@ -96,48 +100,6 @@ where
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
-    /// Create a `Dock` directly from shared closures.
-    ///
-    /// Prefer [`dock()`] + [`DockBuilder`] for a more ergonomic API.
-    pub fn new(
-        content: Rc<dyn Fn(K) -> PaneContent<'static, Message, Theme, Renderer>>,
-        on_event: Rc<dyn Fn(DockEvent) -> Message>,
-    ) -> Self {
-        Self {
-            content,
-            on_event,
-            external_state: None,
-            class: Rc::new(<Theme as Catalog>::default()),
-            tab_bar_height: 30.0,
-            tab_bar_spacing: 0.0,
-            tab_bar_padding: [0.0, 0.0],
-            tab_text_size: 12.0,
-            tab_padding: [0.0, 10.0],
-            tab_accent_height: 2.0,
-            close_button_text_size: 15.0,
-            close_button_size: 20.0,
-            close_button_margin_right: 6.0,
-            close_button_padding: [0.0, 0.0],
-            splitter_size: 0.5,
-            splitter_gap: 10.0,
-            pane_padding: 0.0,
-            scrollbar_height: 6.0,
-            scrollbar_thumb_min_width: 24.0,
-            insert_marker_width: 3.0,
-            separator_height: 1.0,
-            min_pane_width: 80.0,
-            min_pane_height: 80.0,
-            drag_threshold: 6.0,
-            drop_edge_fraction: 0.2,
-            tab_bar_scrollbar_hide_delay: Duration::from_secs(1),
-            tab_bar_show_scrollbar: false,
-        }
-    }
-
-    fn theme_cell(holder: &Rc<RefCell<DockWidgetState<K, Theme>>>) -> Rc<RefCell<Option<Theme>>> {
-        Rc::clone(&holder.borrow().resolved_theme)
-    }
-
     /// Override the dock chrome style with a closure.
     #[must_use]
     pub fn style(mut self, style: impl Fn(&Theme) -> DockStyle + 'static) -> Self
@@ -158,7 +120,7 @@ where
     /// Attach shared widget state so the dock reads layout from an external
     /// [`DockWidgetState`] (typically obtained from [`DockSession::state`](crate::DockSession::state)).
     #[must_use]
-    pub fn with_state(mut self, state: Rc<RefCell<DockWidgetState<K, Theme>>>) -> Self {
+    pub fn with_state(mut self, state: Rc<RefCell<DockWidgetState<K>>>) -> Self {
         self.external_state = Some(state);
         self
     }
@@ -183,12 +145,12 @@ where
     }
 
     fn wrap_action(
-        holder: &Rc<RefCell<DockWidgetState<K, Theme>>>,
-        on_event: &Rc<dyn Fn(DockEvent) -> Message>,
+        holder: &Rc<RefCell<DockWidgetState<K>>>,
+        on_event: &Rc<dyn Fn(DockEvent<K>) -> Message>,
         action: DockAction,
     ) -> Message {
         let mut state = holder.borrow_mut();
-        let event = action_to_event(&state.layout, &state.index, &action)
+        let event = action_to_event(&state.layout, &action)
             .unwrap_or(DockEvent::LayoutChanged);
         dispatch_action(&mut state, action);
         (on_event)(event)
@@ -196,24 +158,25 @@ where
 
     fn build_node(
         &self,
-        holder: &Rc<RefCell<DockWidgetState<K, Theme>>>,
+        holder: &Rc<RefCell<DockWidgetState<K>>>,
+        theme_cell: &Rc<RefCell<Option<Theme>>>,
         layout: &ModelLayout<K>,
         node: NodeId,
-    ) -> Option<Element<'static, Message, Theme, Renderer>> {
+    ) -> Option<Element<'a, Message, Theme, Renderer>> {
         match layout.kind(node)? {
             NodeKind::Proportional(pg) => {
                 let children: Vec<_> = pg
                     .children
                     .iter()
-                    .filter_map(|&c| self.build_node(holder, layout, c))
+                    .filter_map(|&c| self.build_node(holder, theme_cell, layout, c))
                     .collect();
                 if children.is_empty() {
                     return None;
                 }
                 let h = Rc::clone(holder);
-                let on_event = Rc::clone(&self.on_event);
+                let on_ev = Rc::clone(&self.on_event);
                 let on_split =
-                    Rc::new(move |action: DockAction| Self::wrap_action(&h, &on_event, action));
+                    Rc::new(move |action: DockAction| Self::wrap_action(&h, &on_ev, action));
                 Some(
                     SplitContainer::new(
                         node,
@@ -230,22 +193,23 @@ where
                     .into(),
                 )
             }
-            NodeKind::Pane(p) => self.build_pane(holder, layout, node, p),
+            NodeKind::Pane(p) => self.build_pane(holder, theme_cell, layout, node, p),
             NodeKind::Panel(_) => None,
             NodeKind::Root(_) => {
                 let c = layout.root_child()?;
-                self.build_node(holder, layout, c)
+                self.build_node(holder, theme_cell, layout, c)
             }
         }
     }
 
     fn build_pane(
         &self,
-        holder: &Rc<RefCell<DockWidgetState<K, Theme>>>,
+        holder: &Rc<RefCell<DockWidgetState<K>>>,
+        theme_cell: &Rc<RefCell<Option<Theme>>>,
         layout: &ModelLayout<K>,
         pane_id: NodeId,
         pane: &Pane,
-    ) -> Option<Element<'static, Message, Theme, Renderer>> {
+    ) -> Option<Element<'a, Message, Theme, Renderer>> {
         let active = pane.active.or_else(|| pane.tabs.first().copied())?;
         let entry = layout.get(active)?;
         let content_key: K = match &entry.kind {
@@ -276,8 +240,8 @@ where
         let content = pane_content.element;
 
         let h = Rc::clone(holder);
-        let on_event = Rc::clone(&self.on_event);
-        let on_tab = Rc::new(move |action: DockAction| Self::wrap_action(&h, &on_event, action));
+        let on_ev = Rc::clone(&self.on_event);
+        let on_tab = Rc::new(move |action: DockAction| Self::wrap_action(&h, &on_ev, action));
         Some(
             TabDock::new(
                 Rc::clone(holder),
@@ -287,7 +251,7 @@ where
                 content,
                 on_tab,
                 pane_class,
-                Self::theme_cell(holder),
+                Rc::clone(theme_cell),
                 self.tab_bar_height,
                 self.tab_bar_spacing,
                 self.tab_bar_padding,
@@ -312,58 +276,30 @@ where
         )
     }
 
-    fn build_root_child(
+    fn build_root_element(
         &self,
-        holder: &Rc<RefCell<DockWidgetState<K, Theme>>>,
-    ) -> Option<Element<'static, Message, Theme, Renderer>> {
+        holder: &Rc<RefCell<DockWidgetState<K>>>,
+        theme_cell: &Rc<RefCell<Option<Theme>>>,
+    ) -> Element<'a, Message, Theme, Renderer> {
         let state = holder.borrow();
-        let root = state.layout.root_child()?;
-        self.build_node(holder, &state.layout, root)
+        let root = state
+            .layout
+            .root_child()
+            .and_then(|r| self.build_node(holder, theme_cell, &state.layout, r));
+        root.unwrap_or_else(|| Element::new(widget::space::Space::new()))
     }
 
-    /// Rebuild cached root element and reconcile `tree.children`.
-    fn sync_root(&self, tree: &mut Tree) {
-        let dock_state = tree
-            .state
-            .downcast_ref::<DockTreeHolder<K, Message, Theme, Renderer>>()
-            .dock_state
-            .clone();
-        let new_root = self.build_root_child(&dock_state);
-        {
-            let holder = tree
-                .state
-                .downcast_mut::<DockTreeHolder<K, Message, Theme, Renderer>>();
-            holder.root = new_root;
-        }
-        if let Some(child) = tree
-            .state
-            .downcast_ref::<DockTreeHolder<K, Message, Theme, Renderer>>()
-            .root
-            .as_ref()
-        {
-            if tree.children.is_empty() {
-                tree.children.push(Tree::new(child));
-            } else {
-                tree.children[0].diff(child);
-            }
-        } else {
-            tree.children.clear();
-        }
-    }
-
-    fn with_cached_root<R>(
-        tree: &Tree,
-        f: impl FnOnce(&Element<'static, Message, Theme, Renderer>) -> R,
-    ) -> Option<R> {
-        let holder = tree
-            .state
-            .downcast_ref::<DockTreeHolder<K, Message, Theme, Renderer>>();
-        holder.root.as_ref().map(f)
+    fn rebuild_root(&mut self, tree: &mut Tree) {
+        let holder = tree.state.downcast_ref::<DockTreeHolder<K, Theme>>();
+        let dock_state = Rc::clone(&holder.dock_state);
+        let theme_cell = Rc::clone(&holder.resolved_theme);
+        self.root = self.build_root_element(&dock_state, &theme_cell);
+        tree.diff_children(std::slice::from_ref(&self.root));
     }
 }
 
-type ContentFn<K, Message, Theme, Renderer> =
-    Rc<dyn Fn(K) -> PaneContent<'static, Message, Theme, Renderer>>;
+type ContentFn<'a, K, Message, Theme, Renderer> =
+    Box<dyn Fn(K) -> PaneContent<'a, Message, Theme, Renderer> + 'a>;
 
 /// Builder for constructing a [`Dock`] widget with ergonomic chained setters.
 ///
@@ -377,14 +313,14 @@ type ContentFn<K, Message, Theme, Renderer> =
 ///     .content(|key| view_panel(key))
 ///     .build()
 /// ```
-pub struct DockBuilder<K, Message, Theme = iced::Theme, Renderer = iced::Renderer>
+pub struct DockBuilder<'a, K, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
     Renderer: advanced::Renderer,
 {
-    content: Option<ContentFn<K, Message, Theme, Renderer>>,
-    on_event: Option<Rc<dyn Fn(DockEvent) -> Message>>,
-    shared_state: Option<Rc<RefCell<DockWidgetState<K, Theme>>>>,
+    content: Option<ContentFn<'a, K, Message, Theme, Renderer>>,
+    on_event: Option<Rc<dyn Fn(DockEvent<K>) -> Message>>,
+    shared_state: Option<Rc<RefCell<DockWidgetState<K>>>>,
     class: Option<Rc<<Theme as Catalog>::Class<'static>>>,
     tab_bar_height: f32,
     tab_bar_spacing: f32,
@@ -411,7 +347,7 @@ where
     tab_bar_show_scrollbar: bool,
 }
 
-impl<K, Message, Theme, Renderer> Default for DockBuilder<K, Message, Theme, Renderer>
+impl<'a, K, Message, Theme, Renderer> Default for DockBuilder<'a, K, Message, Theme, Renderer>
 where
     Theme: Catalog,
     Renderer: advanced::Renderer,
@@ -449,7 +385,7 @@ where
     }
 }
 
-impl<K, Message, Theme, Renderer> DockBuilder<K, Message, Theme, Renderer>
+impl<'a, K, Message, Theme, Renderer> DockBuilder<'a, K, Message, Theme, Renderer>
 where
     K: Copy + 'static,
     Message: Clone + 'static,
@@ -467,12 +403,15 @@ where
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
     /// Set the content factory that maps a panel key `K` to its [`Element`].
+    ///
+    /// The closure may borrow from application state; it only needs to live
+    /// as long as the view frame (`'a`).
     #[must_use]
     pub fn content(
         mut self,
-        f: impl Fn(K) -> Element<'static, Message, Theme, Renderer> + 'static,
+        f: impl Fn(K) -> Element<'a, Message, Theme, Renderer> + 'a,
     ) -> Self {
-        self.content = Some(Rc::new(move |key| PaneContent::from(f(key))));
+        self.content = Some(Box::new(move |key| PaneContent::from(f(key))));
         self
     }
 
@@ -481,9 +420,9 @@ where
     #[must_use]
     pub fn content_styled(
         mut self,
-        f: impl Fn(K) -> PaneContent<'static, Message, Theme, Renderer> + 'static,
+        f: impl Fn(K) -> PaneContent<'a, Message, Theme, Renderer> + 'a,
     ) -> Self {
-        self.content = Some(Rc::new(f));
+        self.content = Some(Box::new(f));
         self
     }
 
@@ -492,7 +431,7 @@ where
     /// The widget applies layout mutations before this callback; do not call
     /// [`DockSession::dispatch`](crate::DockSession::dispatch) for widget-originated events.
     #[must_use]
-    pub fn on_event(mut self, f: impl Fn(DockEvent) -> Message + 'static) -> Self {
+    pub fn on_event(mut self, f: impl Fn(DockEvent<K>) -> Message + 'static) -> Self {
         self.on_event = Some(Rc::new(f));
         self
     }
@@ -500,7 +439,7 @@ where
     /// Attach shared widget state (typically obtained from
     /// [`DockSession::state`](crate::DockSession::state)).
     #[must_use]
-    pub fn state(mut self, state: Rc<RefCell<DockWidgetState<K, Theme>>>) -> Self {
+    pub fn state(mut self, state: Rc<RefCell<DockWidgetState<K>>>) -> Self {
         self.shared_state = Some(state);
         self
     }
@@ -681,11 +620,11 @@ where
     ///
     /// Panics when [`on_event`](Self::on_event) was not set.
     #[must_use]
-    pub fn build(self) -> Dock<K, Message, Theme, Renderer> {
-        let content: ContentFn<K, Message, Theme, Renderer> = self
+    pub fn build(self) -> Dock<'a, K, Message, Theme, Renderer> {
+        let content: ContentFn<'a, K, Message, Theme, Renderer> = self
             .content
-            .unwrap_or_else(|| Rc::new(|_| PaneContent::new(widget::text("No content"))));
-        let on_event = self
+            .unwrap_or_else(|| Box::new(|_| PaneContent::new(widget::text("No content"))));
+        let on_event: Rc<dyn Fn(DockEvent<K>) -> Message> = self
             .on_event
             .unwrap_or_else(|| Rc::new(|_| panic!("dock().on_event(...) required")));
         Dock {
@@ -695,6 +634,7 @@ where
             class: self
                 .class
                 .unwrap_or_else(|| Rc::new(<Theme as Catalog>::default())),
+            root: Element::new(widget::space::Space::new()),
             tab_bar_height: self.tab_bar_height,
             tab_bar_spacing: self.tab_bar_spacing,
             tab_bar_padding: self.tab_bar_padding,
@@ -727,7 +667,7 @@ where
 /// This is the primary entry point for building a dock layout in your view
 /// function. See [`DockBuilder`] for the full set of configuration options.
 #[must_use]
-pub fn dock<K, Message, Theme, Renderer>() -> DockBuilder<K, Message, Theme, Renderer>
+pub fn dock<'a, K, Message, Theme, Renderer>() -> DockBuilder<'a, K, Message, Theme, Renderer>
 where
     K: Copy + 'static,
     Message: Clone + 'static,
@@ -748,7 +688,7 @@ where
 }
 
 impl<K, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
-    for Dock<K, Message, Theme, Renderer>
+    for Dock<'_, K, Message, Theme, Renderer>
 where
     K: Copy + 'static,
     Message: Clone + 'static,
@@ -766,7 +706,7 @@ where
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
     fn tag(&self) -> Tag {
-        Tag::of::<DockTreeHolder<K, Message, Theme, Renderer>>()
+        Tag::of::<DockTreeHolder<K, Theme>>()
     }
 
     fn state(&self) -> State {
@@ -774,27 +714,14 @@ where
             .external_state
             .clone()
             .unwrap_or_else(|| Rc::new(RefCell::new(DockWidgetState::default())));
-        State::new(DockTreeHolder::<K, Message, Theme, Renderer> {
+        State::new(DockTreeHolder::<K, Theme> {
             dock_state,
-            root: None,
+            resolved_theme: Rc::new(RefCell::new(None)),
         })
     }
 
-    fn diff(&self, tree: &mut Tree) {
-        let dirty = tree
-            .state
-            .downcast_ref::<DockTreeHolder<K, Message, Theme, Renderer>>()
-            .dock_state
-            .borrow()
-            .layout_dirty;
-        if dirty {
-            tree.state
-                .downcast_ref::<DockTreeHolder<K, Message, Theme, Renderer>>()
-                .dock_state
-                .borrow_mut()
-                .commit_layout();
-        }
-        self.sync_root(tree);
+    fn diff(&self, _tree: &mut Tree) {
+        // Deferred to layout(), following the responsive() pattern.
     }
 
     fn size(&self) -> Size<Length> {
@@ -810,30 +737,24 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let dock_state = tree
-            .state
-            .downcast_ref::<DockTreeHolder<K, Message, Theme, Renderer>>()
-            .dock_state
-            .clone();
+        let holder = tree.state.downcast_ref::<DockTreeHolder<K, Theme>>();
+        let dock_state = Rc::clone(&holder.dock_state);
+        dock_state.borrow_mut().commit_layout();
         dock_state.borrow_mut().drop_targets.clear();
         dock_state.borrow_mut().tab_bar_targets.clear();
 
-        if tree.children.is_empty() {
-            self.sync_root(tree);
-        }
+        self.rebuild_root(tree);
+
         let size = limits.max();
         if let Some(child_tree) = tree.children.first_mut() {
-            if let Some(child) = tree
-                .state
-                .downcast_mut::<DockTreeHolder<K, Message, Theme, Renderer>>()
+            let child_node = self
                 .root
-                .as_mut()
-            {
-                let child_node = child.as_widget_mut().layout(child_tree, renderer, limits);
-                return layout::Node::with_children(size, vec![child_node]);
-            }
+                .as_widget_mut()
+                .layout(child_tree, renderer, limits);
+            layout::Node::with_children(size, vec![child_node])
+        } else {
+            layout::Node::new(size)
         }
-        layout::Node::new(size)
     }
 
     fn draw(
@@ -846,12 +767,9 @@ where
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
-        let dock_state = tree
-            .state
-            .downcast_ref::<DockTreeHolder<K, Message, Theme, Renderer>>()
-            .dock_state
-            .clone();
-        *dock_state.borrow_mut().resolved_theme.borrow_mut() = Some(theme.clone());
+        let holder = tree.state.downcast_ref::<DockTreeHolder<K, Theme>>();
+        *holder.resolved_theme.borrow_mut() = Some(theme.clone());
+        holder.dock_state.borrow_mut().pane_bounds.clear();
 
         let dock_style = Catalog::style(theme, &self.class);
         renderer.fill_quad(
@@ -862,30 +780,21 @@ where
             dock_style.background.color,
         );
 
-        tree.state
-            .downcast_ref::<DockTreeHolder<K, Message, Theme, Renderer>>()
-            .dock_state
-            .borrow_mut()
-            .pane_bounds
-            .clear();
-
         let Some(child_layout) = layout.children().next() else {
             return;
         };
         let Some(child_tree) = tree.children.first() else {
             return;
         };
-        Self::with_cached_root(tree, |child| {
-            child.as_widget().draw(
-                child_tree,
-                renderer,
-                theme,
-                style,
-                child_layout,
-                cursor,
-                viewport,
-            );
-        });
+        self.root.as_widget().draw(
+            child_tree,
+            renderer,
+            theme,
+            style,
+            child_layout,
+            cursor,
+            viewport,
+        );
     }
 
     fn update(
@@ -899,40 +808,34 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        let dock_state = tree
-            .state
-            .downcast_ref::<DockTreeHolder<K, Message, Theme, Renderer>>()
-            .dock_state
-            .clone();
-
         let Some(child_layout) = layout.children().next() else {
             return;
         };
         let Some(child_tree) = tree.children.first_mut() else {
             return;
         };
-        if let Some(child) = tree
-            .state
-            .downcast_mut::<DockTreeHolder<K, Message, Theme, Renderer>>()
-            .root
-            .as_mut()
-        {
-            child.as_widget_mut().update(
-                child_tree,
-                event,
-                child_layout,
-                cursor,
-                renderer,
-                clipboard,
-                shell,
-                viewport,
-            );
-        }
+        self.root.as_widget_mut().update(
+            child_tree,
+            event,
+            child_layout,
+            cursor,
+            renderer,
+            clipboard,
+            shell,
+            viewport,
+        );
+
+        let dock_state = Rc::clone(
+            &tree
+                .state
+                .downcast_ref::<DockTreeHolder<K, Theme>>()
+                .dock_state,
+        );
 
         if dock_state.borrow().layout_dirty {
             dock_state.borrow_mut().commit_layout();
             dock_state.borrow_mut().pane_bounds.clear();
-            self.sync_root(tree);
+            self.rebuild_root(tree);
         }
 
         if dock_state.borrow().focus_dirty {
@@ -949,9 +852,7 @@ where
         viewport: &Rectangle,
         renderer: &Renderer,
     ) -> mouse::Interaction {
-        let holder = tree
-            .state
-            .downcast_ref::<DockTreeHolder<K, Message, Theme, Renderer>>();
+        let holder = tree.state.downcast_ref::<DockTreeHolder<K, Theme>>();
         if holder.dock_state.borrow().drag.is_some() {
             return mouse::Interaction::Grab;
         }
@@ -962,16 +863,13 @@ where
         let Some(child_tree) = tree.children.first() else {
             return mouse::Interaction::default();
         };
-        Self::with_cached_root(tree, |child| {
-            child.as_widget().mouse_interaction(
-                child_tree,
-                child_layout,
-                cursor,
-                viewport,
-                renderer,
-            )
-        })
-        .unwrap_or_default()
+        self.root.as_widget().mouse_interaction(
+            child_tree,
+            child_layout,
+            cursor,
+            viewport,
+            renderer,
+        )
     }
 
     fn operate(
@@ -987,16 +885,9 @@ where
         let Some(child_tree) = tree.children.first_mut() else {
             return;
         };
-        if let Some(child) = tree
-            .state
-            .downcast_mut::<DockTreeHolder<K, Message, Theme, Renderer>>()
-            .root
-            .as_mut()
-        {
-            child
-                .as_widget_mut()
-                .operate(child_tree, child_layout, renderer, operation);
-        }
+        self.root
+            .as_widget_mut()
+            .operate(child_tree, child_layout, renderer, operation);
     }
 
     fn overlay<'b>(
@@ -1009,19 +900,14 @@ where
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         let child_layout = layout.children().next()?;
         let child_tree = tree.children.first_mut()?;
-        let child = tree
-            .state
-            .downcast_mut::<DockTreeHolder<K, Message, Theme, Renderer>>()
-            .root
-            .as_mut()?;
-        child
+        self.root
             .as_widget_mut()
             .overlay(child_tree, child_layout, renderer, viewport, translation)
     }
 }
 
-impl<K, Message, Theme, Renderer> From<Dock<K, Message, Theme, Renderer>>
-    for Element<'static, Message, Theme, Renderer>
+impl<'a, K, Message, Theme, Renderer> From<Dock<'a, K, Message, Theme, Renderer>>
+    for Element<'a, Message, Theme, Renderer>
 where
     K: Copy + 'static,
     Message: Clone + 'static,
@@ -1038,7 +924,7 @@ where
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
-    fn from(widget: Dock<K, Message, Theme, Renderer>) -> Self {
+    fn from(widget: Dock<'a, K, Message, Theme, Renderer>) -> Self {
         Element::new(widget)
     }
 }

@@ -101,7 +101,7 @@ impl App {
 
 #[derive(Debug, Clone)]
 enum Message {
-    Dock(DockEvent),
+    Dock(DockEvent<Content>),
     FocusAdjacent(Direction),
 }
 

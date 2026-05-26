@@ -67,7 +67,7 @@ fn built_layout_json_roundtrip() {
 #[test]
 fn widget_state_rebuilds_index_after_deserialize() {
     let built = build_tree(&nested_layout()).expect("compile");
-    let mut state = iced_dock::DockWidgetState::<u32, iced::Theme>::from_built(built, None);
+    let mut state = iced_dock::DockWidgetState::<u32>::from_built(built, None);
     state.sync_index();
     assert_eq!(state.index.panels.len(), 7);
 }

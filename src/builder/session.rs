@@ -45,11 +45,11 @@ pub enum PanelCycle {
 }
 
 /// High-level handle for a dock layout and runtime panel operations.
-pub struct DockSession<K, Theme = iced::Theme> {
-    inner: Rc<RefCell<DockWidgetState<K, Theme>>>,
+pub struct DockSession<K> {
+    inner: Rc<RefCell<DockWidgetState<K>>>,
 }
 
-impl<K, Theme> DockSession<K, Theme>
+impl<K> DockSession<K>
 where
     K: Copy,
 {
@@ -76,7 +76,7 @@ where
 
     /// Shared widget state for the iced dock builder.
     #[must_use]
-    pub fn state(&self) -> Rc<RefCell<DockWidgetState<K, Theme>>> {
+    pub fn state(&self) -> Rc<RefCell<DockWidgetState<K>>> {
         Rc::clone(&self.inner)
     }
 
@@ -277,7 +277,7 @@ fn resolve_initial_focus<K>(
     }
 }
 
-impl<K, Theme> fmt::Debug for DockSession<K, Theme> {
+impl<K> fmt::Debug for DockSession<K> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DockSession").finish_non_exhaustive()
     }

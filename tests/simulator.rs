@@ -7,7 +7,7 @@ use iced_test::{simulator, Simulator};
 
 #[derive(Debug, Clone)]
 enum Message {
-    Dock(DockEvent),
+    Dock(DockEvent<u32>),
 }
 
 // ---------------------------------------------------------------------------
@@ -142,9 +142,9 @@ fn clicking_inactive_tab_produces_tab_selected() {
     assert!(
         messages.iter().any(|msg| matches!(
             msg,
-            Message::Dock(DockEvent::TabSelected { panel, .. }) if panel == "terminal"
+            Message::Dock(DockEvent::TabSelected { panel, .. }) if *panel == 1
         )),
-        "expected TabSelected for 'terminal', got: {messages:?}"
+        "expected TabSelected for terminal (1), got: {messages:?}"
     );
 }
 
@@ -173,9 +173,9 @@ fn clicking_active_tab_still_produces_select() {
     assert!(
         messages.iter().any(|msg| matches!(
             msg,
-            Message::Dock(DockEvent::TabSelected { panel, .. }) if panel == "editor"
+            Message::Dock(DockEvent::TabSelected { panel, .. }) if *panel == 0
         )),
-        "expected TabSelected for 'editor', got: {messages:?}"
+        "expected TabSelected for editor (0), got: {messages:?}"
     );
 }
 
@@ -207,9 +207,9 @@ fn three_tabs_switch_twice() {
     assert!(
         msgs.iter().any(|msg| matches!(
             msg,
-            Message::Dock(DockEvent::TabSelected { panel, .. }) if panel == "terminal"
+            Message::Dock(DockEvent::TabSelected { panel, .. }) if *panel == 1
         )),
-        "step 1: expected TabSelected for 'terminal', got: {msgs:?}"
+        "step 1: expected TabSelected for terminal (1), got: {msgs:?}"
     );
 
     // Step 2: rebuild view, click Output
@@ -219,9 +219,9 @@ fn three_tabs_switch_twice() {
     assert!(
         msgs.iter().any(|msg| matches!(
             msg,
-            Message::Dock(DockEvent::TabSelected { panel, .. }) if panel == "output"
+            Message::Dock(DockEvent::TabSelected { panel, .. }) if *panel == 2
         )),
-        "step 2: expected TabSelected for 'output', got: {msgs:?}"
+        "step 2: expected TabSelected for output (2), got: {msgs:?}"
     );
 }
 
@@ -275,9 +275,9 @@ fn split_layout_click_tab_in_right_pane() {
     assert!(
         messages.iter().any(|msg| matches!(
             msg,
-            Message::Dock(DockEvent::TabSelected { panel, .. }) if panel == "search"
+            Message::Dock(DockEvent::TabSelected { panel, .. }) if *panel == 11
         )),
-        "expected TabSelected for 'search', got: {messages:?}"
+        "expected TabSelected for search (11), got: {messages:?}"
     );
 }
 
@@ -348,12 +348,12 @@ fn non_closable_tab_has_no_close_button_effect() {
     let closed_pinned = messages.iter().any(|msg| {
         matches!(
             msg,
-            Message::Dock(DockEvent::TabClosed { panel }) if panel == "pinned"
+            Message::Dock(DockEvent::TabClosed { panel }) if *panel == 0
         )
     });
     assert!(
         !closed_pinned,
-        "non-closable tab 'pinned' must not emit TabClosed"
+        "non-closable tab pinned (0) must not emit TabClosed"
     );
 }
 
@@ -370,9 +370,9 @@ fn overflow_menu_selects_hidden_tab() {
     assert!(
         messages.iter().any(|msg| matches!(
             msg,
-            Message::Dock(DockEvent::TabSelected { panel, .. }) if panel == "file5"
+            Message::Dock(DockEvent::TabSelected { panel, .. }) if *panel == 5
         )),
-        "expected TabSelected for hidden tab 'file5', got: {messages:?}"
+        "expected TabSelected for hidden tab file5 (5), got: {messages:?}"
     );
 
     let state = session.state();

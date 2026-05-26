@@ -88,7 +88,7 @@ where
     Theme: Catalog,
     Renderer: advanced::Renderer,
 {
-    dock_state: Rc<RefCell<DockWidgetState<K, Theme>>>,
+    dock_state: Rc<RefCell<DockWidgetState<K>>>,
     pane_id: NodeId,
     tabs: Vec<TabInfo>,
     active_tab: NodeId,
@@ -122,7 +122,7 @@ where
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
     pub(crate) fn new(
-        dock_state: Rc<RefCell<DockWidgetState<K, Theme>>>,
+        dock_state: Rc<RefCell<DockWidgetState<K>>>,
         pane_id: NodeId,
         tabs: Vec<TabInfo>,
         active_tab: NodeId,

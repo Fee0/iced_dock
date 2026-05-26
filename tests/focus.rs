@@ -1,7 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use iced::Theme;
 use iced_dock::unstable::{build_tree, dispatch_action, owning_pane};
 use iced_dock::{
     adjacent_pane, horizontal, pane_bounds_map, panel, tabs, vertical, Direction,
@@ -89,7 +85,6 @@ fn pane_focused_updates_focus_without_layout_dirty() {
         focused_pane: Some(pane_a),
         focus_dirty: false,
         layout_dirty: false,
-        resolved_theme: Rc::new(RefCell::new(Some(Theme::Dark))),
     };
 
     let changed = dispatch_action(
@@ -290,7 +285,7 @@ fn pane_focused_with_panel_activates_tab() {
     let pane = iced_dock::unstable::first_pane(&built.layout).expect("pane");
     let panel_b = built.index.panel_node("b").expect("b");
 
-    let mut state = DockWidgetState::<u32, iced::Theme>::from_built(built, Some(pane));
+    let mut state = DockWidgetState::<u32>::from_built(built, Some(pane));
     state.layout_dirty = false;
 
     let changed = dispatch_action(

@@ -11,7 +11,7 @@ fn dispatch_close_once_removes_panel() {
     ]))
     .expect("built");
     let panel_b = built.index.panel_node("b").expect("b");
-    let mut state = DockWidgetState::<u32, iced::Theme>::from_built(built, None);
+    let mut state = DockWidgetState::<u32>::from_built(built, None);
 
     assert!(dispatch_action(
         &mut state,
