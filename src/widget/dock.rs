@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use iced::advanced;
 use iced::advanced::layout::{self, Layout};
+use iced::advanced::overlay;
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
@@ -10,7 +11,8 @@ use iced::advanced::{Clipboard, Shell};
 use iced::mouse::{self, Cursor};
 use iced::time::Duration;
 use iced::widget::{self, button, container, text as iced_text};
-use iced::{Element, Event, Length, Rectangle, Size};
+use iced::widget::overlay::menu;
+use iced::{Element, Event, Length, Rectangle, Size, Vector};
 
 use crate::model::{Layout as DockLayout, NodeId, NodeKind, Pane};
 use crate::style::{Catalog, DockStyle, PaneContent, StyleFn};
@@ -27,7 +29,7 @@ where
     Renderer: advanced::Renderer,
 {
     dock_state: Rc<RefCell<DockWidgetState<K, Theme>>>,
-    root: RefCell<Option<Element<'static, Message, Theme, Renderer>>>,
+    root: Option<Element<'static, Message, Theme, Renderer>>,
 }
 
 pub struct Dock<K, Message, Theme = iced::Theme, Renderer = iced::Renderer>
@@ -55,6 +57,7 @@ where
         + button::Catalog
         + container::Catalog
         + iced_text::Catalog
+        + menu::Catalog
         + Clone
         + PartialEq
         + 'static,
@@ -263,13 +266,12 @@ where
             let holder = tree
                 .state
                 .downcast_mut::<DockTreeHolder<K, Message, Theme, Renderer>>();
-            holder.root.replace(new_root);
+            holder.root = new_root;
         }
         if let Some(child) = tree
             .state
             .downcast_ref::<DockTreeHolder<K, Message, Theme, Renderer>>()
             .root
-            .borrow()
             .as_ref()
         {
             if tree.children.is_empty() {
@@ -289,7 +291,7 @@ where
         let holder = tree
             .state
             .downcast_ref::<DockTreeHolder<K, Message, Theme, Renderer>>();
-        holder.root.borrow().as_ref().map(f)
+        holder.root.as_ref().map(f)
     }
 }
 
@@ -342,6 +344,7 @@ where
         + button::Catalog
         + container::Catalog
         + iced_text::Catalog
+        + menu::Catalog
         + Clone
         + PartialEq
         + 'static,
@@ -506,6 +509,7 @@ where
         + button::Catalog
         + container::Catalog
         + iced_text::Catalog
+        + menu::Catalog
         + Clone
         + PartialEq
         + 'static,
@@ -526,6 +530,7 @@ where
         + button::Catalog
         + container::Catalog
         + iced_text::Catalog
+        + menu::Catalog
         + Clone
         + PartialEq
         + 'static,
@@ -545,7 +550,7 @@ where
             .unwrap_or_else(|| Rc::new(RefCell::new(DockWidgetState::default())));
         State::new(DockTreeHolder::<K, Message, Theme, Renderer> {
             dock_state,
-            root: RefCell::new(None),
+            root: None,
         })
     }
 
@@ -592,12 +597,12 @@ where
         }
         let size = limits.max();
         if let Some(child_tree) = tree.children.first_mut() {
-            let mut root = tree
+            if let Some(child) = tree
                 .state
                 .downcast_mut::<DockTreeHolder<K, Message, Theme, Renderer>>()
                 .root
-                .borrow_mut();
-            if let Some(child) = root.as_mut() {
+                .as_mut()
+            {
                 let child_node = child.as_widget_mut().layout(child_tree, renderer, limits);
                 return layout::Node::with_children(size, vec![child_node]);
             }
@@ -680,24 +685,22 @@ where
         let Some(child_tree) = tree.children.first_mut() else {
             return;
         };
+        if let Some(child) = tree
+            .state
+            .downcast_mut::<DockTreeHolder<K, Message, Theme, Renderer>>()
+            .root
+            .as_mut()
         {
-            let mut root = tree
-                .state
-                .downcast_mut::<DockTreeHolder<K, Message, Theme, Renderer>>()
-                .root
-                .borrow_mut();
-            if let Some(child) = root.as_mut() {
-                child.as_widget_mut().update(
-                    child_tree,
-                    event,
-                    child_layout,
-                    cursor,
-                    renderer,
-                    clipboard,
-                    shell,
-                    viewport,
-                );
-            }
+            child.as_widget_mut().update(
+                child_tree,
+                event,
+                child_layout,
+                cursor,
+                renderer,
+                clipboard,
+                shell,
+                viewport,
+            );
         }
 
         if dock_state.borrow().layout_dirty {
@@ -758,16 +761,40 @@ where
         let Some(child_tree) = tree.children.first_mut() else {
             return;
         };
-        let mut root = tree
+        if let Some(child) = tree
             .state
             .downcast_mut::<DockTreeHolder<K, Message, Theme, Renderer>>()
             .root
-            .borrow_mut();
-        if let Some(child) = root.as_mut() {
+            .as_mut()
+        {
             child
                 .as_widget_mut()
                 .operate(child_tree, child_layout, renderer, operation);
         }
+    }
+
+    fn overlay<'b>(
+        &'b mut self,
+        tree: &'b mut Tree,
+        layout: Layout<'b>,
+        renderer: &Renderer,
+        viewport: &Rectangle,
+        translation: Vector,
+    ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
+        let child_layout = layout.children().next()?;
+        let child_tree = tree.children.first_mut()?;
+        let child = tree
+            .state
+            .downcast_mut::<DockTreeHolder<K, Message, Theme, Renderer>>()
+            .root
+            .as_mut()?;
+        child.as_widget_mut().overlay(
+            child_tree,
+            child_layout,
+            renderer,
+            viewport,
+            translation,
+        )
     }
 }
 
@@ -780,6 +807,7 @@ where
         + button::Catalog
         + container::Catalog
         + iced_text::Catalog
+        + menu::Catalog
         + Clone
         + PartialEq
         + 'static,

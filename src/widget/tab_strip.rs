@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use iced::advanced::layout::{self, Layout};
+use iced::advanced::overlay;
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
@@ -9,6 +10,7 @@ use iced::advanced::{self, Clipboard, Shell};
 use iced::keyboard;
 use iced::mouse::{self, Cursor};
 use iced::time::{Duration, Instant};
+use iced::widget::overlay::menu;
 use iced::widget::{button, container, mouse_area, row, text, Space};
 use iced::window;
 use iced::Theme as IcedTheme;
@@ -27,15 +29,41 @@ struct ScrollbarDrag {
     grab_x: f32,
 }
 
-struct TabStripState<Theme> {
+#[derive(Debug, Clone)]
+struct HiddenTabOption {
+    id: NodeId,
+    title: String,
+}
+
+impl std::fmt::Display for HiddenTabOption {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.title)
+    }
+}
+
+#[derive(Debug, Default)]
+struct OverflowUiState {
+    open: bool,
+    pressed: bool,
+    reveal_tab: Option<NodeId>,
+}
+
+struct TabStripState<Theme: menu::Catalog> {
     scroll_offset: f32,
     content_width: f32,
     viewport_width: f32,
+    show_overflow_button: bool,
     tab_bar_hovered: bool,
     scrollbar_visible: bool,
     hide_at: Option<Instant>,
     scrollbar_drag: Option<ScrollbarDrag>,
     scrollbar_thumb_hovered: bool,
+    overflow_button_hovered: bool,
+    overflow_menu_state: menu::State,
+    overflow_menu_hovered: Option<usize>,
+    overflow_options: Vec<HiddenTabOption>,
+    overflow_menu_class: <Theme as menu::Catalog>::Class<'static>,
+    overflow_ui: Rc<RefCell<OverflowUiState>>,
     keyboard_modifiers: keyboard::Modifiers,
     drag_pending: bool,
     drag_start: Option<iced::Point>,
@@ -50,17 +78,27 @@ struct TabStripState<Theme> {
     built_theme: Option<Theme>,
 }
 
-impl<Theme> TabStripState<Theme> {
+impl<Theme> TabStripState<Theme>
+where
+    Theme: menu::Catalog,
+{
     fn new(theme: Option<Theme>) -> Self {
         Self {
             scroll_offset: 0.0,
             content_width: 0.0,
             viewport_width: 0.0,
+            show_overflow_button: false,
             tab_bar_hovered: false,
             scrollbar_visible: false,
             hide_at: None,
             scrollbar_drag: None,
             scrollbar_thumb_hovered: false,
+            overflow_button_hovered: false,
+            overflow_menu_state: menu::State::default(),
+            overflow_menu_hovered: None,
+            overflow_options: Vec::new(),
+            overflow_menu_class: <Theme as menu::Catalog>::default(),
+            overflow_ui: Rc::new(RefCell::new(OverflowUiState::default())),
             keyboard_modifiers: keyboard::Modifiers::default(),
             drag_pending: false,
             drag_start: None,
@@ -72,6 +110,109 @@ impl<Theme> TabStripState<Theme> {
             suppress_hover: false,
             built_theme: theme,
         }
+    }
+}
+
+const OVERFLOW_BUTTON_HORIZONTAL_PADDING: f32 = 8.0;
+const OVERFLOW_BUTTON_CONTENT_WIDTH: f32 = 16.0;
+const OVERFLOW_BUTTON_GLYPH: &str = "▾";
+const OVERFLOW_MENU_PADDING: Padding = Padding {
+    top: 6.0,
+    right: 10.0,
+    bottom: 6.0,
+    left: 10.0,
+};
+const OVERFLOW_BUTTON_TOTAL_WIDTH: f32 =
+    OVERFLOW_BUTTON_CONTENT_WIDTH + 2.0 * OVERFLOW_BUTTON_HORIZONTAL_PADDING;
+
+struct OverflowMenuOverlay<'a, Message, Theme, Renderer>
+where
+    Renderer: advanced::Renderer,
+{
+    menu: overlay::Element<'a, Message, Theme, Renderer>,
+    button_bounds: Rectangle,
+    ui: Rc<RefCell<OverflowUiState>>,
+}
+
+impl<Message, Theme, Renderer> iced::advanced::Overlay<Message, Theme, Renderer>
+    for OverflowMenuOverlay<'_, Message, Theme, Renderer>
+where
+    Renderer: advanced::Renderer,
+{
+    fn layout(&mut self, renderer: &Renderer, bounds: Size) -> layout::Node {
+        self.menu.as_overlay_mut().layout(renderer, bounds)
+    }
+
+    fn draw(
+        &self,
+        renderer: &mut Renderer,
+        theme: &Theme,
+        style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: Cursor,
+    ) {
+        self.menu
+            .as_overlay()
+            .draw(renderer, theme, style, layout, cursor);
+    }
+
+    fn update(
+        &mut self,
+        event: &Event,
+        layout: Layout<'_>,
+        cursor: Cursor,
+        renderer: &Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+    ) {
+        if matches!(event, Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))) {
+            if let Some(position) = cursor.position() {
+                if !layout.bounds().contains(position) && !self.button_bounds.contains(position) {
+                    let mut ui = self.ui.borrow_mut();
+                    ui.open = false;
+                    ui.pressed = false;
+                    shell.request_redraw();
+                }
+            }
+        }
+
+        self.menu
+            .as_overlay_mut()
+            .update(event, layout, cursor, renderer, clipboard, shell);
+    }
+
+    fn mouse_interaction(
+        &self,
+        layout: Layout<'_>,
+        cursor: Cursor,
+        renderer: &Renderer,
+    ) -> mouse::Interaction {
+        self.menu
+            .as_overlay()
+            .mouse_interaction(layout, cursor, renderer)
+    }
+
+    fn operate(
+        &mut self,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+        operation: &mut dyn Operation,
+    ) {
+        self.menu
+            .as_overlay_mut()
+            .operate(layout, renderer, operation);
+    }
+
+    fn overlay<'b>(
+        &'b mut self,
+        layout: Layout<'b>,
+        renderer: &Renderer,
+    ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
+        self.menu.as_overlay_mut().overlay(layout, renderer)
+    }
+
+    fn index(&self) -> f32 {
+        10.0
     }
 }
 
@@ -99,6 +240,7 @@ where
     Theme: Catalog
         + button::Catalog
         + container::Catalog
+        + menu::Catalog
         + text::Catalog
         + Clone
         + PartialEq
@@ -211,7 +353,7 @@ where
     }
 }
 
-fn visual_pressed_tab<Theme>(state: &TabStripState<Theme>) -> Option<NodeId> {
+fn visual_pressed_tab<Theme: menu::Catalog>(state: &TabStripState<Theme>) -> Option<NodeId> {
     if state.dragging {
         return None;
     }
@@ -362,7 +504,7 @@ fn insert_marker_color(drop: &DropOverlayStyle, blocked: bool) -> Color {
 }
 
 /// Horizontal scroll offset of a tab strip widget tree.
-pub(crate) fn scroll_offset<Theme: 'static>(tab_strip_tree: &Tree) -> f32 {
+pub(crate) fn scroll_offset<Theme: menu::Catalog + 'static>(tab_strip_tree: &Tree) -> f32 {
     tab_strip_tree
         .state
         .downcast_ref::<TabStripState<Theme>>()
@@ -412,7 +554,7 @@ pub(crate) fn insert_marker_rect_layout(
 }
 
 /// Sync the insertion marker shown during an active tab drag.
-pub(crate) fn set_insert_marker_index<Theme: 'static>(
+pub(crate) fn set_insert_marker_index<Theme: menu::Catalog + 'static>(
     tree: &mut Tree,
     index: Option<usize>,
 ) -> bool {
@@ -425,7 +567,10 @@ pub(crate) fn set_insert_marker_index<Theme: 'static>(
 }
 
 /// Mark the insertion marker as blocked (group mismatch) so it renders in a different color.
-pub(crate) fn set_drag_blocked<Theme: 'static>(tree: &mut Tree, blocked: bool) -> bool {
+pub(crate) fn set_drag_blocked<Theme: menu::Catalog + 'static>(
+    tree: &mut Tree,
+    blocked: bool,
+) -> bool {
     let state = tree.state.downcast_mut::<TabStripState<Theme>>();
     if state.drag_blocked == blocked {
         return false;
@@ -435,7 +580,10 @@ pub(crate) fn set_drag_blocked<Theme: 'static>(tree: &mut Tree, blocked: bool) -
 }
 
 /// Disable tab label / close-button hover while a tab drag is active anywhere in the dock.
-pub(crate) fn set_suppress_hover<Theme: 'static>(tree: &mut Tree, suppress: bool) -> bool {
+pub(crate) fn set_suppress_hover<Theme: menu::Catalog + 'static>(
+    tree: &mut Tree,
+    suppress: bool,
+) -> bool {
     let state = tree.state.downcast_mut::<TabStripState<Theme>>();
     if state.suppress_hover == suppress {
         return false;
@@ -473,6 +621,75 @@ fn max_scroll_offset(content_width: f32, viewport_width: f32) -> f32 {
 
 fn clamp_scroll_offset(offset: f32, max: f32) -> f32 {
     offset.clamp(0.0, max)
+}
+
+fn overflow_button_bounds(tab_bounds: Rectangle, viewport_width: f32) -> Rectangle {
+    Rectangle {
+        x: tab_bounds.x + viewport_width,
+        y: tab_bounds.y,
+        width: (tab_bounds.width - viewport_width).max(0.0),
+        height: tab_bounds.height,
+    }
+}
+
+fn visible_row_bounds(tab_bounds: Rectangle, viewport_width: f32) -> Rectangle {
+    Rectangle {
+        width: viewport_width.max(0.0),
+        ..tab_bounds
+    }
+}
+
+fn tab_visible_range(tab_x: f32, scroll_offset: f32, viewport_width: f32) -> (f32, f32) {
+    let start = tab_x + scroll_offset;
+    (start, start + viewport_width)
+}
+
+fn tab_fully_visible(
+    tab_bounds: Rectangle,
+    row_x: f32,
+    scroll_offset: f32,
+    viewport_width: f32,
+) -> bool {
+    let (visible_start, visible_end) = tab_visible_range(row_x, scroll_offset, viewport_width);
+    tab_bounds.x >= visible_start && tab_bounds.x + tab_bounds.width <= visible_end
+}
+
+fn hidden_tabs(
+    row_layout: &Layout<'_>,
+    tabs: &[TabInfo],
+    row_x: f32,
+    scroll_offset: f32,
+    viewport_width: f32,
+) -> Vec<HiddenTabOption> {
+    tabs.iter()
+        .enumerate()
+        .filter_map(|(index, tab)| {
+            let tab_bounds = row_layout.children().nth(index)?.bounds();
+            (!tab_fully_visible(tab_bounds, row_x, scroll_offset, viewport_width)).then(|| {
+                HiddenTabOption {
+                    id: tab.id,
+                    title: tab.title.clone(),
+                }
+            })
+        })
+        .collect()
+}
+
+fn ensure_tab_visible(
+    tab_bounds: Rectangle,
+    row_x: f32,
+    scroll_offset: f32,
+    viewport_width: f32,
+    max_offset: f32,
+) -> f32 {
+    let (visible_start, visible_end) = tab_visible_range(row_x, scroll_offset, viewport_width);
+    if tab_bounds.x < visible_start {
+        clamp_scroll_offset(tab_bounds.x - row_x, max_offset)
+    } else if tab_bounds.x + tab_bounds.width > visible_end {
+        clamp_scroll_offset(tab_bounds.x + tab_bounds.width - row_x - viewport_width, max_offset)
+    } else {
+        scroll_offset
+    }
 }
 
 struct ScrollbarMetrics {
@@ -564,6 +781,73 @@ fn draw_scrollbar<Renderer: advanced::Renderer>(
     );
 }
 
+fn draw_overflow_button<Renderer>(
+    renderer: &mut Renderer,
+    bounds: Rectangle,
+    bar: &TabBarStyle,
+    tab: &crate::style::TabStyle,
+    hovered: bool,
+    pressed: bool,
+) where
+    Renderer: advanced::Renderer + advanced::text::Renderer,
+{
+    let (background, color) = if pressed {
+        (tab.pressed_background, tab.pressed_text)
+    } else if hovered {
+        (tab.hovered_background, tab.hovered_text)
+    } else {
+        (tab.inactive_background, tab.inactive_text)
+    };
+
+    renderer.fill_quad(
+        renderer::Quad {
+            bounds,
+            ..renderer::Quad::default()
+        },
+        background,
+    );
+
+    renderer.fill_text(
+        iced::advanced::text::Text {
+            content: OVERFLOW_BUTTON_GLYPH.to_string(),
+            bounds: Size::new(
+                (bounds.width - 2.0 * OVERFLOW_BUTTON_HORIZONTAL_PADDING).max(0.0),
+                bounds.height,
+            ),
+            size: iced::Pixels(tab.text_size + 3.0),
+            line_height: iced::advanced::text::LineHeight::default(),
+            font: renderer.default_font(),
+            align_x: iced::alignment::Horizontal::Center.into(),
+            align_y: iced::alignment::Vertical::Center,
+            shaping: iced::advanced::text::Shaping::Basic,
+            wrapping: iced::advanced::text::Wrapping::default(),
+        },
+        iced::Point::new(
+            bounds.x + OVERFLOW_BUTTON_HORIZONTAL_PADDING + (bounds.width - 2.0 * OVERFLOW_BUTTON_HORIZONTAL_PADDING) * 0.5,
+            bounds.center_y(),
+        ),
+        color,
+        bounds,
+    );
+
+    if let Some(separator) = &bar.separator {
+        if separator.height > 0.0 && separator.color.a > 0.0 {
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds: Rectangle {
+                        x: bounds.x,
+                        y: bounds.y + bounds.height - separator.height,
+                        width: bounds.width,
+                        height: separator.height,
+                    },
+                    ..renderer::Quad::default()
+                },
+                separator.color,
+            );
+        }
+    }
+}
+
 /// Horizontal scroll delta for the tab row (vertical wheel scrolls horizontally).
 fn scroll_delta_x(delta: mouse::ScrollDelta, shift: bool) -> f32 {
     const WHEEL_LINES: f32 = 60.0;
@@ -593,7 +877,7 @@ fn cursor_over_tab_bar(tab_bounds: Rectangle, cursor: Cursor) -> bool {
 }
 
 /// Whether this tab strip has an in-progress label drag (before or after threshold).
-pub(crate) fn is_dragging<Theme: 'static>(tab_strip_tree: Option<&Tree>) -> bool {
+pub(crate) fn is_dragging<Theme: menu::Catalog + 'static>(tab_strip_tree: Option<&Tree>) -> bool {
     tab_strip_tree.is_some_and(|tree| {
         let state = tree.state.downcast_ref::<TabStripState<Theme>>();
         state.dragging || state.drag_pending
@@ -601,17 +885,19 @@ pub(crate) fn is_dragging<Theme: 'static>(tab_strip_tree: Option<&Tree>) -> bool
 }
 
 /// Whether a tab label drag has passed the threshold (show grab cursor, etc.).
-pub(crate) fn is_tab_drag_active<Theme: 'static>(tab_strip_tree: Option<&Tree>) -> bool {
+pub(crate) fn is_tab_drag_active<Theme: menu::Catalog + 'static>(
+    tab_strip_tree: Option<&Tree>,
+) -> bool {
     tab_strip_tree.is_some_and(|tree| tree.state.downcast_ref::<TabStripState<Theme>>().dragging)
 }
 
 /// Pending scrollbar hide deadline, if a delayed hide was scheduled.
-pub(crate) fn pending_hide_deadline<Theme: 'static>(tree: &Tree) -> Option<Instant> {
+pub(crate) fn pending_hide_deadline<Theme: menu::Catalog + 'static>(tree: &Tree) -> Option<Instant> {
     tree.state.downcast_ref::<TabStripState<Theme>>().hide_at
 }
 
 /// Ensure a redraw is scheduled when the hide deadline elapses.
-pub(crate) fn schedule_hide_redraw<Message, Theme: 'static>(
+pub(crate) fn schedule_hide_redraw<Message, Theme: menu::Catalog + 'static>(
     tree: &Tree,
     shell: &mut Shell<'_, Message>,
 ) {
@@ -638,7 +924,7 @@ fn tab_row_cursor(tab_bounds: Rectangle, cursor: Cursor, scroll_offset: f32) -> 
 }
 
 /// Sync hover / hide state from a parent widget (e.g. [`TabDock`](crate::widget::tab_dock::TabDock)).
-pub(crate) fn sync_hover_in_tree<Message, Theme: 'static>(
+pub(crate) fn sync_hover_in_tree<Message, Theme: menu::Catalog + 'static>(
     tab_strip_tree: &mut Tree,
     tab_bounds: Rectangle,
     cursor: Cursor,
@@ -650,7 +936,7 @@ pub(crate) fn sync_hover_in_tree<Message, Theme: 'static>(
     sync_tab_bar_hover(state, tab_bounds, cursor, hide_delay, show_scrollbar, shell);
 }
 
-fn sync_tab_bar_hover<Message, Theme>(
+fn sync_tab_bar_hover<Message, Theme: menu::Catalog>(
     state: &mut TabStripState<Theme>,
     tab_bounds: Rectangle,
     cursor: Cursor,
@@ -700,6 +986,7 @@ where
     Theme: Catalog
         + button::Catalog
         + container::Catalog
+        + menu::Catalog
         + text::Catalog
         + Clone
         + PartialEq
@@ -756,10 +1043,36 @@ where
         let content_width = row_node.size().width;
 
         let state = tree.state.downcast_mut::<TabStripState<Theme>>();
+        let show_overflow_button = content_width > viewport_width + f32::EPSILON;
+        let row_viewport_width = if show_overflow_button {
+            (viewport_width - OVERFLOW_BUTTON_TOTAL_WIDTH).max(0.0)
+        } else {
+            viewport_width
+        };
         state.content_width = content_width;
-        state.viewport_width = viewport_width;
-        let max_offset = max_scroll_offset(content_width, viewport_width);
+        state.viewport_width = row_viewport_width;
+        state.show_overflow_button = show_overflow_button;
+        if !show_overflow_button {
+            state.overflow_ui.borrow_mut().open = false;
+            state.overflow_button_hovered = false;
+            state.overflow_menu_hovered = None;
+            state.overflow_options.clear();
+        }
+        let max_offset = max_scroll_offset(content_width, row_viewport_width);
         state.scroll_offset = clamp_scroll_offset(state.scroll_offset, max_offset);
+        if let Some(target) = state.overflow_ui.borrow_mut().reveal_tab.take() {
+            if let Some(index) = self.tabs.iter().position(|tab| tab.id == target) {
+                if let Some(tab_node) = row_node.children().get(index) {
+                    state.scroll_offset = ensure_tab_visible(
+                        tab_node.bounds(),
+                        0.0,
+                        state.scroll_offset,
+                        row_viewport_width,
+                        max_offset,
+                    );
+                }
+            }
+        }
 
         layout::Node::with_children(Size::new(viewport_width, bar_height), vec![row_node])
     }
@@ -785,8 +1098,10 @@ where
         };
 
         let scroll_offset = state.scroll_offset;
-        let visible_bounds = tab_bounds.intersection(viewport).unwrap_or(tab_bounds);
-        let overflow = state.content_width > state.viewport_width + f32::EPSILON;
+        let row_bounds = visible_row_bounds(tab_bounds, state.viewport_width);
+        let visible_bounds = row_bounds.intersection(viewport).unwrap_or(row_bounds);
+        let overflow = state.show_overflow_button;
+        let overflow_pressed = state.overflow_ui.borrow().pressed;
 
         renderer.fill_quad(
             renderer::Quad {
@@ -853,7 +1168,7 @@ where
                         }
                     }
                 }
-                let content_cursor = tab_row_cursor(tab_bounds, cursor, translation.x);
+                let content_cursor = tab_row_cursor(row_bounds, cursor, translation.x);
                 compose::child_draw(
                     &self.tabs_row,
                     &tree.children[0],
@@ -890,7 +1205,7 @@ where
 
             if self.show_scrollbar && overflow {
                 if let Some(metrics) = scrollbar_metrics(
-                    tab_bounds,
+                    row_bounds,
                     bar,
                     scroll_offset,
                     state.content_width,
@@ -907,6 +1222,18 @@ where
                 }
             }
         });
+
+        if overflow {
+            let button_bounds = overflow_button_bounds(tab_bounds, state.viewport_width);
+            draw_overflow_button(
+                renderer,
+                button_bounds,
+                bar,
+                tab_style,
+                state.overflow_button_hovered,
+                overflow_pressed,
+            );
+        }
     }
 
     fn update(
@@ -926,11 +1253,19 @@ where
         let bar = &dock_style.tab_bar;
         let threshold = self.drag_threshold;
         let cursor_pos = cursor.position();
-        let over_tab_bar = cursor_over_tab_bar(tab_bounds, cursor);
         let mut row_refresh: Option<(Option<NodeId>, Option<NodeId>)> = None;
 
         {
             let state = tree.state.downcast_mut::<TabStripState<Theme>>();
+            let row_bounds = visible_row_bounds(tab_bounds, state.viewport_width);
+            let overflow_button_bounds = overflow_button_bounds(tab_bounds, state.viewport_width);
+            let over_row = cursor
+                .position()
+                .is_some_and(|point| row_bounds.contains(point));
+            let over_overflow_button = state.show_overflow_button
+                && cursor
+                    .position()
+                    .is_some_and(|point| overflow_button_bounds.contains(point));
             let max_offset = max_scroll_offset(state.content_width, state.viewport_width);
 
             if state.built_theme != current_theme {
@@ -946,7 +1281,7 @@ where
 
             let hovered = if state.suppress_hover {
                 None
-            } else if over_tab_bar {
+            } else if over_row {
                 cursor_pos.and_then(|pos| {
                     let row_layout = layout.children().next()?;
                     hit_test_tab(&row_layout, &self.tabs, state.scroll_offset, pos)
@@ -981,7 +1316,7 @@ where
             }
 
             let scrollbar_metrics = scrollbar_metrics(
-                tab_bounds,
+                row_bounds,
                 bar,
                 state.scroll_offset,
                 state.content_width,
@@ -994,7 +1329,18 @@ where
 
             match event {
                 Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                    if self.show_scrollbar {
+                    if over_overflow_button {
+                        let mut overflow_ui = state.overflow_ui.borrow_mut();
+                        overflow_ui.open = !overflow_ui.open;
+                        overflow_ui.pressed = true;
+                        if !overflow_ui.open {
+                            state.overflow_menu_hovered = None;
+                        }
+                        shell.capture_event();
+                        shell.request_redraw();
+                        captured_label = true;
+                    }
+                    if !captured_label && self.show_scrollbar {
                         if let (Some(pos), Some(metrics)) = (cursor_pos, scrollbar_metrics.as_ref())
                         {
                             if metrics.thumb.contains(pos) {
@@ -1023,7 +1369,7 @@ where
                             }
                         }
                     }
-                    if !captured_scrollbar {
+                    if !captured_scrollbar && !captured_label {
                         if let (Some(pos), Some(row_layout)) =
                             (cursor_pos, layout.children().next())
                         {
@@ -1057,6 +1403,10 @@ where
                     }
                 }
                 Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                    if over_overflow_button != state.overflow_button_hovered {
+                        state.overflow_button_hovered = over_overflow_button;
+                        shell.request_redraw();
+                    }
                     if self.show_scrollbar {
                         if let (Some(pos), Some(drag), Some(metrics)) =
                             (cursor_pos, state.scrollbar_drag, scrollbar_metrics.as_ref())
@@ -1100,6 +1450,10 @@ where
                     }
                 }
                 Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
+                    if state.overflow_ui.borrow().pressed {
+                        state.overflow_ui.borrow_mut().pressed = false;
+                        shell.request_redraw();
+                    }
                     if self.show_scrollbar && state.scrollbar_drag.take().is_some() {
                         shell.request_redraw();
                     }
@@ -1123,7 +1477,7 @@ where
                     }
                 }
                 Event::Mouse(mouse::Event::WheelScrolled { delta })
-                    if over_tab_bar && max_offset > 0.0 =>
+                    if over_row && max_offset > 0.0 =>
                 {
                     let shift = state.keyboard_modifiers.shift();
                     let dx = scroll_delta_x(*delta, shift);
@@ -1139,7 +1493,23 @@ where
                         captured_wheel = true;
                     }
                 }
+                Event::Keyboard(keyboard::Event::KeyPressed { key, .. })
+                    if matches!(key, keyboard::Key::Named(keyboard::key::Named::Escape))
+                        && state.overflow_ui.borrow().open =>
+                {
+                    let mut overflow_ui = state.overflow_ui.borrow_mut();
+                    overflow_ui.open = false;
+                    overflow_ui.pressed = false;
+                    state.overflow_menu_hovered = None;
+                    shell.capture_event();
+                    shell.request_redraw();
+                }
                 _ => {}
+            }
+
+            if !over_overflow_button && state.overflow_button_hovered {
+                state.overflow_button_hovered = false;
+                shell.request_redraw();
             }
 
             if self.show_scrollbar {
@@ -1159,7 +1529,7 @@ where
                     let content_cursor = if state.suppress_hover {
                         Cursor::Unavailable
                     } else {
-                        tab_row_cursor(tab_bounds, cursor, state.scroll_offset)
+                        tab_row_cursor(row_bounds, cursor, state.scroll_offset)
                     };
                     compose::child_update(
                         &mut self.tabs_row,
@@ -1177,7 +1547,7 @@ where
 
             sync_tab_bar_hover(
                 state,
-                tab_bounds,
+                row_bounds,
                 cursor,
                 self.hide_delay,
                 self.show_scrollbar,
@@ -1215,10 +1585,18 @@ where
         }
 
         let tab_bounds = layout.bounds();
+        let row_bounds = visible_row_bounds(tab_bounds, state.viewport_width);
         let dock_style = self.layout_style_resolved();
+        if state.show_overflow_button
+            && cursor
+                .position()
+                .is_some_and(|point| overflow_button_bounds(tab_bounds, state.viewport_width).contains(point))
+        {
+            return mouse::Interaction::Pointer;
+        }
         if self.show_scrollbar {
             if let Some(metrics) = scrollbar_metrics(
-                tab_bounds,
+                row_bounds,
                 &dock_style.tab_bar,
                 state.scroll_offset,
                 state.content_width,
@@ -1233,7 +1611,7 @@ where
             }
         }
 
-        let content_cursor = tab_row_cursor(tab_bounds, cursor, state.scroll_offset);
+        let content_cursor = tab_row_cursor(row_bounds, cursor, state.scroll_offset);
         if let Some(row_layout) = layout.children().next() {
             return compose::child_mouse_interaction(
                 &self.tabs_row,
@@ -1245,6 +1623,72 @@ where
             );
         }
         mouse::Interaction::default()
+    }
+
+    fn overlay<'b>(
+        &'b mut self,
+        tree: &'b mut Tree,
+        layout: Layout<'b>,
+        _renderer: &Renderer,
+        viewport: &Rectangle,
+        translation: Vector,
+    ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
+        let dock_style = self.layout_style_resolved();
+        let state = tree.state.downcast_mut::<TabStripState<Theme>>();
+        if !state.overflow_ui.borrow().open {
+            return None;
+        }
+
+        let row_layout = layout.children().next()?;
+        state.overflow_options = hidden_tabs(
+            &row_layout,
+            &self.tabs,
+            layout.bounds().x,
+            state.scroll_offset,
+            state.viewport_width,
+        );
+        if state.overflow_options.is_empty() {
+            state.overflow_ui.borrow_mut().open = false;
+            return None;
+        }
+
+        let button_bounds = overflow_button_bounds(layout.bounds(), state.viewport_width);
+        let on_event = Rc::clone(&self.on_event);
+        let pane_id = self.pane_id;
+        let overflow_ui = Rc::clone(&state.overflow_ui);
+
+        let menu = menu::Menu::new(
+            &mut state.overflow_menu_state,
+            &state.overflow_options,
+            &mut state.overflow_menu_hovered,
+            move |option: HiddenTabOption| {
+                let mut overflow_ui = overflow_ui.borrow_mut();
+                overflow_ui.open = false;
+                overflow_ui.pressed = false;
+                overflow_ui.reveal_tab = Some(option.id);
+                (on_event)(DockAction::Tab(TabAction::Select {
+                    pane: pane_id,
+                    panel: option.id,
+                }))
+            },
+            None,
+            &state.overflow_menu_class,
+        )
+        .width(button_bounds.width.max(160.0))
+        .padding(OVERFLOW_MENU_PADDING)
+        .text_size(iced::Pixels(dock_style.tab.text_size))
+        .overlay(
+            layout.position() + translation + Vector::new(state.viewport_width, 0.0),
+            *viewport,
+            button_bounds.height,
+            Length::Shrink,
+        );
+
+        Some(overlay::Element::new(Box::new(OverflowMenuOverlay {
+            menu,
+            button_bounds,
+            ui: Rc::clone(&state.overflow_ui),
+        })))
     }
 
     fn operate(
@@ -1273,6 +1717,7 @@ where
     Theme: Catalog
         + button::Catalog
         + container::Catalog
+        + menu::Catalog
         + text::Catalog
         + Clone
         + PartialEq
@@ -1284,5 +1729,74 @@ where
 {
     fn from(widget: TabStrip<'a, Message, Theme, Renderer>) -> Self {
         Element::new(widget)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ensure_tab_visible, tab_fully_visible};
+    use iced::Rectangle;
+
+    #[test]
+    fn tab_visibility_requires_full_containment() {
+        let row_x = 0.0;
+        let viewport_width = 100.0;
+
+        assert!(tab_fully_visible(
+            Rectangle::new((10.0, 0.0).into(), (40.0, 20.0).into()),
+            row_x,
+            0.0,
+            viewport_width,
+        ));
+        assert!(!tab_fully_visible(
+            Rectangle::new((-1.0, 0.0).into(), (40.0, 20.0).into()),
+            row_x,
+            0.0,
+            viewport_width,
+        ));
+        assert!(!tab_fully_visible(
+            Rectangle::new((80.0, 0.0).into(), (30.0, 20.0).into()),
+            row_x,
+            0.0,
+            viewport_width,
+        ));
+    }
+
+    #[test]
+    fn ensure_tab_visible_reveals_left_and_right_clipped_tabs() {
+        let row_x = 0.0;
+        let viewport_width = 100.0;
+        let max_offset = 200.0;
+
+        assert_eq!(
+            ensure_tab_visible(
+                Rectangle::new((40.0, 0.0).into(), (30.0, 20.0).into()),
+                row_x,
+                0.0,
+                viewport_width,
+                max_offset,
+            ),
+            0.0
+        );
+        assert_eq!(
+            ensure_tab_visible(
+                Rectangle::new((10.0, 0.0).into(), (30.0, 20.0).into()),
+                row_x,
+                40.0,
+                viewport_width,
+                max_offset,
+            ),
+            10.0
+        );
+        assert_eq!(
+            ensure_tab_visible(
+                Rectangle::new((120.0, 0.0).into(), (40.0, 20.0).into()),
+                row_x,
+                0.0,
+                viewport_width,
+                max_offset,
+            ),
+            60.0
+        );
     }
 }

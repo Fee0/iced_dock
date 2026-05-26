@@ -1,9 +1,9 @@
 use iced::widget::{container, text};
-use iced::{Element, Length};
+use iced::{Element, Length, Point, Size};
 use iced_dock::{
     dock, horizontal, panel, single, tabs, DockEvent, DockSession, PanelDef,
 };
-use iced_test::simulator;
+use iced_test::{simulator, Simulator};
 
 #[derive(Debug, Clone)]
 enum Message {
@@ -67,6 +67,21 @@ fn non_closable_session() -> DockSession<u32> {
     .expect("valid layout")
 }
 
+fn overflow_session() -> DockSession<u32> {
+    DockSession::from_tree(
+        tabs([
+            panel("file0", "File 0", 0u32),
+            panel("file1", "File 1", 1u32),
+            panel("file2", "File 2", 2u32),
+            panel("file3", "File 3", 3u32),
+            panel("file4", "File 4", 4u32),
+            panel("file5", "File 5", 5u32),
+        ])
+        .active("file0"),
+    )
+    .expect("valid layout")
+}
+
 // ---------------------------------------------------------------------------
 // View helpers
 // ---------------------------------------------------------------------------
@@ -106,6 +121,14 @@ fn view_with_unique_content(session: &DockSession<u32>) -> Element<'_, Message> 
     .width(Length::Fill)
     .height(Length::Fill)
     .into()
+}
+
+fn narrow_view(session: &DockSession<u32>) -> Simulator<'_, Message> {
+    Simulator::with_size(
+        Default::default(),
+        Size::new(180.0, 240.0),
+        view(session),
+    )
 }
 
 #[test]
@@ -332,4 +355,41 @@ fn non_closable_tab_has_no_close_button_effect() {
         !closed_pinned,
         "non-closable tab 'pinned' must not emit TabClosed"
     );
+}
+
+#[test]
+fn overflow_menu_selects_hidden_tab() {
+    let session = overflow_session();
+    let mut ui = narrow_view(&session);
+
+    ui.point_at(Point::new(168.0, 15.0));
+    let _ = ui.simulate(iced_test::simulator::click());
+    let _ = ui.click("File 5");
+    let messages: Vec<_> = ui.into_messages().collect();
+
+    assert!(
+        messages.iter().any(|msg| matches!(
+            msg,
+            Message::Dock(DockEvent::TabSelected { panel, .. }) if panel == "file5"
+        )),
+        "expected TabSelected for hidden tab 'file5', got: {messages:?}"
+    );
+
+    let state = session.state();
+    let state = state.borrow();
+    let pane = state.focused_pane.expect("a pane should be focused");
+    let active = state
+        .layout
+        .kind(pane)
+        .and_then(|kind| match kind {
+            iced_dock::model::NodeKind::Pane(p) => p.active,
+            _ => None,
+        })
+        .expect("pane should have an active tab");
+    let active_id = state
+        .index
+        .panels
+        .iter()
+        .find_map(|(id, &node)| (node == active).then(|| id.clone()));
+    assert_eq!(active_id.as_deref(), Some("file5"));
 }

@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use iced::advanced::layout::{self, Layout};
+use iced::advanced::overlay;
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
@@ -9,8 +10,9 @@ use iced::advanced::{self, Clipboard, Shell};
 use iced::mouse::{self, Cursor};
 use iced::time::Duration;
 use iced::touch;
+use iced::widget::overlay::menu;
 use iced::widget::{button, container, text as iced_text};
-use iced::{Element, Event, Length, Rectangle, Size};
+use iced::{Element, Event, Length, Rectangle, Size, Vector};
 
 use crate::manager::{DockManager, DragSession, DropZone, TabBarTarget};
 use crate::model::NodeId;
@@ -108,6 +110,7 @@ where
         + button::Catalog
         + container::Catalog
         + iced_text::Catalog
+        + menu::Catalog
         + Clone
         + PartialEq
         + 'static,
@@ -163,7 +166,7 @@ where
 impl<K, Message, Theme, Renderer> TabDock<'_, K, Message, Theme, Renderer>
 where
     K: 'static,
-    Theme: Catalog + Clone + 'static,
+    Theme: Catalog + Clone + menu::Catalog + 'static,
     Renderer: advanced::Renderer,
 {
     fn resolved_theme(&self) -> Option<Theme> {
@@ -222,6 +225,7 @@ where
         + button::Catalog
         + container::Catalog
         + iced_text::Catalog
+        + menu::Catalog
         + Clone
         + PartialEq
         + 'static,
@@ -617,6 +621,46 @@ where
             );
         }
     }
+
+    fn overlay<'b>(
+        &'b mut self,
+        tree: &'b mut Tree,
+        layout: Layout<'b>,
+        renderer: &Renderer,
+        viewport: &Rectangle,
+        translation: Vector,
+    ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
+        let mut overlays = Vec::new();
+        let (tab_children, content_children) = tree.children.split_at_mut(1);
+
+        if let Some(tab_layout) = layout.children().next() {
+            if let Some(overlay) = self.tab_strip.as_widget_mut().overlay(
+                &mut tab_children[0],
+                tab_layout,
+                renderer,
+                viewport,
+                translation,
+            )
+            {
+                overlays.push(overlay);
+            }
+        }
+
+        if let Some(content_layout) = layout.children().nth(1) {
+            if let Some(overlay) = self.content.as_widget_mut().overlay(
+                &mut content_children[0],
+                content_layout,
+                renderer,
+                viewport,
+                translation,
+            )
+            {
+                overlays.push(overlay);
+            }
+        }
+
+        (!overlays.is_empty()).then(|| overlay::Group::with_children(overlays).overlay())
+    }
 }
 
 impl<'a, K, Message, Theme, Renderer> From<TabDock<'a, K, Message, Theme, Renderer>>
@@ -628,6 +672,7 @@ where
         + button::Catalog
         + container::Catalog
         + iced_text::Catalog
+        + menu::Catalog
         + Clone
         + PartialEq
         + 'static,

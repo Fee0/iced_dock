@@ -2,12 +2,14 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use iced::advanced::layout::{self, Layout};
+use iced::advanced::overlay;
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
 use iced::advanced::{self, Clipboard, Shell};
 use iced::mouse::{self, Cursor};
-use iced::{Border, Element, Event, Length, Rectangle, Size, Theme as IcedTheme};
+use iced::widget::overlay::menu;
+use iced::{Border, Element, Event, Length, Rectangle, Size, Theme as IcedTheme, Vector};
 
 use crate::model::{Axis, NodeId};
 use crate::style::{self, Catalog, DockStyle};
@@ -192,7 +194,7 @@ impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
     for SplitContainer<'_, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
-    Theme: Catalog + Clone + 'static,
+    Theme: Catalog + Clone + menu::Catalog + 'static,
     Renderer: advanced::Renderer,
 {
     fn tag(&self) -> Tag {
@@ -562,13 +564,31 @@ where
             }
         }
     }
+
+    fn overlay<'b>(
+        &'b mut self,
+        tree: &'b mut Tree,
+        layout: Layout<'b>,
+        renderer: &Renderer,
+        viewport: &Rectangle,
+        translation: Vector,
+    ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
+        overlay::from_children(
+            &mut self.children,
+            tree,
+            layout,
+            renderer,
+            viewport,
+            translation,
+        )
+    }
 }
 
 impl<'a, Message, Theme, Renderer> From<SplitContainer<'a, Message, Theme, Renderer>>
     for Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
-    Theme: Catalog + Clone + 'static,
+    Theme: Catalog + Clone + menu::Catalog + 'static,
     Renderer: advanced::Renderer + 'static,
 {
     fn from(widget: SplitContainer<'a, Message, Theme, Renderer>) -> Self {
