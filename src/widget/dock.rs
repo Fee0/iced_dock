@@ -10,8 +10,8 @@ use iced::advanced::widget::{Operation, Widget};
 use iced::advanced::{Clipboard, Shell};
 use iced::mouse::{self, Cursor};
 use iced::time::Duration;
-use iced::widget::{self, button, container, text as iced_text};
 use iced::widget::overlay::menu;
+use iced::widget::{self, button, container, text as iced_text};
 use iced::{Element, Event, Length, Rectangle, Size, Vector};
 
 use crate::model::{Layout as DockLayout, NodeId, NodeKind, Pane};
@@ -80,13 +80,11 @@ where
             drag_threshold: 6.0,
             drop_edge_fraction: 0.2,
             tab_bar_scrollbar_hide_delay: Duration::from_secs(1),
-            tab_bar_show_scrollbar: true,
+            tab_bar_show_scrollbar: false,
         }
     }
 
-    fn theme_cell(
-        holder: &Rc<RefCell<DockWidgetState<K, Theme>>>,
-    ) -> Rc<RefCell<Option<Theme>>> {
+    fn theme_cell(holder: &Rc<RefCell<DockWidgetState<K, Theme>>>) -> Rc<RefCell<Option<Theme>>> {
         Rc::clone(&holder.borrow().resolved_theme)
     }
 
@@ -788,13 +786,9 @@ where
             .downcast_mut::<DockTreeHolder<K, Message, Theme, Renderer>>()
             .root
             .as_mut()?;
-        child.as_widget_mut().overlay(
-            child_tree,
-            child_layout,
-            renderer,
-            viewport,
-            translation,
-        )
+        child
+            .as_widget_mut()
+            .overlay(child_tree, child_layout, renderer, viewport, translation)
     }
 }
 
