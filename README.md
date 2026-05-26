@@ -14,11 +14,14 @@ iced = { version = "0.14", features = ["wgpu"] }
 ```
 
 ```rust
-use iced_dock::{dock, horizontal, panel, tabs, ContentKey, DockEvent, DockSession, LayoutTree};
+use iced_dock::{dock, horizontal, panel, tabs, DockEvent, DockSession, LayoutTree};
 
-let tree: LayoutTree = horizontal([
-    tabs([panel("editor", "Editor", ContentKey(0))]),
-    tabs([panel("sidebar", "Sidebar", ContentKey(1))]),
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum Panel { Editor, Sidebar }
+
+let tree: LayoutTree<Panel> = horizontal([
+    tabs([panel("editor", "Editor", Panel::Editor)]),
+    tabs([panel("sidebar", "Sidebar", Panel::Sidebar)]),
 ])
 .weights([0.7, 0.3]);
 
@@ -27,7 +30,10 @@ let session = DockSession::from_tree(tree);
 dock()
     .state(session.state())
     .on_event(Message::Dock)
-    .content( | key| iced::widget::text(format!("Panel {}", key.0)).into())
+    .content(|key| match key {
+        Panel::Editor  => iced::widget::text("Editor").into(),
+        Panel::Sidebar => iced::widget::text("Sidebar").into(),
+    })
     .build()
 ```
 

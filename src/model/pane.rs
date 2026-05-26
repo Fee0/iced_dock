@@ -1,19 +1,19 @@
-use super::{ContentKey, NodeId};
+use super::NodeId;
 
 /// Single tab content (leaf node).
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Panel {
+pub struct Panel<K> {
     pub id: String,
     pub title: String,
-    pub content: ContentKey,
+    pub content: K,
     pub can_close: bool,
     pub can_drag: bool,
     pub can_drop: bool,
 }
 
-impl Panel {
-    pub fn new(id: impl Into<String>, title: impl Into<String>, content: ContentKey) -> Self {
+impl<K: Copy> Panel<K> {
+    pub fn new(id: impl Into<String>, title: impl Into<String>, content: K) -> Self {
         Self {
             id: id.into(),
             title: title.into(),

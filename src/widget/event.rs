@@ -38,8 +38,8 @@ pub enum DockEvent {
 }
 
 /// Map an applied [`DockAction`] to a public [`DockEvent`], if any.
-pub fn action_to_event(
-    layout: &Layout,
+pub fn action_to_event<K>(
+    layout: &Layout<K>,
     index: &DockIndex,
     action: &DockAction,
 ) -> Option<DockEvent> {
@@ -60,8 +60,8 @@ pub fn action_to_event(
     }
 }
 
-fn tab_action_to_event(
-    layout: &Layout,
+fn tab_action_to_event<K>(
+    layout: &Layout<K>,
     index: &DockIndex,
     action: &TabAction,
 ) -> Option<DockEvent> {
@@ -82,7 +82,7 @@ fn tab_action_to_event(
     }
 }
 
-pub(crate) fn panel_id(layout: &Layout, index: &DockIndex, panel: NodeId) -> Option<String> {
+pub(crate) fn panel_id<K>(layout: &Layout<K>, index: &DockIndex, panel: NodeId) -> Option<String> {
     index
         .panels
         .iter()
@@ -96,7 +96,7 @@ pub(crate) fn panel_id(layout: &Layout, index: &DockIndex, panel: NodeId) -> Opt
         })
 }
 
-fn pane_name(layout: &Layout, pane: NodeId) -> Option<String> {
+fn pane_name<K>(layout: &Layout<K>, pane: NodeId) -> Option<String> {
     match layout.kind(pane)? {
         NodeKind::Pane(p) => p.name.clone(),
         _ => None,

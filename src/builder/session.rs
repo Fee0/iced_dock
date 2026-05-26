@@ -45,18 +45,21 @@ pub enum PanelCycle {
 }
 
 /// High-level handle for a dock layout and runtime panel operations.
-pub struct DockSession<Theme = iced::Theme> {
-    inner: Rc<RefCell<DockWidgetState<Theme>>>,
+pub struct DockSession<K, Theme = iced::Theme> {
+    inner: Rc<RefCell<DockWidgetState<K, Theme>>>,
 }
 
-impl<Theme> DockSession<Theme> {
+impl<K, Theme> DockSession<K, Theme>
+where
+    K: Copy + 'static,
+{
     /// Build a session from a declarative layout tree.
-    pub fn from_tree(tree: LayoutTree) -> Result<Self> {
+    pub fn from_tree(tree: LayoutTree<K>) -> Result<Self> {
         Self::from_tree_with_focus(tree, InitialFocus::default())
     }
 
     /// Build a session and set initial pane focus.
-    pub fn from_tree_with_focus(tree: LayoutTree, focus: InitialFocus<'_>) -> Result<Self> {
+    pub fn from_tree_with_focus(tree: LayoutTree<K>, focus: InitialFocus<'_>) -> Result<Self> {
         let built = build_tree(&tree)?;
         let focused_pane = resolve_initial_focus(&built, focus)?;
         Ok(Self::from_built(built, focused_pane))
@@ -64,7 +67,7 @@ impl<Theme> DockSession<Theme> {
 
     /// Build a session from a compiled layout and index.
     #[must_use]
-    pub fn from_built(built: BuiltLayout, focused_pane: Option<NodeId>) -> Self {
+    pub fn from_built(built: BuiltLayout<K>, focused_pane: Option<NodeId>) -> Self {
         let state = DockWidgetState::from_built(built, focused_pane);
         Self {
             inner: Rc::new(RefCell::new(state)),
@@ -73,7 +76,7 @@ impl<Theme> DockSession<Theme> {
 
     /// Shared widget state for the iced dock builder.
     #[must_use]
-    pub fn state(&self) -> Rc<RefCell<DockWidgetState<Theme>>> {
+    pub fn state(&self) -> Rc<RefCell<DockWidgetState<K, Theme>>> {
         Rc::clone(&self.inner)
     }
 
@@ -84,7 +87,7 @@ impl<Theme> DockSession<Theme> {
     }
 
     /// Open a panel in the given pane target and activate it.
-    pub fn open_panel(&self, target: PaneTarget, panel: impl Into<PanelDef>) -> Result {
+    pub fn open_panel(&self, target: PaneTarget, panel: impl Into<PanelDef<K>>) -> Result {
         let def = panel.into();
         let pane_id = self.resolve_pane(&target)?;
         let factory = Factory;
@@ -255,7 +258,10 @@ impl<Theme> DockSession<Theme> {
     }
 }
 
-fn resolve_initial_focus(built: &BuiltLayout, focus: InitialFocus<'_>) -> Result<Option<NodeId>> {
+fn resolve_initial_focus<K>(
+    built: &BuiltLayout<K>,
+    focus: InitialFocus<'_>,
+) -> Result<Option<NodeId>> {
     match focus {
         InitialFocus::FirstPane => Ok(first_pane(&built.layout)),
         InitialFocus::NamedPane(name) => built
@@ -271,7 +277,7 @@ fn resolve_initial_focus(built: &BuiltLayout, focus: InitialFocus<'_>) -> Result
     }
 }
 
-impl<Theme> fmt::Debug for DockSession<Theme> {
+impl<K, Theme> fmt::Debug for DockSession<K, Theme> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DockSession").finish_non_exhaustive()
     }

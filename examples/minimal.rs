@@ -4,36 +4,54 @@ use iced::keyboard::{self, Key, Modifiers};
 use iced::widget::{column, container, text};
 use iced::{application, Element, Length, Size, Subscription, Task, Theme};
 use iced_dock::{
-    dock, horizontal, panel as tab, tabs, vertical, ContentKey, Direction, DockEvent, DockSession,
-    LayoutTree,
+    dock, horizontal, panel as tab, tabs, vertical, Direction, DockEvent, DockSession, LayoutTree,
 };
 
-fn demo_layout() -> LayoutTree {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum Content {
+    Explorer,
+    Search,
+    MainRs,
+    LibRs,
+    ModA,
+    ModB,
+    ModC,
+    ModD,
+    CargoToml,
+    Outline,
+    Properties,
+    Terminal,
+    Output,
+    Problems,
+    Debug,
+}
+
+fn demo_layout() -> LayoutTree<Content> {
     vertical([
         horizontal([
             // Left sidebar
             tabs([
-                tab("explorer", "Explorer", ContentKey(0)),
-                tab("search",   "Search",   ContentKey(1)),
+                tab("explorer", "Explorer", Content::Explorer),
+                tab("search",   "Search",   Content::Search),
             ])
             .active("explorer"),
 
             // Main editor
             tabs([
-                tab("main",    "main.rs",    ContentKey(10)),
-                tab("lib",     "lib.rs",     ContentKey(11)),
-                tab("mod_a",   "mod_a.rs",   ContentKey(12)),
-                tab("mod_b",   "mod_b.rs",   ContentKey(13)),
-                tab("mod_c",   "mod_c.rs",   ContentKey(14)),
-                tab("mod_d",   "mod_d.rs",   ContentKey(15)),
-                tab("cargo",   "Cargo.toml", ContentKey(16)),
+                tab("main",    "main.rs",    Content::MainRs),
+                tab("lib",     "lib.rs",     Content::LibRs),
+                tab("mod_a",   "mod_a.rs",   Content::ModA),
+                tab("mod_b",   "mod_b.rs",   Content::ModB),
+                tab("mod_c",   "mod_c.rs",   Content::ModC),
+                tab("mod_d",   "mod_d.rs",   Content::ModD),
+                tab("cargo",   "Cargo.toml", Content::CargoToml),
             ])
             .active("main"),
 
             // Right sidebar
             tabs([
-                tab("outline",    "Outline",    ContentKey(30)),
-                tab("properties", "Properties", ContentKey(31)),
+                tab("outline",    "Outline",    Content::Outline),
+                tab("properties", "Properties", Content::Properties),
             ])
             .active("outline"),
         ])
@@ -41,10 +59,10 @@ fn demo_layout() -> LayoutTree {
 
         // Bottom panel
         tabs([
-            tab("terminal", "Terminal", ContentKey(20)),
-            tab("output",   "Output",   ContentKey(21)),
-            tab("problems", "Problems", ContentKey(22)),
-            tab("debug",    "Debug Console", ContentKey(23)),
+            tab("terminal", "Terminal",      Content::Terminal),
+            tab("output",   "Output",        Content::Output),
+            tab("problems", "Problems",      Content::Problems),
+            tab("debug",    "Debug Console", Content::Debug),
         ])
         .active("terminal"),
     ])
@@ -64,7 +82,7 @@ fn main() -> iced::Result {
 }
 
 struct App {
-    dock: DockSession,
+    dock: DockSession<Content>,
 }
 
 impl App {
@@ -115,7 +133,7 @@ fn view(app: &App) -> Element<'_, Message> {
         dock()
             .state(app.dock.state())
             .on_event(Message::Dock)
-            .content(panel)
+            .content(panel_content)
             .min_pane_width(160.0)
             .min_pane_height(80.0)
             .tab_bar_show_scrollbar(false)
@@ -127,25 +145,23 @@ fn view(app: &App) -> Element<'_, Message> {
     .into()
 }
 
-fn panel(key: ContentKey) -> Element<'static, Message> {
-    let (label, hint) = match key.0 {
-        0  => ("Explorer",      "File tree"),
-        1  => ("Search",        "Workspace search"),
-        2  => ("Git",           "Source control"),
-        10 => ("main.rs",       "Editor — Ctrl+Arrow to move focus between panes"),
-        11 => ("lib.rs",        "Editor"),
-        12 => ("mod_a.rs",      "Editor"),
-        13 => ("mod_b.rs",      "Editor"),
-        14 => ("mod_c.rs",      "Editor"),
-        15 => ("mod_d.rs",      "Editor"),
-        16 => ("Cargo.toml",    "Editor"),
-        20 => ("Terminal",      "Integrated terminal"),
-        21 => ("Output",        "Build & run output"),
-        22 => ("Problems",      "Errors and warnings"),
-        23 => ("Debug Console", "Debugger output"),
-        30 => ("Outline",       "Symbol outline"),
-        31 => ("Properties",    "Item properties"),
-        n  => return text(format!("Unknown panel {n}")).into(),
+fn panel_content(key: Content) -> Element<'static, Message> {
+    let (label, hint) = match key {
+        Content::Explorer   => ("Explorer",      "File tree"),
+        Content::Search     => ("Search",        "Workspace search"),
+        Content::MainRs     => ("main.rs",       "Editor — Ctrl+Arrow to move focus between panes"),
+        Content::LibRs      => ("lib.rs",        "Editor"),
+        Content::ModA       => ("mod_a.rs",      "Editor"),
+        Content::ModB       => ("mod_b.rs",      "Editor"),
+        Content::ModC       => ("mod_c.rs",      "Editor"),
+        Content::ModD       => ("mod_d.rs",      "Editor"),
+        Content::CargoToml  => ("Cargo.toml",    "Editor"),
+        Content::Outline    => ("Outline",       "Symbol outline"),
+        Content::Properties => ("Properties",    "Item properties"),
+        Content::Terminal   => ("Terminal",      "Integrated terminal"),
+        Content::Output     => ("Output",        "Build & run output"),
+        Content::Problems   => ("Problems",      "Errors and warnings"),
+        Content::Debug      => ("Debug Console", "Debugger output"),
     };
 
     container(

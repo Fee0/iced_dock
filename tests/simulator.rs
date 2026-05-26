@@ -1,7 +1,7 @@
 use iced::widget::{container, text};
 use iced::{Element, Length};
 use iced_dock::{
-    dock, horizontal, panel, single, tabs, ContentKey, DockEvent, DockSession, PanelDef,
+    dock, horizontal, panel, single, tabs, DockEvent, DockSession, PanelDef,
 };
 use iced_test::simulator;
 
@@ -14,40 +14,40 @@ enum Message {
 // Session helpers
 // ---------------------------------------------------------------------------
 
-fn two_tab_session() -> DockSession {
+fn two_tab_session() -> DockSession<u32> {
     DockSession::from_tree(
         tabs([
-            panel("editor", "Editor", ContentKey(0)),
-            panel("terminal", "Terminal", ContentKey(1)),
+            panel("editor", "Editor", 0u32),
+            panel("terminal", "Terminal", 1u32),
         ])
         .active("editor"),
     )
     .expect("valid layout")
 }
 
-fn three_tab_session() -> DockSession {
+fn three_tab_session() -> DockSession<u32> {
     DockSession::from_tree(
         tabs([
-            panel("editor", "Editor", ContentKey(0)),
-            panel("terminal", "Terminal", ContentKey(1)),
-            panel("output", "Output", ContentKey(2)),
+            panel("editor", "Editor", 0u32),
+            panel("terminal", "Terminal", 1u32),
+            panel("output", "Output", 2u32),
         ])
         .active("editor"),
     )
     .expect("valid layout")
 }
 
-fn split_session() -> DockSession {
+fn split_session() -> DockSession<u32> {
     DockSession::from_tree(
         horizontal([
             tabs([
-                panel("editor", "Editor", ContentKey(0)),
-                panel("terminal", "Terminal", ContentKey(1)),
+                panel("editor", "Editor", 0u32),
+                panel("terminal", "Terminal", 1u32),
             ])
             .active("editor"),
             tabs([
-                panel("explorer", "Explorer", ContentKey(10)),
-                panel("search", "Search", ContentKey(11)),
+                panel("explorer", "Explorer", 10u32),
+                panel("search", "Search", 11u32),
             ])
             .active("explorer"),
         ])
@@ -56,11 +56,11 @@ fn split_session() -> DockSession {
     .expect("valid layout")
 }
 
-fn non_closable_session() -> DockSession {
+fn non_closable_session() -> DockSession<u32> {
     DockSession::from_tree(
         tabs([
-            PanelDef::new("pinned", "Pinned", ContentKey(0)).can_close(false),
-            panel("closable", "Closable", ContentKey(1)),
+            PanelDef::new("pinned", "Pinned", 0u32).can_close(false),
+            panel("closable", "Closable", 1u32),
         ])
         .active("pinned"),
     )
@@ -71,12 +71,12 @@ fn non_closable_session() -> DockSession {
 // View helpers
 // ---------------------------------------------------------------------------
 
-fn view(session: &DockSession) -> Element<'_, Message> {
+fn view(session: &DockSession<u32>) -> Element<'_, Message> {
     container(
         dock()
             .state(session.state())
             .on_event(Message::Dock)
-            .content(|key| text(format!("Content {}", key.0)).into())
+            .content(|key| text(format!("Content {}", key)).into())
             .build(),
     )
     .width(Length::Fill)
@@ -84,8 +84,8 @@ fn view(session: &DockSession) -> Element<'_, Message> {
     .into()
 }
 
-fn content_label(key: ContentKey) -> &'static str {
-    match key.0 {
+fn content_label(key: u32) -> &'static str {
+    match key {
         0 => "Content:editor",
         1 => "Content:terminal",
         2 => "Content:output",
@@ -95,7 +95,7 @@ fn content_label(key: ContentKey) -> &'static str {
     }
 }
 
-fn view_with_unique_content(session: &DockSession) -> Element<'_, Message> {
+fn view_with_unique_content(session: &DockSession<u32>) -> Element<'_, Message> {
     container(
         dock()
             .state(session.state())
@@ -300,7 +300,7 @@ fn click_mutates_shared_session_state() {
 #[test]
 fn single_panel_layout_renders() {
     let session =
-        DockSession::from_tree(single(panel("solo", "Solo", ContentKey(0)))).expect("valid");
+        DockSession::from_tree(single(panel("solo", "Solo", 0u32))).expect("valid");
     let mut ui = simulator(view_with_unique_content(&session));
 
     ui.find("Solo").expect("tab label should be visible");

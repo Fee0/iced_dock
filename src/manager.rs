@@ -70,7 +70,7 @@ impl DragSession {
 pub struct DockManager;
 
 impl DockManager {
-    fn pane_tab_count(&self, layout: &Layout, pane: NodeId) -> usize {
+    fn pane_tab_count<K>(&self, layout: &Layout<K>, pane: NodeId) -> usize {
         match layout.kind(pane) {
             Some(NodeKind::Pane(p)) => p.tabs.len(),
             _ => 0,
@@ -78,9 +78,9 @@ impl DockManager {
     }
 
     #[must_use]
-    pub fn validate(
+    pub fn validate<K>(
         &self,
-        layout: &Layout,
+        layout: &Layout<K>,
         source_pane: NodeId,
         source_panel: NodeId,
         target: NodeId,
@@ -105,14 +105,14 @@ impl DockManager {
     }
 
     #[must_use]
-    pub fn is_target_visible(&self, layout: &Layout, target: NodeId) -> bool {
+    pub fn is_target_visible<K>(&self, layout: &Layout<K>, target: NodeId) -> bool {
         matches!(
             layout.kind(target),
             Some(NodeKind::Panel(_) | NodeKind::Pane(_) | NodeKind::Proportional(_))
         )
     }
 
-    pub fn execute(&self, layout: &mut Layout, session: DragSession) -> Result {
+    pub fn execute<K>(&self, layout: &mut Layout<K>, session: DragSession) -> Result {
         let target = session.hover_target.ok_or(Error::MissingHoverTarget)?;
         let op = session.operation.ok_or(Error::MissingOperation)?;
         if !self.validate(
@@ -264,9 +264,9 @@ impl DockManager {
         }
     }
 
-    pub fn execute_tab_insert(
+    pub fn execute_tab_insert<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         session: DragSession,
         pane: NodeId,
         index: usize,

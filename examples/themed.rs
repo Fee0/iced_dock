@@ -9,33 +9,53 @@ use iced::widget::{column, container, text};
 use iced::{application, Border, Color, Element, Length, Size, Subscription, Task};
 
 use iced_dock::{
-    dock, horizontal, panel as tab, tabs, vertical, ContentKey, Direction, DockEvent, DockSession,
-    DockStyle, LayoutTree, PaneContent,
+    dock, horizontal, panel as tab, tabs, vertical, Direction, DockEvent, DockSession, DockStyle,
+    LayoutTree, PaneContent,
 };
 
-const SIDEBAR_KEYS: &[u32] = &[10, 11, 12, 13];
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum Content {
+    MainRs,
+    LibRs,
+    Preview,
+    ModA,
+    ModB,
+    Properties,
+    Output,
+    Explorer,
+    Search,
+}
 
-fn demo_layout() -> LayoutTree {
+impl Content {
+    fn is_sidebar(self) -> bool {
+        matches!(
+            self,
+            Self::Properties | Self::Output | Self::Explorer | Self::Search
+        )
+    }
+}
+
+fn demo_layout() -> LayoutTree<Content> {
     horizontal([
         vertical([
             tabs([
-                tab("main", "main.rs", ContentKey(0)),
-                tab("lib", "lib.rs", ContentKey(1)),
-                tab("mod_a", "mod_a.rs", ContentKey(3)),
-                tab("mod_b", "mod_b.rs", ContentKey(4)),
+                tab("main", "main.rs", Content::MainRs),
+                tab("lib", "lib.rs", Content::LibRs),
+                tab("mod_a", "mod_a.rs", Content::ModA),
+                tab("mod_b", "mod_b.rs", Content::ModB),
             ])
             .active("main"),
-            tabs([tab("preview", "Preview", ContentKey(2))]),
+            tabs([tab("preview", "Preview", Content::Preview)]),
         ])
         .weights([0.6, 0.4]),
         vertical([
             tabs([
-                tab("props", "Properties", ContentKey(10)),
-                tab("output", "Output", ContentKey(11)),
+                tab("props", "Properties", Content::Properties),
+                tab("output", "Output", Content::Output),
             ]),
             tabs([
-                tab("explorer", "Explorer", ContentKey(12)),
-                tab("search", "Search", ContentKey(13)),
+                tab("explorer", "Explorer", Content::Explorer),
+                tab("search", "Search", Content::Search),
             ]),
         ])
         .weights([0.5, 0.5]),
@@ -72,7 +92,7 @@ fn main() -> iced::Result {
 }
 
 struct App {
-    dock: DockSession,
+    dock: DockSession<Content>,
 }
 
 impl App {
@@ -135,8 +155,8 @@ fn view(app: &App) -> Element<'_, Message> {
     .into()
 }
 
-fn panel_content(key: ContentKey) -> PaneContent<'static, Message> {
-    let is_sidebar = SIDEBAR_KEYS.contains(&key.0);
+fn panel_content(key: Content) -> PaneContent<'static, Message> {
+    let is_sidebar = key.is_sidebar();
 
     let (fg, muted) = if is_sidebar {
         (
@@ -150,17 +170,16 @@ fn panel_content(key: ContentKey) -> PaneContent<'static, Message> {
         )
     };
 
-    let body: Element<'static, Message> = match key.0 {
-        0 => panel_body("main.rs", "Editor — per-pane theming demo", fg, muted),
-        1 => panel_body("lib.rs", "Editor", fg, muted),
-        2 => panel_body("Preview", "Default palette style", fg, muted),
-        3 => panel_body("mod_a.rs", "Editor", fg, muted),
-        4 => panel_body("mod_b.rs", "Editor", fg, muted),
-        10 => panel_body("Properties", "Sidebar — warm accent style", fg, muted),
-        11 => panel_body("Output", "Sidebar — warm accent style", fg, muted),
-        12 => panel_body("Explorer", "Sidebar — warm accent style", fg, muted),
-        13 => panel_body("Search", "Sidebar — warm accent style", fg, muted),
-        n => return PaneContent::new(text(format!("Unknown pane {n}"))),
+    let body: Element<'static, Message> = match key {
+        Content::MainRs     => panel_body("main.rs", "Editor — per-pane theming demo", fg, muted),
+        Content::LibRs      => panel_body("lib.rs", "Editor", fg, muted),
+        Content::Preview    => panel_body("Preview", "Default palette style", fg, muted),
+        Content::ModA       => panel_body("mod_a.rs", "Editor", fg, muted),
+        Content::ModB       => panel_body("mod_b.rs", "Editor", fg, muted),
+        Content::Properties => panel_body("Properties", "Sidebar — warm accent style", fg, muted),
+        Content::Output     => panel_body("Output", "Sidebar — warm accent style", fg, muted),
+        Content::Explorer   => panel_body("Explorer", "Sidebar — warm accent style", fg, muted),
+        Content::Search     => panel_body("Search", "Sidebar — warm accent style", fg, muted),
     };
 
     let element: Element<'static, Message> = container(body)

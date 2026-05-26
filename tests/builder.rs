@@ -1,27 +1,27 @@
 use iced_dock::unstable::build_tree;
 use iced_dock::{
-    horizontal, panel, tabs, vertical, ContentKey, DockSession, Error, LayoutTree, PaneTarget,
+    horizontal, panel, tabs, vertical, DockSession, Error, LayoutTree, PaneTarget,
 };
 
-fn nested_layout() -> LayoutTree {
+fn nested_layout() -> LayoutTree<u32> {
     horizontal([
         vertical([
             tabs([
-                panel("main", "main.rs", ContentKey(0)),
-                panel("lib", "lib.rs", ContentKey(1)),
+                panel("main", "main.rs", 0u32),
+                panel("lib", "lib.rs", 1u32),
             ])
             .active("main"),
-            tabs([panel("preview", "preview", ContentKey(2))]),
+            tabs([panel("preview", "preview", 2u32)]),
         ])
         .weights([0.55, 0.45]),
         vertical([
             tabs([
-                panel("props", "Properties", ContentKey(10)),
-                panel("output", "Output", ContentKey(11)),
+                panel("props", "Properties", 10u32),
+                panel("output", "Output", 11u32),
             ]),
             tabs([
-                panel("explorer", "Explorer", ContentKey(12)),
-                panel("search", "Search", ContentKey(13)),
+                panel("explorer", "Explorer", 12u32),
+                panel("search", "Search", 13u32),
             ]),
         ])
         .weights([0.5, 0.5]),
@@ -45,8 +45,8 @@ fn nested_layout_produces_horizontal_root() {
 #[test]
 fn duplicate_panel_id_is_rejected() {
     let tree = tabs([
-        panel("a", "A", ContentKey(0)),
-        panel("a", "B", ContentKey(1)),
+        panel("a", "A", 0u32),
+        panel("a", "B", 1u32),
     ]);
     let err = build_tree(&tree).unwrap_err();
     assert_eq!(err, Error::DuplicatePanelId("a".into()));
@@ -54,14 +54,14 @@ fn duplicate_panel_id_is_rejected() {
 
 #[test]
 fn unknown_active_panel_is_rejected() {
-    let tree = tabs([panel("a", "A", ContentKey(0))]).active("missing");
+    let tree = tabs([panel("a", "A", 0u32)]).active("missing");
     let err = build_tree(&tree).unwrap_err();
     assert!(matches!(err, Error::UnknownActivePanel { .. }));
 }
 
 #[test]
 fn mismatched_weights_are_rejected() {
-    let tree = horizontal([tabs([panel("a", "A", ContentKey(0))])]).weights([0.5, 0.5]);
+    let tree = horizontal([tabs([panel("a", "A", 0u32)])]).weights([0.5, 0.5]);
     let err = build_tree(&tree).unwrap_err();
     assert!(matches!(err, Error::InvalidWeights { .. }));
 }
@@ -69,8 +69,8 @@ fn mismatched_weights_are_rejected() {
 #[test]
 fn simple_split_matches_manual_structure() {
     let tree = horizontal([
-        tabs([panel("a", "A", ContentKey(0))]),
-        tabs([panel("b", "B", ContentKey(1))]),
+        tabs([panel("a", "A", 0u32)]),
+        tabs([panel("b", "B", 1u32)]),
     ]);
     let built = build_tree(&tree).expect("compile");
     let root = built.layout.root_child().unwrap();
@@ -82,12 +82,12 @@ fn simple_split_matches_manual_structure() {
 
 #[test]
 fn session_open_focus_close_by_id() {
-    let session: DockSession =
-        DockSession::from_tree(tabs([panel("a", "A", ContentKey(0))])).expect("session");
+    let session: DockSession<u32> =
+        DockSession::from_tree(tabs([panel("a", "A", 0u32)])).expect("session");
     assert_eq!(session.active_panel().as_deref(), Some("a"));
 
     session
-        .open_panel(PaneTarget::First, panel("b", "B", ContentKey(1)))
+        .open_panel(PaneTarget::First, panel("b", "B", 1u32))
         .expect("open");
     assert!(session.panel_ids().contains(&"b".into()));
     assert_eq!(session.active_panel().as_deref(), Some("b"));
@@ -101,20 +101,20 @@ fn session_open_focus_close_by_id() {
 
 #[test]
 fn session_from_tree_sets_layout_dirty() {
-    let session: DockSession =
-        DockSession::from_tree(tabs([panel("a", "A", ContentKey(0))])).expect("session");
+    let session: DockSession<u32> =
+        DockSession::from_tree(tabs([panel("a", "A", 0u32)])).expect("session");
     assert!(session.state().borrow().layout_dirty);
     assert!(session.state().borrow().layout.root_child().is_some());
 }
 
 #[test]
 fn named_pane_target_opens_panel() {
-    let tree = tabs([panel("a", "A", ContentKey(0))]).named("editor");
-    let session: DockSession = DockSession::from_tree(tree).expect("session");
+    let tree = tabs([panel("a", "A", 0u32)]).named("editor");
+    let session: DockSession<u32> = DockSession::from_tree(tree).expect("session");
     session
         .open_panel(
             PaneTarget::Named("editor".into()),
-            panel("b", "B", ContentKey(1)),
+            panel("b", "B", 1u32),
         )
         .expect("open in named pane");
     assert!(session.panel_ids().contains(&"b".into()));
@@ -122,10 +122,10 @@ fn named_pane_target_opens_panel() {
 
 #[test]
 fn widget_state_from_tree() {
-    let state = iced_dock::DockWidgetState::<iced::Theme>::from_tree(tabs([panel(
+    let state = iced_dock::DockWidgetState::<u32, iced::Theme>::from_tree(tabs([panel(
         "a",
         "A",
-        ContentKey(0),
+        0u32,
     )]))
     .expect("state");
     assert!(state.layout_dirty);

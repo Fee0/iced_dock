@@ -1,8 +1,7 @@
 //! Tree mutations for the docking layout.
 
 use crate::model::{
-    Axis, ContentKey, DockOperation, Layout, NodeEntry, NodeId, NodeKind, Pane, Panel,
-    ProportionalGroup,
+    Axis, DockOperation, Layout, NodeEntry, NodeId, NodeKind, Pane, Panel, ProportionalGroup,
 };
 use crate::{Error, Result};
 
@@ -11,12 +10,12 @@ use crate::{Error, Result};
 pub struct Factory;
 
 impl Factory {
-    pub fn insert_panel(
+    pub fn insert_panel<K: Copy>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         id: impl Into<String>,
         title: impl Into<String>,
-        content: ContentKey,
+        content: K,
     ) -> NodeId {
         layout.nodes.insert(NodeEntry {
             kind: NodeKind::Panel(Panel::new(id, title, content)),
@@ -24,16 +23,16 @@ impl Factory {
         })
     }
 
-    pub fn create_pane(&self, layout: &mut Layout) -> NodeId {
+    pub fn create_pane<K>(&self, layout: &mut Layout<K>) -> NodeId {
         layout.nodes.insert(NodeEntry {
             kind: NodeKind::Pane(Pane::new()),
             owner: None,
         })
     }
 
-    pub fn create_proportional(
+    pub fn create_proportional<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         axis: Axis,
         children: Vec<NodeId>,
     ) -> NodeId {
@@ -47,7 +46,7 @@ impl Factory {
         id
     }
 
-    pub fn add_panel_to_pane(&self, layout: &mut Layout, pane: NodeId, panel: NodeId) -> Result {
+    pub fn add_panel_to_pane<K>(&self, layout: &mut Layout<K>, pane: NodeId, panel: NodeId) -> Result {
         if !layout.is_leaf(panel) {
             return Err(Error::NotPanel { node: panel });
         }
@@ -61,9 +60,9 @@ impl Factory {
         }
     }
 
-    pub fn insert_panel_at(
+    pub fn insert_panel_at<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         pane: NodeId,
         panel: NodeId,
         index: usize,
@@ -82,9 +81,9 @@ impl Factory {
         }
     }
 
-    pub fn move_panel_to_pane_at(
+    pub fn move_panel_to_pane_at<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         source: NodeId,
         target_pane: NodeId,
         index: usize,
@@ -100,9 +99,9 @@ impl Factory {
         Ok(())
     }
 
-    pub fn move_panel_to_pane(
+    pub fn move_panel_to_pane<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         source: NodeId,
         target_pane: NodeId,
     ) -> Result {
@@ -110,9 +109,9 @@ impl Factory {
         self.add_panel_to_pane(layout, target_pane, source)
     }
 
-    pub fn dock_fill(
+    pub fn dock_fill<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         source_panel: NodeId,
         target_pane: NodeId,
     ) -> Result {
@@ -124,9 +123,9 @@ impl Factory {
         Ok(())
     }
 
-    pub fn reorder_panel(
+    pub fn reorder_panel<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         pane: NodeId,
         from: usize,
         to: usize,
@@ -149,9 +148,9 @@ impl Factory {
         }
     }
 
-    pub fn move_tab_in_pane(
+    pub fn move_tab_in_pane<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         pane: NodeId,
         panel: NodeId,
         to_index: usize,
@@ -182,7 +181,7 @@ impl Factory {
         self.reorder_panel(layout, pane, from, adjusted)
     }
 
-    pub fn set_active_panel(&self, layout: &mut Layout, pane: NodeId, panel: NodeId) {
+    pub fn set_active_panel<K>(&self, layout: &mut Layout<K>, pane: NodeId, panel: NodeId) {
         if let Some(NodeKind::Pane(ref mut p)) = layout.get_mut(pane).map(|e| &mut e.kind) {
             if p.tabs.contains(&panel) {
                 p.active = Some(panel);
@@ -190,7 +189,7 @@ impl Factory {
         }
     }
 
-    pub fn close(&self, layout: &mut Layout, panel: NodeId) -> Result {
+    pub fn close<K>(&self, layout: &mut Layout<K>, panel: NodeId) -> Result {
         let owner = layout
             .get(panel)
             .and_then(|e| e.owner)
@@ -202,9 +201,9 @@ impl Factory {
     }
 
     /// Split `target` and place `source` pane beside it.
-    pub fn split(
+    pub fn split<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         source: NodeId,
         target: NodeId,
         op: DockOperation,
@@ -260,9 +259,9 @@ impl Factory {
     }
 
     /// Edge drop on the same pane as the drag source.
-    pub fn split_same_pane_edge(
+    pub fn split_same_pane_edge<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         pane: NodeId,
         panel: NodeId,
         op: DockOperation,
@@ -304,9 +303,9 @@ impl Factory {
     }
 
     /// Edge drop onto a different pane than the drag source.
-    pub fn split_cross_pane_edge(
+    pub fn split_cross_pane_edge<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         source_pane: NodeId,
         source_panel: NodeId,
         target: NodeId,
@@ -328,14 +327,14 @@ impl Factory {
         }
     }
 
-    fn peel_panel_to_new_pane(&self, layout: &mut Layout, panel: NodeId) -> Result<NodeId> {
+    fn peel_panel_to_new_pane<K>(&self, layout: &mut Layout<K>, panel: NodeId) -> Result<NodeId> {
         let new_pane = self.create_pane(layout);
         self.remove_from_parent(layout, panel)?;
         self.add_panel_to_pane(layout, new_pane, panel)?;
         Ok(new_pane)
     }
 
-    fn resolve_split_target(&self, layout: &Layout, target: NodeId) -> Result<NodeId> {
+    fn resolve_split_target<K>(&self, layout: &Layout<K>, target: NodeId) -> Result<NodeId> {
         match layout.kind(target) {
             Some(NodeKind::Pane(_) | NodeKind::Proportional(_) | NodeKind::Panel(_)) => Ok(target),
             _ => Err(Error::InvalidSplitTarget { node: target }),
@@ -346,9 +345,9 @@ impl Factory {
         matches!(op, DockOperation::Right | DockOperation::Bottom)
     }
 
-    fn insert_into_proportional(
+    fn insert_into_proportional<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         parent: NodeId,
         target: NodeId,
         source: NodeId,
@@ -373,9 +372,9 @@ impl Factory {
         Err(Error::NotProportional { node: parent })
     }
 
-    fn replace_child(
+    fn replace_child<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         parent: NodeId,
         old_child: NodeId,
         new_child: NodeId,
@@ -426,7 +425,7 @@ impl Factory {
         }
     }
 
-    pub fn remove_from_parent(&self, layout: &mut Layout, child: NodeId) -> Result {
+    pub fn remove_from_parent<K>(&self, layout: &mut Layout<K>, child: NodeId) -> Result {
         let owner = layout
             .get(child)
             .and_then(|e| e.owner)
@@ -462,7 +461,7 @@ impl Factory {
         }
     }
 
-    fn collapse_owner(&self, layout: &mut Layout, owner: NodeId) {
+    fn collapse_owner<K>(&self, layout: &mut Layout<K>, owner: NodeId) {
         if owner == layout.root {
             let empty_child = match layout.kind(layout.root) {
                 Some(NodeKind::Root(r)) => r.child.and_then(|child| {
@@ -513,9 +512,9 @@ impl Factory {
         }
     }
 
-    pub fn set_proportions(
+    pub fn set_proportions<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         group: NodeId,
         proportions: Vec<f32>,
     ) -> Result {
@@ -536,9 +535,9 @@ impl Factory {
         }
     }
 
-    pub fn set_binary_split_ratio(
+    pub fn set_binary_split_ratio<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         group: NodeId,
         split_at: f32,
     ) -> Result {
@@ -546,9 +545,9 @@ impl Factory {
         self.set_proportions(layout, group, vec![ratio, 1.0 - ratio])
     }
 
-    pub fn adjust_splitter(
+    pub fn adjust_splitter<K>(
         &self,
-        layout: &mut Layout,
+        layout: &mut Layout<K>,
         group: NodeId,
         splitter_index: usize,
         pair_ratio: f32,

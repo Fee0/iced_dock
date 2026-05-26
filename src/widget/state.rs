@@ -12,8 +12,8 @@ use crate::widget::action::{DockAction, TabAction};
 
 /// Persistent docking state (stored in the widget [`Tree`](iced::advanced::widget::tree::Tree)).
 #[derive(Debug, Clone)]
-pub struct DockWidgetState<Theme = iced::Theme> {
-    pub layout: DockLayout,
+pub struct DockWidgetState<K, Theme = iced::Theme> {
+    pub layout: DockLayout<K>,
     pub index: DockIndex,
     pub drag: Option<DragSession>,
     pub drop_targets: Vec<(NodeId, Rectangle)>,
@@ -30,7 +30,7 @@ pub struct DockWidgetState<Theme = iced::Theme> {
     pub resolved_theme: Rc<RefCell<Option<Theme>>>,
 }
 
-impl<Theme> DockWidgetState<Theme> {
+impl<K, Theme> DockWidgetState<K, Theme> {
     /// Rebuild string-id index from the current layout graph.
     pub fn sync_index(&mut self) {
         self.index = DockIndex::rebuild_from_layout(&self.layout);
@@ -44,14 +44,17 @@ impl<Theme> DockWidgetState<Theme> {
     }
 
     /// Build widget state from a declarative [`LayoutTree`](crate::LayoutTree).
-    pub fn from_tree(tree: crate::LayoutTree) -> crate::Result<Self> {
+    pub fn from_tree(tree: crate::LayoutTree<K>) -> crate::Result<Self>
+    where
+        K: Copy,
+    {
         let built = build_tree(&tree)?;
         let focused_pane = first_pane(&built.layout);
         Ok(Self::from_built(built, focused_pane))
     }
 
     /// Build widget state from a compiled layout.
-    pub fn from_built(built: BuiltLayout, focused_pane: Option<NodeId>) -> Self {
+    pub fn from_built(built: BuiltLayout<K>, focused_pane: Option<NodeId>) -> Self {
         Self {
             layout: built.layout,
             index: built.index,
@@ -67,7 +70,7 @@ impl<Theme> DockWidgetState<Theme> {
     }
 }
 
-impl<Theme> Default for DockWidgetState<Theme> {
+impl<K, Theme> Default for DockWidgetState<K, Theme> {
     fn default() -> Self {
         let layout = DockLayout::new();
         let index = DockIndex::rebuild_from_layout(&layout);
@@ -87,7 +90,7 @@ impl<Theme> Default for DockWidgetState<Theme> {
 }
 
 /// End an active drag at `cursor`, applying a drop when valid.
-pub fn finish_drag<Theme>(state: &mut DockWidgetState<Theme>, cursor: Option<iced::Point>) -> bool {
+pub fn finish_drag<K, Theme>(state: &mut DockWidgetState<K, Theme>, cursor: Option<iced::Point>) -> bool {
     let Some(cursor) = cursor else {
         let had_drag = state.drag.is_some();
         state.drag = None;
@@ -125,7 +128,7 @@ pub fn finish_drag<Theme>(state: &mut DockWidgetState<Theme>, cursor: Option<ice
 ///
 /// Does not emit [`DockEvent`] values. After a successful structural change, call
 /// [`DockWidgetState::sync_index`] or rely on the widget's next layout pass.
-pub fn dispatch_action<Theme>(state: &mut DockWidgetState<Theme>, action: DockAction) -> bool {
+pub fn dispatch_action<K, Theme>(state: &mut DockWidgetState<K, Theme>, action: DockAction) -> bool {
     let factory = Factory;
     let mut changed = false;
 

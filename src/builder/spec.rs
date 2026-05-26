@@ -1,32 +1,32 @@
 use std::collections::HashSet;
 
-use crate::model::{Axis, ContentKey};
+use crate::model::Axis;
 use crate::Error;
 
 /// Declarative layout description.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum LayoutTree {
+pub enum LayoutTree<K> {
     /// Tabbed pane (typical split leaf).
-    Tabs(TabsNode),
+    Tabs(TabsNode<K>),
     /// Nested split container.
-    Split(SplitNode),
+    Split(SplitNode<K>),
 }
 
 /// Panel metadata used when building or opening tabs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct PanelDef {
+pub struct PanelDef<K> {
     pub id: String,
     pub title: String,
-    pub content: ContentKey,
+    pub content: K,
     pub can_close: bool,
     pub can_drag: bool,
     pub can_drop: bool,
 }
 
-impl PanelDef {
-    pub fn new(id: impl Into<String>, title: impl Into<String>, content: ContentKey) -> Self {
+impl<K: Copy> PanelDef<K> {
+    pub fn new(id: impl Into<String>, title: impl Into<String>, content: K) -> Self {
         Self {
             id: id.into(),
             title: title.into(),
@@ -59,14 +59,14 @@ impl PanelDef {
 /// Tabbed pane node.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct TabsNode {
+pub struct TabsNode<K> {
     pub name: Option<String>,
-    pub panels: Vec<PanelDef>,
+    pub panels: Vec<PanelDef<K>>,
     pub active: Option<String>,
 }
 
-impl TabsNode {
-    pub fn new(panels: impl IntoIterator<Item = PanelDef>) -> Self {
+impl<K: Copy> TabsNode<K> {
+    pub fn new(panels: impl IntoIterator<Item = PanelDef<K>>) -> Self {
         Self {
             name: None,
             panels: panels.into_iter().collect(),
@@ -90,14 +90,14 @@ impl TabsNode {
 /// Split container node.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct SplitNode {
+pub struct SplitNode<K> {
     pub axis: Axis,
-    pub children: Vec<LayoutTree>,
+    pub children: Vec<LayoutTree<K>>,
     pub weights: Option<Vec<f32>>,
 }
 
-impl SplitNode {
-    pub fn new(axis: Axis, children: impl IntoIterator<Item = LayoutTree>) -> Self {
+impl<K> SplitNode<K> {
+    pub fn new(axis: Axis, children: impl IntoIterator<Item = LayoutTree<K>>) -> Self {
         Self {
             axis,
             children: children.into_iter().collect(),
@@ -112,7 +112,7 @@ impl SplitNode {
     }
 }
 
-impl LayoutTree {
+impl<K: Copy> LayoutTree<K> {
     /// Set the active tab on a [`Tabs`] node.
     #[must_use]
     pub fn active(mut self, panel_id: impl Into<String>) -> Self {
@@ -142,40 +142,44 @@ impl LayoutTree {
 }
 
 /// Create a panel definition (for use inside [`tabs`]).
-pub fn panel(id: impl Into<String>, title: impl Into<String>, content: ContentKey) -> PanelDef {
+pub fn panel<K: Copy>(
+    id: impl Into<String>,
+    title: impl Into<String>,
+    content: K,
+) -> PanelDef<K> {
     PanelDef::new(id, title, content)
 }
 
 /// Create a tabbed pane node.
-pub fn tabs(panels: impl IntoIterator<Item = PanelDef>) -> LayoutTree {
+pub fn tabs<K: Copy>(panels: impl IntoIterator<Item = PanelDef<K>>) -> LayoutTree<K> {
     LayoutTree::Tabs(TabsNode::new(panels))
 }
 
 /// Create a horizontal split.
-pub fn horizontal(children: impl IntoIterator<Item = LayoutTree>) -> LayoutTree {
+pub fn horizontal<K>(children: impl IntoIterator<Item = LayoutTree<K>>) -> LayoutTree<K> {
     LayoutTree::Split(SplitNode::new(Axis::Horizontal, children))
 }
 
 /// Create a vertical split.
-pub fn vertical(children: impl IntoIterator<Item = LayoutTree>) -> LayoutTree {
+pub fn vertical<K>(children: impl IntoIterator<Item = LayoutTree<K>>) -> LayoutTree<K> {
     LayoutTree::Split(SplitNode::new(Axis::Vertical, children))
 }
 
 /// Single panel occupying the full dock area.
 #[must_use]
-pub fn single(def: PanelDef) -> LayoutTree {
+pub fn single<K: Copy>(def: PanelDef<K>) -> LayoutTree<K> {
     LayoutTree::Tabs(TabsNode::new([def]))
 }
 
 /// Validate a layout tree before compilation.
-pub(crate) fn validate_tree(tree: &LayoutTree) -> crate::Result {
+pub(crate) fn validate_tree<K>(tree: &LayoutTree<K>) -> crate::Result {
     let mut panel_ids = HashSet::new();
     let mut pane_names = HashSet::new();
     validate_node(tree, &mut panel_ids, &mut pane_names)
 }
 
-fn validate_node(
-    tree: &LayoutTree,
+fn validate_node<K>(
+    tree: &LayoutTree<K>,
     panel_ids: &mut HashSet<String>,
     pane_names: &mut HashSet<String>,
 ) -> crate::Result {

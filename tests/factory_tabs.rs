@@ -1,13 +1,13 @@
-use iced_dock::model::{ContentKey, Layout, NodeKind};
+use iced_dock::model::{Layout, NodeKind};
 use iced_dock::unstable::Factory;
 
 #[test]
 fn fill_and_close_collapses_empty_pane() {
     let factory = Factory;
-    let mut layout = Layout::new();
+    let mut layout = Layout::<u32>::new();
 
-    let a = factory.insert_panel(&mut layout, "a", "A", ContentKey(0));
-    let b = factory.insert_panel(&mut layout, "b", "B", ContentKey(1));
+    let a = factory.insert_panel(&mut layout, "a", "A", 0u32);
+    let b = factory.insert_panel(&mut layout, "b", "B", 1u32);
     let p1 = factory.create_pane(&mut layout);
     let p2 = factory.create_pane(&mut layout);
     factory.add_panel_to_pane(&mut layout, p1, a).unwrap();

@@ -1,12 +1,12 @@
-use iced_dock::model::{Axis, ContentKey, DockOperation, Layout, NodeKind};
+use iced_dock::model::{Axis, DockOperation, Layout, NodeKind};
 use iced_dock::unstable::{DockManager, DragSession, DropZone, Factory, TabBarTarget};
 
 #[test]
 fn fill_accepts_panel_into_other_pane() {
     let factory = Factory;
-    let mut layout = Layout::new();
-    let a = factory.insert_panel(&mut layout, "a", "A", ContentKey(0));
-    let b = factory.insert_panel(&mut layout, "b", "B", ContentKey(1));
+    let mut layout = Layout::<u32>::new();
+    let a = factory.insert_panel(&mut layout, "a", "A", 0u32);
+    let b = factory.insert_panel(&mut layout, "b", "B", 1u32);
     let p1 = factory.create_pane(&mut layout);
     let p2 = factory.create_pane(&mut layout);
     factory.add_panel_to_pane(&mut layout, p1, a).unwrap();
@@ -50,7 +50,7 @@ fn hit_test_center_zone() {
 #[test]
 fn hit_test_pane_prefers_smallest() {
     let factory = Factory;
-    let mut layout = Layout::new();
+    let mut layout = Layout::<u32>::new();
     let p1 = factory.create_pane(&mut layout);
     let p2 = factory.create_pane(&mut layout);
     let targets = [
@@ -80,9 +80,9 @@ fn hit_test_pane_prefers_smallest() {
 #[test]
 fn vertical_stack_fill_validates() {
     let factory = Factory;
-    let mut layout = Layout::new();
-    let a = factory.insert_panel(&mut layout, "top", "Top", ContentKey(0));
-    let b = factory.insert_panel(&mut layout, "bot", "Bottom", ContentKey(1));
+    let mut layout = Layout::<u32>::new();
+    let a = factory.insert_panel(&mut layout, "top", "Top", 0u32);
+    let b = factory.insert_panel(&mut layout, "bot", "Bottom", 1u32);
     let p_top = factory.create_pane(&mut layout);
     let p_bottom = factory.create_pane(&mut layout);
     factory.add_panel_to_pane(&mut layout, p_top, a).unwrap();
@@ -98,9 +98,9 @@ fn vertical_stack_fill_validates() {
 #[test]
 fn fill_removes_empty_source_pane_from_proportional() {
     let factory = Factory;
-    let mut layout = Layout::new();
-    let a = factory.insert_panel(&mut layout, "a", "A", ContentKey(0));
-    let b = factory.insert_panel(&mut layout, "b", "B", ContentKey(1));
+    let mut layout = Layout::<u32>::new();
+    let a = factory.insert_panel(&mut layout, "a", "A", 0u32);
+    let b = factory.insert_panel(&mut layout, "b", "B", 1u32);
     let p1 = factory.create_pane(&mut layout);
     let p2 = factory.create_pane(&mut layout);
     factory.add_panel_to_pane(&mut layout, p1, a).unwrap();
@@ -124,9 +124,9 @@ fn fill_removes_empty_source_pane_from_proportional() {
 #[test]
 fn cross_pane_fill_via_execute() {
     let factory = Factory;
-    let mut layout = Layout::new();
-    let a = factory.insert_panel(&mut layout, "a", "A", ContentKey(0));
-    let b = factory.insert_panel(&mut layout, "b", "B", ContentKey(1));
+    let mut layout = Layout::<u32>::new();
+    let a = factory.insert_panel(&mut layout, "a", "A", 0u32);
+    let b = factory.insert_panel(&mut layout, "b", "B", 1u32);
     let p1 = factory.create_pane(&mut layout);
     let p2 = factory.create_pane(&mut layout);
     factory.add_panel_to_pane(&mut layout, p1, a).unwrap();
@@ -156,9 +156,9 @@ fn cross_pane_fill_via_execute() {
 #[test]
 fn same_pane_edge_validates_and_executes() {
     let factory = Factory;
-    let mut layout = Layout::new();
-    let a = factory.insert_panel(&mut layout, "a", "A", ContentKey(0));
-    let b = factory.insert_panel(&mut layout, "b", "B", ContentKey(1));
+    let mut layout = Layout::<u32>::new();
+    let a = factory.insert_panel(&mut layout, "a", "A", 0u32);
+    let b = factory.insert_panel(&mut layout, "b", "B", 1u32);
     let pane = factory.create_pane(&mut layout);
     factory.add_panel_to_pane(&mut layout, pane, a).unwrap();
     factory.add_panel_to_pane(&mut layout, pane, b).unwrap();
@@ -186,10 +186,10 @@ fn same_pane_edge_validates_and_executes() {
 #[test]
 fn cross_pane_edge_split_multi_panel() {
     let factory = Factory;
-    let mut layout = Layout::new();
-    let a = factory.insert_panel(&mut layout, "a", "A", ContentKey(0));
-    let b = factory.insert_panel(&mut layout, "b", "B", ContentKey(1));
-    let c = factory.insert_panel(&mut layout, "c", "C", ContentKey(2));
+    let mut layout = Layout::<u32>::new();
+    let a = factory.insert_panel(&mut layout, "a", "A", 0u32);
+    let b = factory.insert_panel(&mut layout, "b", "B", 1u32);
+    let c = factory.insert_panel(&mut layout, "c", "C", 2u32);
     let p1 = factory.create_pane(&mut layout);
     let p2 = factory.create_pane(&mut layout);
     factory.add_panel_to_pane(&mut layout, p1, a).unwrap();
@@ -237,7 +237,7 @@ fn cross_pane_edge_split_multi_panel() {
 #[test]
 fn hit_test_tab_insert_picks_index_from_boundaries() {
     let factory = Factory;
-    let pane = factory.create_pane(&mut Layout::new());
+    let pane = factory.create_pane(&mut Layout::<u32>::new());
     let bounds = iced::Rectangle {
         x: 0.0,
         y: 0.0,
@@ -272,10 +272,10 @@ fn hit_test_tab_insert_picks_index_from_boundaries() {
 #[test]
 fn same_pane_tab_reorder_via_execute_tab_insert() {
     let factory = Factory;
-    let mut layout = Layout::new();
-    let a = factory.insert_panel(&mut layout, "a", "A", ContentKey(0));
-    let b = factory.insert_panel(&mut layout, "b", "B", ContentKey(1));
-    let c = factory.insert_panel(&mut layout, "c", "C", ContentKey(2));
+    let mut layout = Layout::<u32>::new();
+    let a = factory.insert_panel(&mut layout, "a", "A", 0u32);
+    let b = factory.insert_panel(&mut layout, "b", "B", 1u32);
+    let c = factory.insert_panel(&mut layout, "c", "C", 2u32);
     let pane = factory.create_pane(&mut layout);
     factory.add_panel_to_pane(&mut layout, pane, a).unwrap();
     factory.add_panel_to_pane(&mut layout, pane, b).unwrap();
@@ -304,9 +304,9 @@ fn same_pane_tab_reorder_via_execute_tab_insert() {
 #[test]
 fn cross_pane_tab_insert_at_index_zero() {
     let factory = Factory;
-    let mut layout = Layout::new();
-    let a = factory.insert_panel(&mut layout, "a", "A", ContentKey(0));
-    let b = factory.insert_panel(&mut layout, "b", "B", ContentKey(1));
+    let mut layout = Layout::<u32>::new();
+    let a = factory.insert_panel(&mut layout, "a", "A", 0u32);
+    let b = factory.insert_panel(&mut layout, "b", "B", 1u32);
     let p1 = factory.create_pane(&mut layout);
     let p2 = factory.create_pane(&mut layout);
     factory.add_panel_to_pane(&mut layout, p1, a).unwrap();
@@ -337,7 +337,7 @@ fn cross_pane_tab_insert_at_index_zero() {
 #[test]
 fn tab_bar_insert_takes_priority_over_content_hover() {
     let factory = Factory;
-    let mut layout = Layout::new();
+    let mut layout = Layout::<u32>::new();
     let pane = factory.create_pane(&mut layout);
     let mut session = DragSession::new(pane, pane, 0.2);
     let drop_targets = [(
@@ -376,7 +376,7 @@ fn tab_bar_insert_takes_priority_over_content_hover() {
 #[test]
 fn hit_test_tab_insert_with_scroll_offset() {
     let factory = Factory;
-    let pane = factory.create_pane(&mut Layout::new());
+    let pane = factory.create_pane(&mut Layout::<u32>::new());
     let bounds = iced::Rectangle {
         x: 50.0,
         y: 0.0,

@@ -8,12 +8,6 @@ new_key_type! {
     pub struct NodeId;
 }
 
-/// Application content identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(transparent))]
-pub struct ContentKey(pub u32);
-
 /// Dock drop / split operations (floating window deferred).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -68,8 +62,8 @@ pub struct RootState {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum NodeKind {
-    Panel(Panel),
+pub enum NodeKind<K> {
+    Panel(Panel<K>),
     Pane(Pane),
     Proportional(ProportionalGroup),
     Root(RootState),
@@ -77,20 +71,20 @@ pub enum NodeKind {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct NodeEntry {
-    pub kind: NodeKind,
+pub struct NodeEntry<K> {
+    pub kind: NodeKind<K>,
     pub owner: Option<NodeId>,
 }
 
 /// Layout tree arena.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Layout {
-    pub nodes: SlotMap<NodeId, NodeEntry>,
+pub struct Layout<K> {
+    pub nodes: SlotMap<NodeId, NodeEntry<K>>,
     pub root: NodeId,
 }
 
-impl Layout {
+impl<K> Layout<K> {
     #[must_use]
     pub fn new() -> Self {
         let mut nodes = SlotMap::with_key();
@@ -102,16 +96,16 @@ impl Layout {
     }
 
     #[must_use]
-    pub fn get(&self, id: NodeId) -> Option<&NodeEntry> {
+    pub fn get(&self, id: NodeId) -> Option<&NodeEntry<K>> {
         self.nodes.get(id)
     }
 
-    pub fn get_mut(&mut self, id: NodeId) -> Option<&mut NodeEntry> {
+    pub fn get_mut(&mut self, id: NodeId) -> Option<&mut NodeEntry<K>> {
         self.nodes.get_mut(id)
     }
 
     #[must_use]
-    pub fn kind(&self, id: NodeId) -> Option<&NodeKind> {
+    pub fn kind(&self, id: NodeId) -> Option<&NodeKind<K>> {
         self.nodes.get(id).map(|e| &e.kind)
     }
 
@@ -145,7 +139,7 @@ impl Layout {
     }
 }
 
-impl Default for Layout {
+impl<K> Default for Layout<K> {
     fn default() -> Self {
         Self::new()
     }

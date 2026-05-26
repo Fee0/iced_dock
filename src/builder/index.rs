@@ -12,7 +12,7 @@ pub struct DockIndex {
 
 impl DockIndex {
     #[must_use]
-    pub fn rebuild_from_layout(layout: &Layout) -> Self {
+    pub fn rebuild_from_layout<K>(layout: &Layout<K>) -> Self {
         let mut index = Self::default();
         for (id, entry) in &layout.nodes {
             match &entry.kind {

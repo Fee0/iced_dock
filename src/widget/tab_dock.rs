@@ -81,12 +81,12 @@ fn tab_insert_is_noop(
     from == index || from + 1 == index
 }
 
-pub struct TabDock<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
+pub struct TabDock<'a, K, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
     Renderer: advanced::Renderer,
 {
-    dock_state: Rc<RefCell<DockWidgetState<Theme>>>,
+    dock_state: Rc<RefCell<DockWidgetState<K, Theme>>>,
     pane_id: NodeId,
     tabs: Vec<TabInfo>,
     active_tab: NodeId,
@@ -100,8 +100,9 @@ where
     tab_bar_show_scrollbar: bool,
 }
 
-impl<'a, Message, Theme, Renderer> TabDock<'a, Message, Theme, Renderer>
+impl<'a, K, Message, Theme, Renderer> TabDock<'a, K, Message, Theme, Renderer>
 where
+    K: 'static,
     Message: Clone + 'static,
     Theme: Catalog
         + button::Catalog
@@ -116,7 +117,7 @@ where
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
     pub fn new(
-        dock_state: Rc<RefCell<DockWidgetState<Theme>>>,
+        dock_state: Rc<RefCell<DockWidgetState<K, Theme>>>,
         pane_id: NodeId,
         tabs: Vec<TabInfo>,
         active_tab: NodeId,
@@ -159,8 +160,9 @@ where
     }
 }
 
-impl<Message, Theme, Renderer> TabDock<'_, Message, Theme, Renderer>
+impl<K, Message, Theme, Renderer> TabDock<'_, K, Message, Theme, Renderer>
 where
+    K: 'static,
     Theme: Catalog + Clone + 'static,
     Renderer: advanced::Renderer,
 {
@@ -211,9 +213,10 @@ where
     }
 }
 
-impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
-    for TabDock<'_, Message, Theme, Renderer>
+impl<K, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
+    for TabDock<'_, K, Message, Theme, Renderer>
 where
+    K: 'static,
     Message: Clone + 'static,
     Theme: Catalog
         + button::Catalog
@@ -600,9 +603,10 @@ where
     }
 }
 
-impl<'a, Message, Theme, Renderer> From<TabDock<'a, Message, Theme, Renderer>>
+impl<'a, K, Message, Theme, Renderer> From<TabDock<'a, K, Message, Theme, Renderer>>
     for Element<'a, Message, Theme, Renderer>
 where
+    K: 'static,
     Message: Clone + 'static,
     Theme: Catalog
         + button::Catalog
@@ -616,7 +620,7 @@ where
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
-    fn from(widget: TabDock<'a, Message, Theme, Renderer>) -> Self {
+    fn from(widget: TabDock<'a, K, Message, Theme, Renderer>) -> Self {
         Element::new(widget)
     }
 }

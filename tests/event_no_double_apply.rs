@@ -1,17 +1,17 @@
 //! Regression: a single close/select must not apply layout mutations twice.
 
 use iced_dock::unstable::{build_tree, dispatch_action};
-use iced_dock::{panel, tabs, ContentKey, DockAction, DockSession, DockWidgetState, TabAction};
+use iced_dock::{panel, tabs, DockAction, DockSession, DockWidgetState, TabAction};
 
 #[test]
 fn dispatch_close_once_removes_panel() {
     let built = build_tree(&tabs([
-        panel("a", "A", ContentKey(0)),
-        panel("b", "B", ContentKey(1)),
+        panel("a", "A", 0u32),
+        panel("b", "B", 1u32),
     ]))
     .expect("built");
     let panel_b = built.index.panel_node("b").expect("b");
-    let mut state = DockWidgetState::<iced::Theme>::from_built(built, None);
+    let mut state = DockWidgetState::<u32, iced::Theme>::from_built(built, None);
 
     assert!(dispatch_action(
         &mut state,
@@ -29,9 +29,9 @@ fn dispatch_close_once_removes_panel() {
 
 #[test]
 fn session_select_does_not_require_update_handler() {
-    let session: DockSession = DockSession::from_tree(tabs([
-        panel("a", "A", ContentKey(0)),
-        panel("b", "B", ContentKey(1)),
+    let session: DockSession<u32> = DockSession::from_tree(tabs([
+        panel("a", "A", 0u32),
+        panel("b", "B", 1u32),
     ]))
     .expect("session");
     session.select_panel("b").expect("select");

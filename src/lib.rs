@@ -41,7 +41,7 @@ pub use builder::{
     PanelCycle, PanelDef, SplitNode, TabsNode,
 };
 pub use error::{Error, Result};
-pub use model::{ContentKey, Layout};
+pub use model::Layout;
 pub use spatial::{adjacent_pane, pane_bounds_map, Direction};
 pub use style::{
     close_button_style, constant, default, preset, Catalog, CloseButtonStyle, DockBackgroundStyle,

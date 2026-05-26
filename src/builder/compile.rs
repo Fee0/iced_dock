@@ -1,5 +1,5 @@
 use crate::builder::index::DockIndex;
-use crate::builder::spec::{validate_tree, LayoutTree, PanelDef, SplitNode, TabsNode};
+use crate::builder::spec::{LayoutTree, PanelDef, SplitNode, TabsNode};
 use crate::factory::Factory;
 use crate::model::{Layout, NodeId, NodeKind};
 use crate::widget::DockWidgetState;
@@ -8,13 +8,13 @@ use crate::{Error, Result};
 /// Result of compiling a [`LayoutTree`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct BuiltLayout {
-    pub layout: Layout,
+pub struct BuiltLayout<K> {
+    pub layout: Layout<K>,
     pub index: DockIndex,
 }
 
 /// Compile a declarative [`LayoutTree`] into a runtime [`Layout`] and index.
-pub fn build_tree(tree: &LayoutTree) -> Result<BuiltLayout> {
+pub fn build_tree<K: Copy>(tree: &LayoutTree<K>) -> Result<BuiltLayout<K>> {
     validate_tree(tree)?;
     let factory = Factory;
     let mut layout = Layout::new();
@@ -24,10 +24,10 @@ pub fn build_tree(tree: &LayoutTree) -> Result<BuiltLayout> {
     Ok(BuiltLayout { layout, index })
 }
 
-fn compile_node(
-    tree: &LayoutTree,
+fn compile_node<K: Copy>(
+    tree: &LayoutTree<K>,
     factory: &Factory,
-    layout: &mut Layout,
+    layout: &mut Layout<K>,
     index: &mut DockIndex,
 ) -> Result<NodeId> {
     match tree {
@@ -36,10 +36,10 @@ fn compile_node(
     }
 }
 
-fn compile_tabs(
-    node: &TabsNode,
+fn compile_tabs<K: Copy>(
+    node: &TabsNode<K>,
     factory: &Factory,
-    layout: &mut Layout,
+    layout: &mut Layout<K>,
     index: &mut DockIndex,
 ) -> Result<NodeId> {
     let pane_id = factory.create_pane(layout);
@@ -66,10 +66,10 @@ fn compile_tabs(
     Ok(pane_id)
 }
 
-fn compile_split(
-    node: &SplitNode,
+fn compile_split<K: Copy>(
+    node: &SplitNode<K>,
     factory: &Factory,
-    layout: &mut Layout,
+    layout: &mut Layout<K>,
     index: &mut DockIndex,
 ) -> Result<NodeId> {
     let mut children = Vec::with_capacity(node.children.len());
@@ -83,11 +83,11 @@ fn compile_split(
     Ok(group_id)
 }
 
-fn insert_panel(
+fn insert_panel<K: Copy>(
     factory: &Factory,
-    layout: &mut Layout,
+    layout: &mut Layout<K>,
     index: &mut DockIndex,
-    def: &PanelDef,
+    def: &PanelDef<K>,
 ) -> NodeId {
     let panel_id = factory.insert_panel(layout, def.id.clone(), def.title.clone(), def.content);
     if let Some(NodeKind::Panel(ref mut panel)) = layout.get_mut(panel_id).map(|e| &mut e.kind) {
@@ -100,10 +100,10 @@ fn insert_panel(
 }
 
 /// Insert a panel using widget state (avoids overlapping field borrows).
-pub(crate) fn insert_panel_into_state<Theme>(
+pub(crate) fn insert_panel_into_state<K: Copy, Theme>(
     factory: &Factory,
-    state: &mut DockWidgetState<Theme>,
-    def: &PanelDef,
+    state: &mut DockWidgetState<K, Theme>,
+    def: &PanelDef<K>,
 ) -> Result<NodeId> {
     if state.index.panels.contains_key(&def.id) {
         return Err(Error::DuplicatePanelId(def.id.clone()));
@@ -118,12 +118,12 @@ pub(crate) fn insert_panel_into_state<Theme>(
 
 /// Resolve the first pane in preorder tree walk.
 #[must_use]
-pub fn first_pane(layout: &Layout) -> Option<NodeId> {
+pub fn first_pane<K>(layout: &Layout<K>) -> Option<NodeId> {
     let root = layout.root_child()?;
     first_pane_walk(layout, root)
 }
 
-fn first_pane_walk(layout: &Layout, node: NodeId) -> Option<NodeId> {
+fn first_pane_walk<K>(layout: &Layout<K>, node: NodeId) -> Option<NodeId> {
     match layout.kind(node)? {
         NodeKind::Pane(_) => Some(node),
         NodeKind::Proportional(pg) => {
@@ -140,21 +140,25 @@ fn first_pane_walk(layout: &Layout, node: NodeId) -> Option<NodeId> {
 
 /// Find the pane that owns a panel node.
 #[must_use]
-pub fn owning_pane(layout: &Layout, panel: NodeId) -> Option<NodeId> {
+pub fn owning_pane<K>(layout: &Layout<K>, panel: NodeId) -> Option<NodeId> {
     let e = layout.get(panel)?;
     e.owner
 }
 
 /// Pane that owns a panel identified by string id.
 #[must_use]
-pub fn pane_for_panel(layout: &Layout, index: &DockIndex, panel_id: &str) -> Option<NodeId> {
+pub fn pane_for_panel<K>(layout: &Layout<K>, index: &DockIndex, panel_id: &str) -> Option<NodeId> {
     let panel = index.panel_node(panel_id)?;
     owning_pane(layout, panel)
 }
 
 /// Active panel id string in a specific pane.
 #[must_use]
-pub fn active_panel_in_pane(layout: &Layout, index: &DockIndex, pane: NodeId) -> Option<String> {
+pub fn active_panel_in_pane<K>(
+    layout: &Layout<K>,
+    index: &DockIndex,
+    pane: NodeId,
+) -> Option<String> {
     let NodeKind::Pane(pane_state) = layout.kind(pane)? else {
         return None;
     };
@@ -166,3 +170,5 @@ pub fn active_panel_in_pane(layout: &Layout, index: &DockIndex, pane: NodeId) ->
         .iter()
         .find_map(|(id, node_id)| (*node_id == active).then(|| id.clone()))
 }
+
+use crate::builder::spec::validate_tree;
