@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use iced::advanced::layout::{self, Layout};
@@ -9,10 +8,10 @@ use iced::advanced::widget::{Operation, Widget};
 use iced::advanced::{self, Clipboard, Shell};
 use iced::mouse::{self, Cursor};
 use iced::widget::overlay::menu;
-use iced::{Border, Element, Event, Length, Rectangle, Size, Theme as IcedTheme, Vector};
+use iced::{Border, Element, Event, Length, Rectangle, Size, Vector};
 
 use crate::model::{Axis, NodeId};
-use crate::style::{self, Catalog, DockStyle};
+use crate::style::{Catalog, DockStyle};
 use crate::widget::action::DockAction;
 use crate::widget::compose;
 
@@ -56,7 +55,8 @@ where
     children: Vec<Element<'a, Message, Theme, Renderer>>,
     on_event: Rc<dyn Fn(DockAction) -> Message>,
     class: Rc<<Theme as Catalog>::Class<'static>>,
-    theme: Rc<RefCell<Option<Theme>>>,
+    splitter_size: f32,
+    splitter_gap: f32,
     min_pane_width: f32,
     min_pane_height: f32,
 }
@@ -66,14 +66,15 @@ where
     Theme: Catalog + Clone,
     Renderer: advanced::Renderer,
 {
-    pub fn new(
+    pub(crate) fn new(
         group_id: NodeId,
         axis: Axis,
         proportions: Vec<f32>,
         children: Vec<Element<'a, Message, Theme, Renderer>>,
         on_event: Rc<dyn Fn(DockAction) -> Message>,
         class: Rc<<Theme as Catalog>::Class<'static>>,
-        theme: Rc<RefCell<Option<Theme>>>,
+        splitter_size: f32,
+        splitter_gap: f32,
         min_pane_width: f32,
         min_pane_height: f32,
     ) -> Self {
@@ -84,16 +85,10 @@ where
             children,
             on_event,
             class,
-            theme,
+            splitter_size,
+            splitter_gap,
             min_pane_width,
             min_pane_height,
-        }
-    }
-
-    fn layout_style_resolved(&self) -> DockStyle {
-        match &*self.theme.borrow() {
-            Some(t) => Catalog::style(t, &self.class),
-            None => style::default(&IcedTheme::Dark),
         }
     }
 
@@ -226,9 +221,8 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let dock_style = self.layout_style_resolved();
-        let splitter_size = dock_style.splitter.size;
-        let splitter_gap = dock_style.splitter.gap;
+        let splitter_size = self.splitter_size;
+        let splitter_gap = self.splitter_gap;
         let is_horizontal = self.axis == Axis::Horizontal;
         let min_pane_main = if is_horizontal {
             self.min_pane_width
@@ -325,7 +319,8 @@ where
     ) {
         let state = tree.state.downcast_ref::<SplitWidgetState>();
         let dock_style = self.layout_style(theme);
-        let split = &dock_style.splitter;
+        let split_colors = &dock_style.splitter;
+        let splitter_size = self.splitter_size;
 
         let pos = layout.position();
         let offset = iced::Vector::new(pos.x, pos.y);
@@ -350,17 +345,17 @@ where
             let hovered = cursor_pos.is_some_and(|p| abs.contains(p));
             let dragging_this = state.drag_splitter == Some(idx);
             let color = if dragging_this {
-                split.drag_color
+                split_colors.drag_color
             } else if hovered {
-                split.hover_color
+                split_colors.hover_color
             } else {
-                split.idle_color
+                split_colors.idle_color
             };
             if color.a <= 0.0 {
                 continue;
             }
             let line = if self.axis == Axis::Horizontal {
-                let w = split.size.max(1.0);
+                let w = splitter_size.max(1.0);
                 Rectangle {
                     x: abs.x + (abs.width - w) * 0.5,
                     y: abs.y,
@@ -368,7 +363,7 @@ where
                     height: abs.height,
                 }
             } else {
-                let h = split.size.max(1.0);
+                let h = splitter_size.max(1.0);
                 Rectangle {
                     x: abs.x,
                     y: abs.y + (abs.height - h) * 0.5,

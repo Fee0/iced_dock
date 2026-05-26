@@ -4,11 +4,6 @@ use iced_dock::{constant, default, preset, Catalog, DockStyle};
 #[test]
 fn palette_default_has_sane_metrics() {
     let style = default(&Theme::Dark);
-    assert!(style.tab_bar.height > 0.0);
-    assert!(style.tab_bar.scrollbar_height > 0.0);
-    assert!(style.tab_bar.close_button.size > 0.0);
-    assert!(style.splitter.size > 0.0);
-    assert!(style.splitter.gap > 0.0);
     assert!(style.window.border.width >= 0.0);
 }
 
@@ -50,7 +45,7 @@ fn active_tab_matches_window_background() {
 fn constant_style_helper() {
     let custom = DockStyle::modern_dark();
     let resolved = constant(custom.clone())(&Theme::Light);
-    assert_eq!(resolved.tab_bar.height, custom.tab_bar.height);
+    assert_eq!(resolved.tab_bar.background, custom.tab_bar.background);
 }
 
 #[test]
@@ -66,10 +61,10 @@ fn palette_default_has_focused_border() {
 }
 
 #[test]
-fn splitter_style_has_visual_fields_only() {
+fn splitter_style_defaults_are_sane() {
     let style = default(&Theme::Dark);
-    assert!(style.splitter.size > 0.0);
-    assert!(style.splitter.gap > 0.0);
+    assert_eq!(style.splitter.idle_color.a, 0.0);
+    assert_ne!(style.splitter.hover_color, style.splitter.idle_color);
 }
 
 #[test]
@@ -89,11 +84,9 @@ fn preset_modern_dark_matches_modern_dark_constructor() {
 }
 
 #[test]
-fn modern_dark_exposes_separator_and_insert_marker_fields() {
+fn modern_dark_exposes_separator_and_close_button() {
     let style = DockStyle::modern_dark();
     assert!(style.tab_bar.separator.is_some());
-    assert!(style.tab.active_accent_height > 0.0);
-    assert!(style.drop_overlay.insert_marker_width > 0.0);
     assert_eq!(style.tab_bar.close_button.label, "×");
 }
 

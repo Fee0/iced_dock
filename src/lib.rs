@@ -45,7 +45,7 @@ pub use model::Layout;
 pub use spatial::{adjacent_pane, pane_bounds_map, Direction};
 pub use style::{
     close_button_style, constant, default, preset, Catalog, CloseButtonStyle, DockBackgroundStyle,
-    DockStyle, DropOverlayStyle, PaneContent, SplitterStyle, StyleFn, TabBarSeparatorStyle,
-    TabBarStyle, TabStyle, WindowStyle,
+    DockStyle, DropOverlayStyle, PaneContent, SplitterStyle, StyleFn, TabBarStyle, TabStyle,
+    WindowStyle,
 };
 pub use widget::{dock, Dock, DockAction, DockEvent, DockWidgetState, TabAction};

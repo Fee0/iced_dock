@@ -14,7 +14,7 @@ use iced::widget::overlay::menu;
 use iced::widget::{self, button, container, text as iced_text};
 use iced::{Element, Event, Length, Rectangle, Size, Vector};
 
-use crate::model::{Layout as DockLayout, NodeId, NodeKind, Pane};
+use crate::model::{Layout as ModelLayout, NodeId, NodeKind, Pane};
 use crate::style::{Catalog, DockStyle, PaneContent, StyleFn};
 use crate::widget::action::DockAction;
 use crate::widget::event::{action_to_event, DockEvent};
@@ -41,6 +41,23 @@ where
     on_event: Rc<dyn Fn(DockEvent) -> Message>,
     external_state: Option<Rc<RefCell<DockWidgetState<K, Theme>>>>,
     class: Rc<<Theme as Catalog>::Class<'static>>,
+    tab_bar_height: f32,
+    tab_bar_spacing: f32,
+    tab_bar_padding: [f32; 2],
+    tab_text_size: f32,
+    tab_padding: [f32; 2],
+    tab_accent_height: f32,
+    close_button_text_size: f32,
+    close_button_size: f32,
+    close_button_margin_right: f32,
+    close_button_padding: [f32; 2],
+    splitter_size: f32,
+    splitter_gap: f32,
+    pane_padding: f32,
+    scrollbar_height: f32,
+    scrollbar_thumb_min_width: f32,
+    insert_marker_width: f32,
+    separator_height: f32,
     min_pane_width: f32,
     min_pane_height: f32,
     drag_threshold: f32,
@@ -75,6 +92,23 @@ where
             on_event,
             external_state: None,
             class: Rc::new(<Theme as Catalog>::default()),
+            tab_bar_height: 30.0,
+            tab_bar_spacing: 0.0,
+            tab_bar_padding: [0.0, 0.0],
+            tab_text_size: 12.0,
+            tab_padding: [0.0, 10.0],
+            tab_accent_height: 2.0,
+            close_button_text_size: 15.0,
+            close_button_size: 20.0,
+            close_button_margin_right: 6.0,
+            close_button_padding: [0.0, 0.0],
+            splitter_size: 0.5,
+            splitter_gap: 10.0,
+            pane_padding: 0.0,
+            scrollbar_height: 6.0,
+            scrollbar_thumb_min_width: 24.0,
+            insert_marker_width: 3.0,
+            separator_height: 1.0,
             min_pane_width: 80.0,
             min_pane_height: 80.0,
             drag_threshold: 6.0,
@@ -144,7 +178,7 @@ where
     fn build_node(
         &self,
         holder: &Rc<RefCell<DockWidgetState<K, Theme>>>,
-        layout: &DockLayout<K>,
+        layout: &ModelLayout<K>,
         node: NodeId,
     ) -> Option<Element<'static, Message, Theme, Renderer>> {
         match layout.kind(node)? {
@@ -169,7 +203,8 @@ where
                         children,
                         on_split,
                         Rc::clone(&self.class),
-                        Self::theme_cell(holder),
+                        self.splitter_size,
+                        self.splitter_gap,
                         self.min_pane_width,
                         self.min_pane_height,
                     )
@@ -188,7 +223,7 @@ where
     fn build_pane(
         &self,
         holder: &Rc<RefCell<DockWidgetState<K, Theme>>>,
-        layout: &DockLayout<K>,
+        layout: &ModelLayout<K>,
         pane_id: NodeId,
         pane: &Pane,
     ) -> Option<Element<'static, Message, Theme, Renderer>> {
@@ -234,6 +269,21 @@ where
                 on_tab,
                 pane_class,
                 Self::theme_cell(holder),
+                self.tab_bar_height,
+                self.tab_bar_spacing,
+                self.tab_bar_padding,
+                self.tab_text_size,
+                self.tab_padding,
+                self.tab_accent_height,
+                self.close_button_text_size,
+                self.close_button_size,
+                self.close_button_margin_right,
+                self.close_button_padding,
+                self.pane_padding,
+                self.scrollbar_height,
+                self.scrollbar_thumb_min_width,
+                self.insert_marker_width,
+                self.separator_height,
                 self.drag_threshold,
                 self.drop_edge_fraction,
                 self.tab_bar_scrollbar_hide_delay,
@@ -305,6 +355,23 @@ where
     on_event: Option<Rc<dyn Fn(DockEvent) -> Message>>,
     shared_state: Option<Rc<RefCell<DockWidgetState<K, Theme>>>>,
     class: Option<Rc<<Theme as Catalog>::Class<'static>>>,
+    tab_bar_height: f32,
+    tab_bar_spacing: f32,
+    tab_bar_padding: [f32; 2],
+    tab_text_size: f32,
+    tab_padding: [f32; 2],
+    tab_accent_height: f32,
+    close_button_text_size: f32,
+    close_button_size: f32,
+    close_button_margin_right: f32,
+    close_button_padding: [f32; 2],
+    splitter_size: f32,
+    splitter_gap: f32,
+    pane_padding: f32,
+    scrollbar_height: f32,
+    scrollbar_thumb_min_width: f32,
+    insert_marker_width: f32,
+    separator_height: f32,
     min_pane_width: f32,
     min_pane_height: f32,
     drag_threshold: f32,
@@ -324,6 +391,23 @@ where
             on_event: None,
             shared_state: None,
             class: None,
+            tab_bar_height: 30.0,
+            tab_bar_spacing: 0.0,
+            tab_bar_padding: [0.0, 0.0],
+            tab_text_size: 12.0,
+            tab_padding: [0.0, 10.0],
+            tab_accent_height: 2.0,
+            close_button_text_size: 15.0,
+            close_button_size: 20.0,
+            close_button_margin_right: 6.0,
+            close_button_padding: [0.0, 0.0],
+            splitter_size: 0.5,
+            splitter_gap: 10.0,
+            pane_padding: 0.0,
+            scrollbar_height: 6.0,
+            scrollbar_thumb_min_width: 24.0,
+            insert_marker_width: 3.0,
+            separator_height: 1.0,
             min_pane_width: 80.0,
             min_pane_height: 80.0,
             drag_threshold: 6.0,
@@ -460,6 +544,104 @@ where
         self
     }
 
+    /// Height of the tab bar strip above each pane. Default `30.0`.
+    #[must_use]
+    pub fn tab_bar_height(mut self, h: f32) -> Self {
+        self.tab_bar_height = h.max(1.0);
+        self
+    }
+
+    /// Horizontal spacing between adjacent tabs. Default `0.0`.
+    #[must_use]
+    pub fn tab_bar_spacing(mut self, s: f32) -> Self {
+        self.tab_bar_spacing = s.max(0.0);
+        self
+    }
+
+    /// Outer padding of the tab bar: `[vertical, horizontal]`. Default `[0, 0]`.
+    #[must_use]
+    pub fn tab_bar_padding(mut self, p: [f32; 2]) -> Self {
+        self.tab_bar_padding = p;
+        self
+    }
+
+    /// Font size for tab labels. Default `12.0`.
+    #[must_use]
+    pub fn tab_text_size(mut self, s: f32) -> Self {
+        self.tab_text_size = s.max(1.0);
+        self
+    }
+
+    /// Inner padding of each tab label: `[vertical, horizontal]`. Default `[0, 10]`.
+    #[must_use]
+    pub fn tab_padding(mut self, p: [f32; 2]) -> Self {
+        self.tab_padding = p;
+        self
+    }
+
+    /// Height of the accent bar drawn under the active tab. Default `2.0`.
+    #[must_use]
+    pub fn tab_accent_height(mut self, h: f32) -> Self {
+        self.tab_accent_height = h.max(0.0);
+        self
+    }
+
+    /// Square size of the close button. Default `20.0`.
+    #[must_use]
+    pub fn close_button_size(mut self, s: f32) -> Self {
+        self.close_button_size = s.max(1.0);
+        self
+    }
+
+    /// Space between the close button and the tab edge. Default `6.0`.
+    #[must_use]
+    pub fn close_button_margin(mut self, m: f32) -> Self {
+        self.close_button_margin_right = m.max(0.0);
+        self
+    }
+
+    /// Visual thickness of the splitter divider line. Default `0.5`.
+    #[must_use]
+    pub fn splitter_size(mut self, s: f32) -> Self {
+        self.splitter_size = s.max(0.0);
+        self
+    }
+
+    /// Extra gap between panes. Default `10.0`.
+    #[must_use]
+    pub fn splitter_gap(mut self, g: f32) -> Self {
+        self.splitter_gap = g.max(0.0);
+        self
+    }
+
+    /// Content padding inside each pane. Default `0.0`.
+    #[must_use]
+    pub fn pane_padding(mut self, p: f32) -> Self {
+        self.pane_padding = p.max(0.0);
+        self
+    }
+
+    /// Height of the scrollbar thumb in overflowing tab bars. Default `6.0`.
+    #[must_use]
+    pub fn scrollbar_height(mut self, h: f32) -> Self {
+        self.scrollbar_height = h.max(1.0);
+        self
+    }
+
+    /// Width of the vertical insertion marker during tab drag. Default `3.0`.
+    #[must_use]
+    pub fn insert_marker_width(mut self, w: f32) -> Self {
+        self.insert_marker_width = w.max(1.0);
+        self
+    }
+
+    /// Height of the separator line at the bottom of the tab bar. Default `1.0`.
+    #[must_use]
+    pub fn separator_height(mut self, h: f32) -> Self {
+        self.separator_height = h.max(0.0);
+        self
+    }
+
     /// # Panics
     ///
     /// Panics when [`on_event`](Self::on_event) was not set.
@@ -478,6 +660,23 @@ where
             class: self
                 .class
                 .unwrap_or_else(|| Rc::new(<Theme as Catalog>::default())),
+            tab_bar_height: self.tab_bar_height,
+            tab_bar_spacing: self.tab_bar_spacing,
+            tab_bar_padding: self.tab_bar_padding,
+            tab_text_size: self.tab_text_size,
+            tab_padding: self.tab_padding,
+            tab_accent_height: self.tab_accent_height,
+            close_button_text_size: self.close_button_text_size,
+            close_button_size: self.close_button_size,
+            close_button_margin_right: self.close_button_margin_right,
+            close_button_padding: self.close_button_padding,
+            splitter_size: self.splitter_size,
+            splitter_gap: self.splitter_gap,
+            pane_padding: self.pane_padding,
+            scrollbar_height: self.scrollbar_height,
+            scrollbar_thumb_min_width: self.scrollbar_thumb_min_width,
+            insert_marker_width: self.insert_marker_width,
+            separator_height: self.separator_height,
             min_pane_width: self.min_pane_width,
             min_pane_height: self.min_pane_height,
             drag_threshold: self.drag_threshold,

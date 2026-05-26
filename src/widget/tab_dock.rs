@@ -53,8 +53,8 @@ fn drop_zone_rect(bounds: Rectangle, zone: DropZone, edge: f32) -> Rectangle {
     }
 }
 
-fn pane_inset(style: &DockStyle) -> f32 {
-    style.window.padding + style.window.border.width
+fn pane_inset(pane_padding: f32, border_width: f32) -> f32 {
+    pane_padding + border_width
 }
 
 #[derive(Debug, Clone)]
@@ -97,6 +97,8 @@ where
     on_event: Rc<dyn Fn(DockAction) -> Message>,
     class: Rc<<Theme as Catalog>::Class<'static>>,
     theme: Rc<RefCell<Option<Theme>>>,
+    tab_bar_height: f32,
+    pane_padding: f32,
     drop_edge_fraction: f32,
     tab_bar_scrollbar_hide_delay: Duration,
     tab_bar_show_scrollbar: bool,
@@ -119,7 +121,7 @@ where
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
-    pub fn new(
+    pub(crate) fn new(
         dock_state: Rc<RefCell<DockWidgetState<K, Theme>>>,
         pane_id: NodeId,
         tabs: Vec<TabInfo>,
@@ -128,6 +130,21 @@ where
         on_event: Rc<dyn Fn(DockAction) -> Message>,
         class: Rc<<Theme as Catalog>::Class<'static>>,
         theme: Rc<RefCell<Option<Theme>>>,
+        tab_bar_height: f32,
+        tab_bar_spacing: f32,
+        tab_bar_padding: [f32; 2],
+        tab_text_size: f32,
+        tab_padding: [f32; 2],
+        tab_accent_height: f32,
+        close_button_text_size: f32,
+        close_button_size: f32,
+        close_button_margin_right: f32,
+        close_button_padding: [f32; 2],
+        pane_padding: f32,
+        scrollbar_height: f32,
+        scrollbar_thumb_min_width: f32,
+        insert_marker_width: f32,
+        separator_height: f32,
         drag_threshold: f32,
         drop_edge_fraction: f32,
         tab_bar_scrollbar_hide_delay: Duration,
@@ -140,6 +157,20 @@ where
             Rc::clone(&on_event),
             Rc::clone(&class),
             Rc::clone(&theme),
+            tab_bar_height,
+            tab_bar_spacing,
+            tab_bar_padding,
+            tab_text_size,
+            tab_padding,
+            tab_accent_height,
+            close_button_text_size,
+            close_button_size,
+            close_button_margin_right,
+            close_button_padding,
+            scrollbar_height,
+            scrollbar_thumb_min_width,
+            insert_marker_width,
+            separator_height,
             drag_threshold,
             drop_edge_fraction,
             tab_bar_scrollbar_hide_delay,
@@ -156,6 +187,8 @@ where
             on_event,
             class,
             theme,
+            tab_bar_height,
+            pane_padding,
             drop_edge_fraction,
             tab_bar_scrollbar_hide_delay,
             tab_bar_show_scrollbar,
@@ -271,10 +304,10 @@ where
     ) -> layout::Node {
         let style = self.layout_style_or_default();
         let max = limits.max();
-        let inset = pane_inset(&style);
+        let inset = pane_inset(self.pane_padding, style.window.border.width);
         let inner_w = (max.width - 2.0 * inset).max(0.0);
         let inner_h = (max.height - 2.0 * inset).max(0.0);
-        let tab_h = style.tab_bar.height;
+        let tab_h = self.tab_bar_height;
         let content_h = (inner_h - tab_h).max(0.0);
         let mut y = inset;
 

@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use crate::model::NodeId;
 use crate::style::{
-    self, close_button_style, Catalog, CloseButtonStyle, DockStyle, DropOverlayStyle, TabBarStyle,
+    self, close_button_style, Catalog, DockStyle, DropOverlayStyle, TabBarStyle,
 };
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::compose;
@@ -226,6 +226,20 @@ where
     tabs_row: Element<'a, Message, Theme, Renderer>,
     on_event: Rc<dyn Fn(DockAction) -> Message>,
     class: Rc<<Theme as Catalog>::Class<'static>>,
+    tab_bar_height: f32,
+    tab_bar_spacing: f32,
+    tab_bar_padding: [f32; 2],
+    tab_text_size: f32,
+    tab_padding: [f32; 2],
+    tab_accent_height: f32,
+    close_button_text_size: f32,
+    close_button_size: f32,
+    close_button_margin_right: f32,
+    close_button_padding: [f32; 2],
+    scrollbar_height: f32,
+    scrollbar_thumb_min_width: f32,
+    insert_marker_width: f32,
+    separator_height: f32,
     drag_threshold: f32,
     drop_edge_fraction: f32,
     hide_delay: Duration,
@@ -249,19 +263,33 @@ where
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as text::Catalog>::Class<'b>: From<text::StyleFn<'b, Theme>>,
 {
-    pub fn new(
+    pub(crate) fn new(
         pane_id: NodeId,
         tabs: Vec<TabInfo>,
         active_tab: NodeId,
         on_event: Rc<dyn Fn(DockAction) -> Message>,
         class: Rc<<Theme as Catalog>::Class<'static>>,
         theme: Rc<RefCell<Option<Theme>>>,
+        tab_bar_height: f32,
+        tab_bar_spacing: f32,
+        tab_bar_padding: [f32; 2],
+        tab_text_size: f32,
+        tab_padding: [f32; 2],
+        tab_accent_height: f32,
+        close_button_text_size: f32,
+        close_button_size: f32,
+        close_button_margin_right: f32,
+        close_button_padding: [f32; 2],
+        scrollbar_height: f32,
+        scrollbar_thumb_min_width: f32,
+        insert_marker_width: f32,
+        separator_height: f32,
         drag_threshold: f32,
         drop_edge_fraction: f32,
         hide_delay: Duration,
         show_scrollbar: bool,
     ) -> Self {
-        let layout_style = match &*theme.borrow() {
+        let paint_style = match &*theme.borrow() {
             Some(t) => {
                 let mut style = Catalog::style(t, &class);
                 style.sync_tab_appearance();
@@ -274,7 +302,16 @@ where
             }
         };
         let tabs_row = build_tabs_row(
-            &layout_style,
+            &paint_style,
+            tab_bar_height,
+            tab_bar_spacing,
+            tab_bar_padding,
+            tab_text_size,
+            tab_padding,
+            close_button_text_size,
+            close_button_size,
+            close_button_margin_right,
+            close_button_padding,
             &tabs,
             active_tab,
             None,
@@ -288,6 +325,20 @@ where
             tabs_row,
             on_event,
             class,
+            tab_bar_height,
+            tab_bar_spacing,
+            tab_bar_padding,
+            tab_text_size,
+            tab_padding,
+            tab_accent_height,
+            close_button_text_size,
+            close_button_size,
+            close_button_margin_right,
+            close_button_padding,
+            scrollbar_height,
+            scrollbar_thumb_min_width,
+            insert_marker_width,
+            separator_height,
             drag_threshold,
             drop_edge_fraction,
             hide_delay,
@@ -298,17 +349,6 @@ where
 
     fn resolved_theme(&self) -> Option<Theme> {
         self.theme.borrow().clone()
-    }
-
-    fn layout_style_resolved(&self) -> DockStyle {
-        match self.resolved_theme() {
-            Some(t) => self.layout_style(&t),
-            None => {
-                let mut style = style::default(&IcedTheme::Dark);
-                style.sync_tab_appearance();
-                style
-            }
-        }
     }
 
     fn layout_style(&self, theme: &Theme) -> DockStyle {
@@ -330,6 +370,15 @@ where
         let style = self.layout_style(theme);
         self.tabs_row = build_tabs_row(
             &style,
+            self.tab_bar_height,
+            self.tab_bar_spacing,
+            self.tab_bar_padding,
+            self.tab_text_size,
+            self.tab_padding,
+            self.close_button_text_size,
+            self.close_button_size,
+            self.close_button_margin_right,
+            self.close_button_padding,
             &self.tabs,
             self.active_tab,
             hovered_tab,
@@ -372,6 +421,15 @@ fn tab_label_container_style(background: Color, border_radius: f32) -> container
 
 fn build_tabs_row<Message, Theme, Renderer>(
     style: &DockStyle,
+    tab_bar_height: f32,
+    tab_bar_spacing: f32,
+    tab_bar_padding: [f32; 2],
+    tab_text_size: f32,
+    tab_padding: [f32; 2],
+    close_button_text_size: f32,
+    close_button_size: f32,
+    close_button_margin_right: f32,
+    close_button_padding: [f32; 2],
     tabs: &[TabInfo],
     active_tab: NodeId,
     hovered_tab: Option<NodeId>,
@@ -386,14 +444,13 @@ where
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'a> <Theme as text::Catalog>::Class<'a>: From<text::StyleFn<'a, Theme>>,
 {
-    let bar = &style.tab_bar;
     let tab_style = &style.tab;
-    let cb = &bar.close_button;
+    let cb = &style.tab_bar.close_button;
     let mut strip = row![]
-        .spacing(bar.spacing)
-        .padding(bar.padding)
+        .spacing(tab_bar_spacing)
+        .padding(tab_bar_padding)
         .width(Length::Shrink)
-        .height(Length::Fixed(bar.height))
+        .height(Length::Fixed(tab_bar_height))
         .align_y(iced::Alignment::Center);
     for tab in tabs {
         let on_event = Rc::clone(&on_event);
@@ -417,25 +474,25 @@ where
         let border_radius = tab_style.border_radius;
         let label = container(
             text(tab.title.clone())
-                .size(tab_style.text_size)
+                .size(tab_text_size)
                 .color(text_color),
         )
         .padding(Padding {
-            top: tab_style.padding[0],
-            bottom: tab_style.padding[0],
-            left: tab_style.padding[1],
-            right: tab_style.padding[1],
+            top: tab_padding[0],
+            bottom: tab_padding[0],
+            left: tab_padding[1],
+            right: tab_padding[1],
         })
         .height(Length::Fill)
         .center_y(Length::Fill);
         let close: Element<'_, Message, Theme, Renderer> = if tab.can_close {
             button(
-                container(text(cb.label.clone()).size(cb.text_size))
+                container(text(cb.label.clone()).size(close_button_text_size))
                     .padding(Padding {
-                        top: cb.padding[0],
-                        bottom: cb.padding[0],
-                        left: cb.padding[1],
-                        right: cb.padding[1],
+                        top: close_button_padding[0],
+                        bottom: close_button_padding[0],
+                        left: close_button_padding[1],
+                        right: close_button_padding[1],
                     })
                     .width(Length::Fill)
                     .height(Length::Fill)
@@ -443,22 +500,22 @@ where
                     .align_y(iced::Alignment::Center),
             )
             .padding(Padding::ZERO)
-            .width(Length::Fixed(cb.size))
-            .height(Length::Fixed(cb.size))
+            .width(Length::Fixed(close_button_size))
+            .height(Length::Fixed(close_button_size))
             .style(close_button_style(cb))
             .on_press_with(move || (on_event)(DockAction::Tab(TabAction::Close { panel: tab_id })))
             .into()
         } else {
             Space::new()
-                .width(Length::Fixed(cb.size + cb.margin_right))
+                .width(Length::Fixed(close_button_size + close_button_margin_right))
                 .into()
         };
         let tab_row = row![
             label,
             close,
-            Space::new().width(Length::Fixed(cb.margin_right))
+            Space::new().width(Length::Fixed(close_button_margin_right))
         ]
-        .height(Length::Fixed(bar.height))
+        .height(Length::Fixed(tab_bar_height))
         .align_y(iced::Alignment::Center);
         let tab_cell = mouse_area(
             container(tab_row)
@@ -485,11 +542,11 @@ fn hit_test_tab(
     None
 }
 
-fn close_button_bounds(tab_bounds: Rectangle, close: &CloseButtonStyle) -> Rectangle {
+fn close_button_bounds(tab_bounds: Rectangle, close_size: f32, close_margin_right: f32) -> Rectangle {
     Rectangle {
-        x: tab_bounds.x + tab_bounds.width - close.margin_right - close.size,
+        x: tab_bounds.x + tab_bounds.width - close_margin_right - close_size,
         y: tab_bounds.y,
-        width: close.size,
+        width: close_size,
         height: tab_bounds.height,
     }
 }
@@ -600,7 +657,8 @@ fn hit_test_close_button(
     tabs: &[TabInfo],
     scroll_offset: f32,
     pos: iced::Point,
-    close: &CloseButtonStyle,
+    close_size: f32,
+    close_margin_right: f32,
 ) -> bool {
     let adjusted = iced::Point::new(pos.x + scroll_offset, pos.y);
     for (i, tab) in tabs.iter().enumerate() {
@@ -610,7 +668,7 @@ fn hit_test_close_button(
         let Some(tab_layout) = row_layout.children().nth(i) else {
             continue;
         };
-        let bounds = close_button_bounds(tab_layout.bounds(), close);
+        let bounds = close_button_bounds(tab_layout.bounds(), close_size, close_margin_right);
         if bounds.contains(adjusted) {
             return true;
         }
@@ -706,7 +764,8 @@ struct ScrollbarMetrics {
 
 fn scrollbar_metrics(
     tab_bounds: Rectangle,
-    bar: &TabBarStyle,
+    scrollbar_height: f32,
+    scrollbar_thumb_min_width: f32,
     scroll_offset: f32,
     content_width: f32,
     viewport_width: f32,
@@ -716,7 +775,7 @@ fn scrollbar_metrics(
         return None;
     }
 
-    let thumb_height = bar.scrollbar_height.max(1.0);
+    let thumb_height = scrollbar_height.max(1.0);
     let track = Rectangle {
         x: tab_bounds.x,
         y: tab_bounds.y,
@@ -725,7 +784,7 @@ fn scrollbar_metrics(
     };
 
     let ratio = viewport_width / content_width;
-    let thumb_width = (track.width * ratio).max(bar.scrollbar_thumb_min_width);
+    let thumb_width = (track.width * ratio).max(scrollbar_thumb_min_width);
     let travel = (track.width - thumb_width).max(0.0);
     let thumb_x = if travel > 0.0 {
         track.x + (scroll_offset / max_offset) * travel
@@ -751,6 +810,7 @@ fn draw_scrollbar<Renderer: advanced::Renderer>(
     metrics: &ScrollbarMetrics,
     thumb_hovered: bool,
     bar: &TabBarStyle,
+    scrollbar_height: f32,
     renderer: &mut Renderer,
 ) {
     let thumb_color = if thumb_hovered {
@@ -766,7 +826,7 @@ fn draw_scrollbar<Renderer: advanced::Renderer>(
         renderer::Quad {
             bounds: metrics.track,
             border: iced::Border {
-                radius: (bar.scrollbar_height * 0.5).into(),
+                radius: (scrollbar_height * 0.5).into(),
                 ..iced::Border::default()
             },
             ..renderer::Quad::default()
@@ -779,7 +839,7 @@ fn draw_scrollbar<Renderer: advanced::Renderer>(
             border: iced::Border {
                 width: 1.0,
                 color: bar.scrollbar_thumb_border,
-                radius: (bar.scrollbar_height * 0.5).into(),
+                radius: (scrollbar_height * 0.5).into(),
             },
             ..renderer::Quad::default()
         },
@@ -792,6 +852,7 @@ fn draw_overflow_button<Renderer: advanced::Renderer>(
     bounds: Rectangle,
     bar: &TabBarStyle,
     tab: &crate::style::TabStyle,
+    separator_height: f32,
     hovered: bool,
     pressed: bool,
 ) {
@@ -813,19 +874,19 @@ fn draw_overflow_button<Renderer: advanced::Renderer>(
 
     draw_chevron_down(renderer, bounds, color);
 
-    if let Some(separator) = &bar.separator {
-        if separator.height > 0.0 && separator.color.a > 0.0 {
+    if let Some(separator_color) = bar.separator {
+        if separator_height > 0.0 && separator_color.a > 0.0 {
             renderer.fill_quad(
                 renderer::Quad {
                     bounds: Rectangle {
                         x: bounds.x,
-                        y: bounds.y + bounds.height - separator.height,
+                        y: bounds.y + bounds.height - separator_height,
                         width: bounds.width,
-                        height: separator.height,
+                        height: separator_height,
                     },
                     ..renderer::Quad::default()
                 },
-                separator.color,
+                separator_color,
             );
         }
     }
@@ -1051,8 +1112,7 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let style = self.layout_style_resolved();
-        let bar_height = style.tab_bar.height;
+        let bar_height = self.tab_bar_height;
         let max = limits.max();
         let viewport_width = max.width;
         let viewport_limits = layout::Limits::new(Size::ZERO, Size::new(f32::INFINITY, bar_height));
@@ -1133,20 +1193,21 @@ where
             bar.background,
         );
 
-        if let Some(sep) = &bar.separator {
-            if sep.height > 0.0 && sep.color.a > 0.0 {
+        if let Some(separator_color) = bar.separator {
+            let sep_h = self.separator_height;
+            if sep_h > 0.0 && separator_color.a > 0.0 {
                 let bounds = Rectangle {
                     x: tab_bounds.x,
-                    y: tab_bounds.y + tab_bounds.height - sep.height,
+                    y: tab_bounds.y + tab_bounds.height - sep_h,
                     width: tab_bounds.width,
-                    height: sep.height,
+                    height: sep_h,
                 };
                 renderer.fill_quad(
                     renderer::Quad {
                         bounds,
                         ..renderer::Quad::default()
                     },
-                    sep.color,
+                    separator_color,
                 );
             }
         }
@@ -1172,7 +1233,7 @@ where
                             },
                             dock_style.tab.active_background,
                         );
-                        let accent_h = tab_style.active_accent_height.max(0.0);
+                        let accent_h = self.tab_accent_height.max(0.0);
                         if accent_h > 0.0 {
                             let accent_y = tab_bounds.y + tab_bounds.height - accent_h;
                             renderer.fill_quad(
@@ -1212,7 +1273,7 @@ where
                         tab_bounds,
                         &insert_x,
                         index,
-                        drop_overlay.insert_marker_width,
+                        self.insert_marker_width,
                     ) {
                         renderer.fill_quad(
                             renderer::Quad {
@@ -1228,7 +1289,8 @@ where
             if self.show_scrollbar && overflow {
                 if let Some(metrics) = scrollbar_metrics(
                     row_bounds,
-                    bar,
+                    self.scrollbar_height,
+                    self.scrollbar_thumb_min_width,
                     scroll_offset,
                     state.content_width,
                     state.viewport_width,
@@ -1239,6 +1301,7 @@ where
                         &metrics,
                         thumb_hovered || state.scrollbar_drag.is_some(),
                         bar,
+                        self.scrollbar_height,
                         renderer,
                     );
                 }
@@ -1252,6 +1315,7 @@ where
                 button_bounds,
                 bar,
                 tab_style,
+                self.separator_height,
                 state.overflow_button_hovered,
                 overflow_pressed,
             );
@@ -1271,8 +1335,6 @@ where
     ) {
         let tab_bounds = layout.bounds();
         let current_theme = self.resolved_theme();
-        let dock_style = self.layout_style_resolved();
-        let bar = &dock_style.tab_bar;
         let threshold = self.drag_threshold;
         let cursor_pos = cursor.position();
         let mut row_refresh: Option<(Option<NodeId>, Option<NodeId>)> = None;
@@ -1339,7 +1401,8 @@ where
 
             let scrollbar_metrics = scrollbar_metrics(
                 row_bounds,
-                bar,
+                self.scrollbar_height,
+                self.scrollbar_thumb_min_width,
                 state.scroll_offset,
                 state.content_width,
                 state.viewport_width,
@@ -1400,7 +1463,8 @@ where
                                 &self.tabs,
                                 state.scroll_offset,
                                 pos,
-                                &bar.close_button,
+                                self.close_button_size,
+                                self.close_button_margin_right,
                             );
                             if !on_close {
                                 if let Some(tab_id) =
@@ -1608,7 +1672,6 @@ where
 
         let tab_bounds = layout.bounds();
         let row_bounds = visible_row_bounds(tab_bounds, state.viewport_width);
-        let dock_style = self.layout_style_resolved();
         if state.show_overflow_button
             && cursor.position().is_some_and(|point| {
                 overflow_button_bounds(tab_bounds, state.viewport_width).contains(point)
@@ -1619,7 +1682,8 @@ where
         if self.show_scrollbar {
             if let Some(metrics) = scrollbar_metrics(
                 row_bounds,
-                &dock_style.tab_bar,
+                self.scrollbar_height,
+                self.scrollbar_thumb_min_width,
                 state.scroll_offset,
                 state.content_width,
                 state.viewport_width,
@@ -1655,7 +1719,6 @@ where
         viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
-        let dock_style = self.layout_style_resolved();
         let state = tree.state.downcast_mut::<TabStripState<Theme>>();
         if !state.overflow_ui.borrow().open {
             return None;
@@ -1698,7 +1761,7 @@ where
         )
         .width(button_bounds.width.max(160.0))
         .padding(OVERFLOW_MENU_PADDING)
-        .text_size(iced::Pixels(dock_style.tab.text_size))
+        .text_size(iced::Pixels(self.tab_text_size))
         .overlay(
             layout.position() + translation + Vector::new(state.viewport_width, 0.0),
             *viewport,

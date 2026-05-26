@@ -29,28 +29,20 @@ pub struct DockBackgroundStyle {
     pub color: Color,
 }
 
-/// Pane window frame and content inset.
+/// Pane window frame.
 #[derive(Debug, Clone)]
 pub struct WindowStyle {
     pub background: Color,
     pub border: Border,
     /// Border drawn when this pane has focus. Falls back to [`Self::border`] when `None`.
     pub focused_border: Option<Border>,
-    pub padding: f32,
 }
 
-/// Close control on each tab.
+/// Close control on each tab (paint only).
 #[derive(Debug, Clone)]
 pub struct CloseButtonStyle {
     /// Label shown on the close control (default `"×"`).
     pub label: String,
-    pub text_size: f32,
-    /// Square width and height of the close control.
-    pub size: f32,
-    /// Space between the close control and the right edge of the tab.
-    pub margin_right: f32,
-    /// Inner padding of the close control: `[vertical, horizontal]`.
-    pub padding: [f32; 2],
     pub text_color: Color,
     pub background: Color,
     pub hovered_background: Color,
@@ -58,21 +50,13 @@ pub struct CloseButtonStyle {
     pub border_radius: f32,
 }
 
-/// Tab strip container.
+/// Tab strip container (paint only).
 #[derive(Debug, Clone)]
 pub struct TabBarStyle {
-    pub height: f32,
     pub background: Color,
-    pub spacing: f32,
-    /// Outer padding of the tab row: `[vertical, horizontal]`.
-    pub padding: [f32; 2],
     pub close_button: CloseButtonStyle,
-    /// Line drawn along the bottom of the tab strip; `None` disables it.
-    pub separator: Option<TabBarSeparatorStyle>,
-    /// Height of the floating horizontal scrollbar thumb when tabs overflow.
-    pub scrollbar_height: f32,
-    /// Minimum width of the scrollbar thumb.
-    pub scrollbar_thumb_min_width: f32,
+    /// Separator color drawn along the bottom of the tab strip; `None` disables it.
+    pub separator: Option<Color>,
     /// Scrollbar track color.
     pub scrollbar_track: Color,
     /// Scrollbar thumb color when the tab bar is hovered.
@@ -83,19 +67,10 @@ pub struct TabBarStyle {
     pub scrollbar_thumb_border: Color,
 }
 
-/// Bottom edge line on the tab strip.
-#[derive(Debug, Clone)]
-pub struct TabBarSeparatorStyle {
-    pub color: Color,
-    pub height: f32,
-}
 
-/// Individual tab label colors and padding.
+/// Individual tab label colors.
 #[derive(Debug, Clone)]
 pub struct TabStyle {
-    pub text_size: f32,
-    /// Label padding: `[vertical, horizontal]`.
-    pub padding: [f32; 2],
     pub border_radius: f32,
     pub inactive_background: Color,
     pub inactive_text: Color,
@@ -106,18 +81,13 @@ pub struct TabStyle {
     /// Matches [`WindowStyle::background`] for the active tab.
     pub active_background: Color,
     pub active_text: Color,
-    /// Bottom accent on the active tab.
+    /// Bottom accent color on the active tab.
     pub active_accent: Color,
-    /// Height of the active tab bottom accent bar.
-    pub active_accent_height: f32,
 }
 
-/// Splitter handle between proportional children.
+/// Splitter handle colors.
 #[derive(Debug, Clone)]
 pub struct SplitterStyle {
-    pub size: f32,
-    /// Extra space between panes (shows [`DockBackgroundStyle::color`]).
-    pub gap: f32,
     /// Drawn when idle (typically fully transparent).
     pub idle_color: Color,
     pub hover_color: Color,
@@ -130,8 +100,6 @@ pub struct DropOverlayStyle {
     pub color: Color,
     /// Color shown when the drag would be rejected (e.g. group mismatch).
     pub blocked_color: Color,
-    /// Width of the vertical insertion marker in the tab bar during drag.
-    pub insert_marker_width: f32,
     /// Minimum alpha for the tab-bar insertion marker (derived from [`Self::color`]).
     pub insert_marker_min_alpha: f32,
 }
