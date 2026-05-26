@@ -33,40 +33,37 @@ fn demo_layout() -> LayoutTree<Content> {
             // Left sidebar — tools group
             tabs([
                 tab("explorer", "Explorer", Content::Explorer),
-                tab("search",   "Search",   Content::Search),
+                tab("search", "Search", Content::Search),
             ])
             .active("explorer")
             .group("tools"),
-
             // Main editor — documents group
             tabs([
-                tab("main",    "main.rs",    Content::MainRs),
-                tab("lib",     "lib.rs",     Content::LibRs),
-                tab("mod_a",   "mod_a.rs",   Content::ModA),
-                tab("mod_b",   "mod_b.rs",   Content::ModB),
-                tab("mod_c",   "mod_c.rs",   Content::ModC),
-                tab("mod_d",   "mod_d.rs",   Content::ModD),
-                tab("cargo",   "Cargo.toml", Content::CargoToml),
+                tab("main", "main.rs", Content::MainRs),
+                tab("lib", "lib.rs", Content::LibRs),
+                tab("mod_a", "module_alpha.rs", Content::ModA),
+                tab("mod_b", "module_alpha_beta.rs", Content::ModB),
+                tab("mod_c", "module_alpha_gamma.rs", Content::ModC),
+                tab("mod_d", "module_alpha_delta.rs", Content::ModD),
+                tab("cargo", "Cargo.toml", Content::CargoToml),
             ])
             .active("main")
             .group("documents"),
-
             // Right sidebar — tools group
             tabs([
-                tab("outline",    "Outline",    Content::Outline),
+                tab("outline", "Outline", Content::Outline),
                 tab("properties", "Properties", Content::Properties),
             ])
             .active("outline")
             .group("tools"),
         ])
         .weights([0.18, 0.62, 0.20]),
-
         // Bottom panel — tools group
         tabs([
-            tab("terminal", "Terminal",      Content::Terminal),
-            tab("output",   "Output",        Content::Output),
-            tab("problems", "Problems",      Content::Problems),
-            tab("debug",    "Debug Console", Content::Debug),
+            tab("terminal", "Terminal", Content::Terminal),
+            tab("output", "Output", Content::Output),
+            tab("problems", "Problems", Content::Problems),
+            tab("debug", "Debug Console", Content::Debug),
         ])
         .active("terminal")
         .group("tools"),
@@ -93,8 +90,11 @@ struct App {
 impl App {
     fn new() -> Self {
         Self {
-            dock: DockSession::from_tree_with_focus(demo_layout(), InitialFocus::NamedPanel("main".into()))
-                .expect("failed to build demo layout"),
+            dock: DockSession::from_tree_with_focus(
+                demo_layout(),
+                InitialFocus::NamedPanel("main".into()),
+            )
+            .expect("failed to build demo layout"),
         }
     }
 }
@@ -114,10 +114,10 @@ fn subscription(_app: &App) -> Subscription<Message> {
             return None;
         }
         let direction = match key {
-            Key::Named(keyboard::key::Named::ArrowLeft)  => Direction::Left,
+            Key::Named(keyboard::key::Named::ArrowLeft) => Direction::Left,
             Key::Named(keyboard::key::Named::ArrowRight) => Direction::Right,
-            Key::Named(keyboard::key::Named::ArrowUp)    => Direction::Up,
-            Key::Named(keyboard::key::Named::ArrowDown)  => Direction::Down,
+            Key::Named(keyboard::key::Named::ArrowUp) => Direction::Up,
+            Key::Named(keyboard::key::Named::ArrowDown) => Direction::Down,
             _ => return None,
         };
         Some(Message::FocusAdjacent(direction))
@@ -155,21 +155,24 @@ fn view(app: &App) -> Element<'_, Message> {
 
 fn panel_content(key: Content) -> Element<'static, Message> {
     let (label, hint) = match key {
-        Content::Explorer   => ("Explorer",      "File tree"),
-        Content::Search     => ("Search",        "Workspace search"),
-        Content::MainRs     => ("main.rs",       "Editor — ⌘/Ctrl+Arrow to move focus between panes"),
-        Content::LibRs      => ("lib.rs",        "Editor"),
-        Content::ModA       => ("mod_a.rs",      "Editor"),
-        Content::ModB       => ("mod_b.rs",      "Editor"),
-        Content::ModC       => ("mod_c.rs",      "Editor"),
-        Content::ModD       => ("mod_d.rs",      "Editor"),
-        Content::CargoToml  => ("Cargo.toml",    "Editor"),
-        Content::Outline    => ("Outline",       "Symbol outline"),
-        Content::Properties => ("Properties",    "Item properties"),
-        Content::Terminal   => ("Terminal",      "Integrated terminal"),
-        Content::Output     => ("Output",        "Build & run output"),
-        Content::Problems   => ("Problems",      "Errors and warnings"),
-        Content::Debug      => ("Debug Console", "Debugger output"),
+        Content::Explorer => ("Explorer", "File tree"),
+        Content::Search => ("Search", "Workspace search"),
+        Content::MainRs => (
+            "main.rs",
+            "Editor — ⌘/Ctrl+Arrow to move focus between panes",
+        ),
+        Content::LibRs => ("lib.rs", "Editor"),
+        Content::ModA => ("mod_a.rs", "Editor"),
+        Content::ModB => ("mod_b.rs", "Editor"),
+        Content::ModC => ("mod_c.rs", "Editor"),
+        Content::ModD => ("mod_d.rs", "Editor"),
+        Content::CargoToml => ("Cargo.toml", "Editor"),
+        Content::Outline => ("Outline", "Symbol outline"),
+        Content::Properties => ("Properties", "Item properties"),
+        Content::Terminal => ("Terminal", "Integrated terminal"),
+        Content::Output => ("Output", "Build & run output"),
+        Content::Problems => ("Problems", "Errors and warnings"),
+        Content::Debug => ("Debug Console", "Debugger output"),
     };
 
     container(
