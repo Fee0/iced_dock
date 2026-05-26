@@ -1,4 +1,4 @@
-//! Demo: complex IDE layout with splitters, tabs, and drag-dock.
+//! Demo: classical IDE layout — left sidebar, editor tabs, right sidebar, bottom panel.
 
 use iced::keyboard::{self, Key, Modifiers};
 use iced::widget::{column, container, text};
@@ -9,43 +9,54 @@ use iced_dock::{
 };
 
 fn demo_layout() -> LayoutTree {
-    horizontal([
-        vertical([
+    vertical([
+        horizontal([
+            // Left sidebar
             tabs([
-                tab("main", "main.rs", ContentKey(0)),
-                tab("lib", "lib.rs", ContentKey(1)),
-                tab("mod_a", "mod_a.rs", ContentKey(3)),
-                tab("mod_b", "mod_b.rs", ContentKey(4)),
-                tab("mod_c", "mod_c.rs", ContentKey(5)),
-                tab("mod_d", "mod_d.rs", ContentKey(6)),
-                tab("mod_e", "mod_e.rs", ContentKey(7)),
-                tab("mod_f", "mod_f.rs", ContentKey(8)),
+                tab("explorer", "Explorer", ContentKey(0)),
+                tab("search",   "Search",   ContentKey(1)),
+            ])
+            .active("explorer"),
+
+            // Main editor
+            tabs([
+                tab("main",    "main.rs",    ContentKey(10)),
+                tab("lib",     "lib.rs",     ContentKey(11)),
+                tab("mod_a",   "mod_a.rs",   ContentKey(12)),
+                tab("mod_b",   "mod_b.rs",   ContentKey(13)),
+                tab("mod_c",   "mod_c.rs",   ContentKey(14)),
+                tab("mod_d",   "mod_d.rs",   ContentKey(15)),
+                tab("cargo",   "Cargo.toml", ContentKey(16)),
             ])
             .active("main"),
-            tabs([tab("preview", "preview", ContentKey(2))]),
-        ])
-        .weights([0.55, 0.45]),
-        vertical([
+
+            // Right sidebar
             tabs([
-                tab("props", "Properties", ContentKey(10)),
-                tab("output", "Output", ContentKey(11)),
-            ]),
-            tabs([
-                tab("explorer", "Explorer", ContentKey(12)),
-                tab("search", "Search", ContentKey(13)),
-            ]),
+                tab("outline",    "Outline",    ContentKey(30)),
+                tab("properties", "Properties", ContentKey(31)),
+            ])
+            .active("outline"),
         ])
-        .weights([0.5, 0.5]),
+        .weights([0.18, 0.62, 0.20]),
+
+        // Bottom panel
+        tabs([
+            tab("terminal", "Terminal", ContentKey(20)),
+            tab("output",   "Output",   ContentKey(21)),
+            tab("problems", "Problems", ContentKey(22)),
+            tab("debug",    "Debug Console", ContentKey(23)),
+        ])
+        .active("terminal"),
     ])
-    .weights([0.72, 0.28])
+    .weights([0.75, 0.25])
 }
 
 fn main() -> iced::Result {
     application(App::new, update, view)
-        .title("iced_dock — minimal")
+        .title("iced_dock — IDE layout")
         .subscription(subscription)
         .window(iced::window::Settings {
-            size: Size::new(1200.0, 800.0),
+            size: Size::new(1280.0, 800.0),
             ..Default::default()
         })
         .theme(Theme::Dark)
@@ -79,10 +90,10 @@ fn subscription(_app: &App) -> Subscription<Message> {
             return None;
         }
         let direction = match key {
-            Key::Named(keyboard::key::Named::ArrowLeft) => Direction::Left,
+            Key::Named(keyboard::key::Named::ArrowLeft)  => Direction::Left,
             Key::Named(keyboard::key::Named::ArrowRight) => Direction::Right,
-            Key::Named(keyboard::key::Named::ArrowUp) => Direction::Up,
-            Key::Named(keyboard::key::Named::ArrowDown) => Direction::Down,
+            Key::Named(keyboard::key::Named::ArrowUp)    => Direction::Up,
+            Key::Named(keyboard::key::Named::ArrowDown)  => Direction::Down,
             _ => return None,
         };
         Some(Message::FocusAdjacent(direction))
@@ -91,9 +102,7 @@ fn subscription(_app: &App) -> Subscription<Message> {
 
 fn update(app: &mut App, message: Message) -> Task<Message> {
     match message {
-        Message::Dock(_event) => {
-            // Layout mutations are applied inside the dock widget; observe events here only.
-        }
+        Message::Dock(_event) => {}
         Message::FocusAdjacent(direction) => {
             app.dock.focus_adjacent(direction);
         }
@@ -107,8 +116,8 @@ fn view(app: &App) -> Element<'_, Message> {
             .state(app.dock.state())
             .on_event(Message::Dock)
             .content(panel)
-            .min_pane_width(200.0)
-            .min_pane_height(120.0)
+            .min_pane_width(160.0)
+            .min_pane_height(80.0)
             .tab_bar_show_scrollbar(false)
             .build(),
     )
@@ -119,40 +128,37 @@ fn view(app: &App) -> Element<'_, Message> {
 }
 
 fn panel(key: ContentKey) -> Element<'static, Message> {
-    let body: Element<'static, Message> = match key.0 {
-        10 => panel_body("Properties", "Panel"),
-        0 => panel_body(
-            "main.rs",
-            "Editor — click to focus pane, Ctrl+Arrow to move focus",
-        ),
-        1 => panel_body("lib.rs", "Editor"),
-        2 => panel_body("preview", "Preview"),
-        11 => panel_body("Output", "Panel"),
-        12 => panel_body("Explorer", "Sidebar"),
-        13 => panel_body("Search", "Sidebar"),
-        3 => panel_body("mod_a.rs", "Editor"),
-        4 => panel_body("mod_b.rs", "Editor"),
-        5 => panel_body("mod_c.rs", "Editor"),
-        6 => panel_body("mod_d.rs", "Editor"),
-        7 => panel_body("mod_e.rs", "Editor"),
-        8 => panel_body("mod_f.rs", "Editor"),
-        n => return text(format!("Unknown pane {n}")).into(),
+    let (label, hint) = match key.0 {
+        0  => ("Explorer",      "File tree"),
+        1  => ("Search",        "Workspace search"),
+        2  => ("Git",           "Source control"),
+        10 => ("main.rs",       "Editor — Ctrl+Arrow to move focus between panes"),
+        11 => ("lib.rs",        "Editor"),
+        12 => ("mod_a.rs",      "Editor"),
+        13 => ("mod_b.rs",      "Editor"),
+        14 => ("mod_c.rs",      "Editor"),
+        15 => ("mod_d.rs",      "Editor"),
+        16 => ("Cargo.toml",    "Editor"),
+        20 => ("Terminal",      "Integrated terminal"),
+        21 => ("Output",        "Build & run output"),
+        22 => ("Problems",      "Errors and warnings"),
+        23 => ("Debug Console", "Debugger output"),
+        30 => ("Outline",       "Symbol outline"),
+        31 => ("Properties",    "Item properties"),
+        n  => return text(format!("Unknown panel {n}")).into(),
     };
 
-    container(body)
-        .padding([20, 24])
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .center_x(Length::Fill)
-        .center_y(Length::Fill)
-        .into()
-}
-
-fn panel_body(label: &'static str, hint: &'static str) -> Element<'static, Message> {
-    column![
-        text(label).size(16),
-        text(hint).size(12).style(text::secondary),
-    ]
-    .spacing(6)
+    container(
+        column![
+            text(label).size(15),
+            text(hint).size(12).style(text::secondary),
+        ]
+        .spacing(6),
+    )
+    .padding([20, 24])
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .center_x(Length::Fill)
+    .center_y(Length::Fill)
     .into()
 }
