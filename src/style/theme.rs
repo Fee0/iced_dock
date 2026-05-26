@@ -83,8 +83,8 @@ impl DockStyle {
                 scrollbar_height: 6.0,
                 scrollbar_thumb_min_width: 24.0,
                 scrollbar_track: Color::from_rgba(0.0, 0.0, 0.0, 0.28),
-                scrollbar_thumb: Color::from_rgb(0.38, 0.62, 0.98),
-                scrollbar_thumb_hovered: Color::from_rgb(0.53, 0.72, 0.99),
+                scrollbar_thumb: Color::from_rgb(0.78, 0.78, 0.50),
+                scrollbar_thumb_hovered: Color::from_rgb(0.92, 0.92, 0.70),
                 scrollbar_thumb_border: Color::from_rgba(0.0, 0.0, 0.0, 0.40),
             },
             tab: TabStyle {
@@ -174,8 +174,8 @@ impl DockStyle {
                 scrollbar_height: 6.0,
                 scrollbar_thumb_min_width: 24.0,
                 scrollbar_track: Color::from_rgba(0.0, 0.0, 0.0, 0.16),
-                scrollbar_thumb: Color::from_rgb(0.12, 0.45, 0.92),
-                scrollbar_thumb_hovered: Color::from_rgb(0.08, 0.38, 0.82),
+                scrollbar_thumb: Color::from_rgb(0.38, 0.38, 0.42),
+                scrollbar_thumb_hovered: Color::from_rgb(0.22, 0.22, 0.26),
                 scrollbar_thumb_border: Color::from_rgba(1.0, 1.0, 1.0, 0.24),
             },
             tab: TabStyle {
@@ -239,8 +239,8 @@ pub fn default(theme: &Theme) -> DockStyle {
     } else {
         0.16
     });
-    let scrollbar_thumb = palette.primary.base.color;
-    let scrollbar_thumb_hovered = palette.primary.strong.color;
+    let scrollbar_thumb = palette.background.weak.text;
+    let scrollbar_thumb_hovered = palette.background.base.text;
     let scrollbar_thumb_border = if palette.is_dark {
         Color::from_rgba(0.0, 0.0, 0.0, 0.34)
     } else {
