@@ -814,7 +814,7 @@ fn draw_overflow_button<Renderer>(
                 (bounds.width - 2.0 * OVERFLOW_BUTTON_HORIZONTAL_PADDING).max(0.0),
                 bounds.height,
             ),
-            size: iced::Pixels(tab.text_size + 3.0),
+            size: iced::Pixels(tab.text_size + 10.0),
             line_height: iced::advanced::text::LineHeight::default(),
             font: renderer.default_font(),
             align_x: iced::alignment::Horizontal::Center.into(),
