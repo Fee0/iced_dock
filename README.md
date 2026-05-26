@@ -33,19 +33,17 @@ fn layout() -> LayoutTree<Panel> {
         tabs([
             tab("explorer", "Explorer", Panel::Explorer),
         ])
-            .group("tools"),
-
+        .group("tools"),
         tabs([
             tab("editor", "main.rs", Panel::Editor),
         ])
-            .group("documents"),
-
+        .group("documents"),
         tabs([
             tab("terminal", "Terminal", Panel::Terminal),
         ])
-            .group("tools"),
+        .group("tools"),
     ])
-        .weights([0.2, 0.6, 0.2])
+    .weights([0.2, 0.6, 0.2])
 }
 
 struct App {
@@ -58,8 +56,7 @@ impl App {
             dock: DockSession::from_tree_with_focus(
                 layout(),
                 InitialFocus::NamedPanel("editor".into()),
-            )
-                .unwrap(),
+            ).unwrap(),
         }
     }
 }
@@ -85,9 +82,9 @@ fn view(app: &App) -> Element<'_, Message> {
             .content(panel_content)
             .build(),
     )
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
 }
 
 fn panel_content(panel: Panel) -> Element<'static, Message> {
