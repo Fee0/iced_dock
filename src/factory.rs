@@ -328,7 +328,16 @@ impl Factory {
     }
 
     fn peel_panel_to_new_pane<K>(&self, layout: &mut Layout<K>, panel: NodeId) -> Result<NodeId> {
+        let panel_group = match layout.kind(panel) {
+            Some(NodeKind::Panel(p)) => p.group.clone(),
+            _ => None,
+        };
         let new_pane = self.create_pane(layout);
+        if let Some(group) = panel_group {
+            if let Some(NodeKind::Pane(ref mut pane)) = layout.get_mut(new_pane).map(|e| &mut e.kind) {
+                pane.group = Some(group);
+            }
+        }
         self.remove_from_parent(layout, panel)?;
         self.add_panel_to_pane(layout, new_pane, panel)?;
         Ok(new_pane)

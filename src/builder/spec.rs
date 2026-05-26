@@ -23,6 +23,7 @@ pub struct PanelDef<K> {
     pub can_close: bool,
     pub can_drag: bool,
     pub can_drop: bool,
+    pub group: Option<String>,
 }
 
 impl<K: Copy> PanelDef<K> {
@@ -34,6 +35,7 @@ impl<K: Copy> PanelDef<K> {
             can_close: true,
             can_drag: true,
             can_drop: true,
+            group: None,
         }
     }
 
@@ -54,6 +56,12 @@ impl<K: Copy> PanelDef<K> {
         self.can_drop = value;
         self
     }
+
+    #[must_use]
+    pub fn group(mut self, g: impl Into<String>) -> Self {
+        self.group = Some(g.into());
+        self
+    }
 }
 
 /// Tabbed pane node.
@@ -63,6 +71,7 @@ pub struct TabsNode<K> {
     pub name: Option<String>,
     pub panels: Vec<PanelDef<K>>,
     pub active: Option<String>,
+    pub group: Option<String>,
 }
 
 impl<K: Copy> TabsNode<K> {
@@ -71,6 +80,7 @@ impl<K: Copy> TabsNode<K> {
             name: None,
             panels: panels.into_iter().collect(),
             active: None,
+            group: None,
         }
     }
 
@@ -83,6 +93,12 @@ impl<K: Copy> TabsNode<K> {
     #[must_use]
     pub fn active(mut self, panel_id: impl Into<String>) -> Self {
         self.active = Some(panel_id.into());
+        self
+    }
+
+    #[must_use]
+    pub fn group(mut self, g: impl Into<String>) -> Self {
+        self.group = Some(g.into());
         self
     }
 }
@@ -136,6 +152,15 @@ impl<K: Copy> LayoutTree<K> {
     pub fn weights(mut self, weights: impl IntoIterator<Item = f32>) -> Self {
         if let Self::Split(ref mut node) = self {
             node.weights = Some(weights.into_iter().collect());
+        }
+        self
+    }
+
+    /// Assign a tab group to a [`Tabs`] node.
+    #[must_use]
+    pub fn group(mut self, g: impl Into<String>) -> Self {
+        if let Self::Tabs(ref mut node) = self {
+            node.group = Some(g.into());
         }
         self
     }

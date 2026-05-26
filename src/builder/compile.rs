@@ -45,6 +45,7 @@ fn compile_tabs<K: Copy>(
     let pane_id = factory.create_pane(layout);
     if let Some(NodeKind::Pane(ref mut pane)) = layout.get_mut(pane_id).map(|e| &mut e.kind) {
         pane.name.clone_from(&node.name);
+        pane.group.clone_from(&node.group);
     }
     if let Some(name) = &node.name {
         index.panes.insert(name.clone(), pane_id);
@@ -53,6 +54,14 @@ fn compile_tabs<K: Copy>(
     let mut panel_nodes = Vec::with_capacity(node.panels.len());
     for def in &node.panels {
         let panel_id = insert_panel(factory, layout, index, def);
+        // Panels with no declared group inherit the pane's group.
+        if def.group.is_none() {
+            if let (Some(pane_group), Some(NodeKind::Panel(ref mut panel))) =
+                (&node.group, layout.get_mut(panel_id).map(|e| &mut e.kind))
+            {
+                panel.group = Some(pane_group.clone());
+            }
+        }
         factory.add_panel_to_pane(layout, pane_id, panel_id)?;
         panel_nodes.push((def.id.clone(), panel_id));
     }
@@ -94,6 +103,7 @@ fn insert_panel<K: Copy>(
         panel.can_close = def.can_close;
         panel.can_drag = def.can_drag;
         panel.can_drop = def.can_drop;
+        panel.group.clone_from(&def.group);
     }
     index.panels.insert(def.id.clone(), panel_id);
     panel_id

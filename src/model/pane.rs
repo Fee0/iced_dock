@@ -10,6 +10,7 @@ pub struct Panel<K> {
     pub can_close: bool,
     pub can_drag: bool,
     pub can_drop: bool,
+    pub group: Option<String>,
 }
 
 impl<K: Copy> Panel<K> {
@@ -21,6 +22,7 @@ impl<K: Copy> Panel<K> {
             can_close: true,
             can_drag: true,
             can_drop: true,
+            group: None,
         }
     }
 }
@@ -32,6 +34,7 @@ pub struct Pane {
     pub name: Option<String>,
     pub tabs: Vec<NodeId>,
     pub active: Option<NodeId>,
+    pub group: Option<String>,
 }
 
 impl Default for Pane {
@@ -47,6 +50,7 @@ impl Pane {
             name: None,
             tabs: Vec::new(),
             active: None,
+            group: None,
         }
     }
 

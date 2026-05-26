@@ -30,14 +30,15 @@ enum Content {
 fn demo_layout() -> LayoutTree<Content> {
     vertical([
         horizontal([
-            // Left sidebar
+            // Left sidebar — tools group
             tabs([
                 tab("explorer", "Explorer", Content::Explorer),
                 tab("search",   "Search",   Content::Search),
             ])
-            .active("explorer"),
+            .active("explorer")
+            .group("tools"),
 
-            // Main editor
+            // Main editor — documents group
             tabs([
                 tab("main",    "main.rs",    Content::MainRs),
                 tab("lib",     "lib.rs",     Content::LibRs),
@@ -47,25 +48,28 @@ fn demo_layout() -> LayoutTree<Content> {
                 tab("mod_d",   "mod_d.rs",   Content::ModD),
                 tab("cargo",   "Cargo.toml", Content::CargoToml),
             ])
-            .active("main"),
+            .active("main")
+            .group("documents"),
 
-            // Right sidebar
+            // Right sidebar — tools group
             tabs([
                 tab("outline",    "Outline",    Content::Outline),
                 tab("properties", "Properties", Content::Properties),
             ])
-            .active("outline"),
+            .active("outline")
+            .group("tools"),
         ])
         .weights([0.18, 0.62, 0.20]),
 
-        // Bottom panel
+        // Bottom panel — tools group
         tabs([
             tab("terminal", "Terminal",      Content::Terminal),
             tab("output",   "Output",        Content::Output),
             tab("problems", "Problems",      Content::Problems),
             tab("debug",    "Debug Console", Content::Debug),
         ])
-        .active("terminal"),
+        .active("terminal")
+        .group("tools"),
     ])
     .weights([0.75, 0.25])
 }

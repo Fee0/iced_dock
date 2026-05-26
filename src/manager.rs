@@ -77,6 +77,21 @@ impl DockManager {
         }
     }
 
+    fn groups_compatible<K>(&self, layout: &Layout<K>, panel: NodeId, target_pane: NodeId) -> bool {
+        let panel_group = match layout.kind(panel) {
+            Some(NodeKind::Panel(p)) => p.group.as_deref(),
+            _ => return false,
+        };
+        let pane_group = match layout.kind(target_pane) {
+            Some(NodeKind::Pane(p)) => p.group.as_deref(),
+            _ => return false,
+        };
+        match (panel_group, pane_group) {
+            (Some(a), Some(b)) => a == b,
+            _ => true,
+        }
+    }
+
     #[must_use]
     pub fn validate<K>(
         &self,
@@ -91,6 +106,7 @@ impl DockManager {
                 source_pane != target
                     && layout.is_leaf(source_panel)
                     && matches!(layout.kind(target), Some(NodeKind::Pane(_)))
+                    && self.groups_compatible(layout, source_panel, target)
             }
             DockOperation::Left
             | DockOperation::Right
@@ -275,6 +291,9 @@ impl DockManager {
             return Err(Error::NotPanel {
                 node: session.source_panel,
             });
+        }
+        if session.source_pane != pane && !self.groups_compatible(layout, session.source_panel, pane) {
+            return Err(Error::ValidationFailed);
         }
         let factory = Factory;
         if session.source_pane == pane {
