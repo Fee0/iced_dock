@@ -81,7 +81,7 @@ where
     }
 
     /// Apply a [`DockAction`] programmatically (not for widget-originated input).
-    #[allow(clippy::must_use_candidate)]
+    #[expect(clippy::must_use_candidate)]
     pub fn dispatch(&self, action: DockAction) -> bool {
         dispatch_action(&mut self.inner.borrow_mut(), action)
     }

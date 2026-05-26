@@ -1,6 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use crate::model::NodeId;
+use crate::style::{
+    self, close_button_style, Catalog, CloseButtonStyle, DockStyle, DropOverlayStyle, TabBarStyle,
+};
+use crate::widget::action::{DockAction, TabAction};
+use crate::widget::compose;
+use crate::widget::tab_dock::TabInfo;
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::overlay;
 use iced::advanced::renderer;
@@ -15,14 +22,9 @@ use iced::widget::{button, container, mouse_area, row, text, Space};
 use iced::window;
 use iced::Theme as IcedTheme;
 use iced::{Border, Color, Element, Event, Length, Padding, Rectangle, Size, Vector};
-
-use crate::model::NodeId;
-use crate::style::{
-    self, close_button_style, Catalog, CloseButtonStyle, DockStyle, DropOverlayStyle, TabBarStyle,
-};
-use crate::widget::action::{DockAction, TabAction};
-use crate::widget::compose;
-use crate::widget::tab_dock::TabInfo;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Result;
 
 #[derive(Debug, Clone, Copy)]
 struct ScrollbarDrag {
@@ -35,8 +37,8 @@ struct HiddenTabOption {
     title: String,
 }
 
-impl std::fmt::Display for HiddenTabOption {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for HiddenTabOption {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.write_str(&self.title)
     }
 }
@@ -134,7 +136,7 @@ where
     ui: Rc<RefCell<OverflowUiState>>,
 }
 
-impl<Message, Theme, Renderer> iced::advanced::Overlay<Message, Theme, Renderer>
+impl<Message, Theme, Renderer> advanced::Overlay<Message, Theme, Renderer>
     for OverflowMenuOverlay<'_, Message, Theme, Renderer>
 where
     Renderer: advanced::Renderer,
@@ -165,7 +167,10 @@ where
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
     ) {
-        if matches!(event, Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))) {
+        if matches!(
+            event,
+            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+        ) {
             if let Some(position) = cursor.position() {
                 if !layout.bounds().contains(position) && !self.button_bounds.contains(position) {
                     let mut ui = self.ui.borrow_mut();
@@ -192,12 +197,7 @@ where
             .mouse_interaction(layout, cursor, renderer)
     }
 
-    fn operate(
-        &mut self,
-        layout: Layout<'_>,
-        renderer: &Renderer,
-        operation: &mut dyn Operation,
-    ) {
+    fn operate(&mut self, layout: Layout<'_>, renderer: &Renderer, operation: &mut dyn Operation) {
         self.menu
             .as_overlay_mut()
             .operate(layout, renderer, operation);
@@ -496,7 +496,11 @@ fn close_button_bounds(tab_bounds: Rectangle, close: &CloseButtonStyle) -> Recta
 }
 
 fn insert_marker_color(drop: &DropOverlayStyle, blocked: bool) -> Color {
-    let base = if blocked { drop.blocked_color } else { drop.color };
+    let base = if blocked {
+        drop.blocked_color
+    } else {
+        drop.color
+    };
     Color {
         a: base.a.max(drop.insert_marker_min_alpha),
         ..base
@@ -686,7 +690,10 @@ fn ensure_tab_visible(
     if tab_bounds.x < visible_start {
         clamp_scroll_offset(tab_bounds.x - row_x, max_offset)
     } else if tab_bounds.x + tab_bounds.width > visible_end {
-        clamp_scroll_offset(tab_bounds.x + tab_bounds.width - row_x - viewport_width, max_offset)
+        clamp_scroll_offset(
+            tab_bounds.x + tab_bounds.width - row_x - viewport_width,
+            max_offset,
+        )
     } else {
         scroll_offset
     }
@@ -808,22 +815,24 @@ fn draw_overflow_button<Renderer>(
     );
 
     renderer.fill_text(
-        iced::advanced::text::Text {
-            content: OVERFLOW_BUTTON_GLYPH.to_string(),
+        advanced::text::Text {
+            content: OVERFLOW_BUTTON_GLYPH.to_owned(),
             bounds: Size::new(
                 (bounds.width - 2.0 * OVERFLOW_BUTTON_HORIZONTAL_PADDING).max(0.0),
                 bounds.height,
             ),
             size: iced::Pixels(tab.text_size + 10.0),
-            line_height: iced::advanced::text::LineHeight::default(),
+            line_height: text::LineHeight::default(),
             font: renderer.default_font(),
             align_x: iced::alignment::Horizontal::Center.into(),
             align_y: iced::alignment::Vertical::Center,
-            shaping: iced::advanced::text::Shaping::Basic,
-            wrapping: iced::advanced::text::Wrapping::default(),
+            shaping: text::Shaping::Basic,
+            wrapping: text::Wrapping::default(),
         },
         iced::Point::new(
-            bounds.x + OVERFLOW_BUTTON_HORIZONTAL_PADDING + (bounds.width - 2.0 * OVERFLOW_BUTTON_HORIZONTAL_PADDING) * 0.5,
+            bounds.x
+                + OVERFLOW_BUTTON_HORIZONTAL_PADDING
+                + (bounds.width - 2.0 * OVERFLOW_BUTTON_HORIZONTAL_PADDING) * 0.5,
             bounds.center_y(),
         ),
         color,
@@ -892,7 +901,9 @@ pub(crate) fn is_tab_drag_active<Theme: menu::Catalog + 'static>(
 }
 
 /// Pending scrollbar hide deadline, if a delayed hide was scheduled.
-pub(crate) fn pending_hide_deadline<Theme: menu::Catalog + 'static>(tree: &Tree) -> Option<Instant> {
+pub(crate) fn pending_hide_deadline<Theme: menu::Catalog + 'static>(
+    tree: &Tree,
+) -> Option<Instant> {
     tree.state.downcast_ref::<TabStripState<Theme>>().hide_at
 }
 
@@ -1588,9 +1599,9 @@ where
         let row_bounds = visible_row_bounds(tab_bounds, state.viewport_width);
         let dock_style = self.layout_style_resolved();
         if state.show_overflow_button
-            && cursor
-                .position()
-                .is_some_and(|point| overflow_button_bounds(tab_bounds, state.viewport_width).contains(point))
+            && cursor.position().is_some_and(|point| {
+                overflow_button_bounds(tab_bounds, state.viewport_width).contains(point)
+            })
         {
             return mouse::Interaction::Pointer;
         }

@@ -90,7 +90,10 @@ impl<K, Theme> Default for DockWidgetState<K, Theme> {
 }
 
 /// End an active drag at `cursor`, applying a drop when valid.
-pub fn finish_drag<K, Theme>(state: &mut DockWidgetState<K, Theme>, cursor: Option<iced::Point>) -> bool {
+pub fn finish_drag<K, Theme>(
+    state: &mut DockWidgetState<K, Theme>,
+    cursor: Option<iced::Point>,
+) -> bool {
     let Some(cursor) = cursor else {
         let had_drag = state.drag.is_some();
         state.drag = None;
@@ -99,11 +102,10 @@ pub fn finish_drag<K, Theme>(state: &mut DockWidgetState<K, Theme>, cursor: Opti
 
     let drop_targets = state.drop_targets.clone();
     let tab_bar_targets = state.tab_bar_targets.clone();
-    let Some(session) = state.drag.take() else {
+    let Some(mut session) = state.drag.take() else {
         return false;
     };
 
-    let mut session = session;
     DockManager::update_drag_hover_full(&mut session, cursor, &drop_targets, &tab_bar_targets);
     let mut changed = false;
     if let Some((pane, index)) = session.tab_insert {
@@ -128,7 +130,10 @@ pub fn finish_drag<K, Theme>(state: &mut DockWidgetState<K, Theme>, cursor: Opti
 ///
 /// Does not emit [`DockEvent`] values. After a successful structural change, call
 /// [`DockWidgetState::sync_index`] or rely on the widget's next layout pass.
-pub fn dispatch_action<K, Theme>(state: &mut DockWidgetState<K, Theme>, action: DockAction) -> bool {
+pub fn dispatch_action<K, Theme>(
+    state: &mut DockWidgetState<K, Theme>,
+    action: DockAction,
+) -> bool {
     let factory = Factory;
     let mut changed = false;
 
