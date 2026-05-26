@@ -459,8 +459,13 @@ where
                         };
                         let delta = cursor_main - state.drag_start_cursor;
                         let pair_total = state.drag_start_left_size + state.drag_start_right_size;
-                        let min_left = min_pane_main.min(pair_total);
-                        let max_left = (pair_total - min_pane_main).max(min_left);
+                        let effective_min = if pair_total >= 2.0 * min_pane_main {
+                            min_pane_main
+                        } else {
+                            pair_total * 0.1
+                        };
+                        let min_left = effective_min.max(0.0);
+                        let max_left = (pair_total - effective_min).max(min_left);
                         let new_left =
                             (state.drag_start_left_size + delta).clamp(min_left, max_left);
                         let pair_ratio = if pair_total > 0.0 {
