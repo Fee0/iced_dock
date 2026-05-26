@@ -117,7 +117,6 @@ where
 
 const OVERFLOW_BUTTON_HORIZONTAL_PADDING: f32 = 8.0;
 const OVERFLOW_BUTTON_CONTENT_WIDTH: f32 = 16.0;
-const OVERFLOW_BUTTON_GLYPH: &str = "▾";
 const OVERFLOW_MENU_PADDING: Padding = Padding {
     top: 6.0,
     right: 10.0,
@@ -788,16 +787,14 @@ fn draw_scrollbar<Renderer: advanced::Renderer>(
     );
 }
 
-fn draw_overflow_button<Renderer>(
+fn draw_overflow_button<Renderer: advanced::Renderer>(
     renderer: &mut Renderer,
     bounds: Rectangle,
     bar: &TabBarStyle,
     tab: &crate::style::TabStyle,
     hovered: bool,
     pressed: bool,
-) where
-    Renderer: advanced::Renderer + advanced::text::Renderer,
-{
+) {
     let (background, color) = if pressed {
         (tab.pressed_background, tab.pressed_text)
     } else if hovered {
@@ -814,30 +811,7 @@ fn draw_overflow_button<Renderer>(
         background,
     );
 
-    renderer.fill_text(
-        advanced::text::Text {
-            content: OVERFLOW_BUTTON_GLYPH.to_owned(),
-            bounds: Size::new(
-                (bounds.width - 2.0 * OVERFLOW_BUTTON_HORIZONTAL_PADDING).max(0.0),
-                bounds.height,
-            ),
-            size: iced::Pixels(tab.text_size + 10.0),
-            line_height: text::LineHeight::default(),
-            font: renderer.default_font(),
-            align_x: iced::alignment::Horizontal::Center.into(),
-            align_y: iced::alignment::Vertical::Center,
-            shaping: text::Shaping::Basic,
-            wrapping: text::Wrapping::default(),
-        },
-        iced::Point::new(
-            bounds.x
-                + OVERFLOW_BUTTON_HORIZONTAL_PADDING
-                + (bounds.width - 2.0 * OVERFLOW_BUTTON_HORIZONTAL_PADDING) * 0.5,
-            bounds.center_y(),
-        ),
-        color,
-        bounds,
-    );
+    draw_chevron_down(renderer, bounds, color);
 
     if let Some(separator) = &bar.separator {
         if separator.height > 0.0 && separator.color.a > 0.0 {
@@ -854,6 +828,43 @@ fn draw_overflow_button<Renderer>(
                 separator.color,
             );
         }
+    }
+}
+
+/// Draws a downward-pointing chevron/triangle using only `fill_quad`, so it
+/// renders identically on every platform without depending on any font glyph.
+fn draw_chevron_down<Renderer: advanced::Renderer>(
+    renderer: &mut Renderer,
+    bounds: Rectangle,
+    color: Color,
+) {
+    let center_x = bounds.center_x();
+    let center_y = bounds.center_y();
+    let half_w: f32 = 4.5;
+    let half_h: f32 = 3.0;
+    let rows: u16 = 6;
+    let row_height = (half_h * 2.0) / f32::from(rows);
+
+    for i in 0..rows {
+        let offset = f32::from(i) * row_height;
+        let progress = offset / (half_h * 2.0);
+        let row_width = half_w * 2.0 * (1.0 - progress);
+        let row_x = center_x - row_width * 0.5;
+        let row_y = center_y - half_h + offset;
+        let height = row_height.min(center_y + half_h - row_y);
+
+        renderer.fill_quad(
+            renderer::Quad {
+                bounds: Rectangle {
+                    x: row_x,
+                    y: row_y,
+                    width: row_width,
+                    height,
+                },
+                ..renderer::Quad::default()
+            },
+            color,
+        );
     }
 }
 
