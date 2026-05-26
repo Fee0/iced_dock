@@ -390,7 +390,15 @@ where
                     .flatten();
 
                 if let Some(zone) = zone {
-                    let highlight = dock_style.drop_overlay.color;
+                    let blocked = zone == DropZone::Center && drag_session.is_some_and(|s| {
+                        let state = self.dock_state.borrow();
+                        !DockManager.groups_compatible(&state.layout, s.source_panel, self.pane_id)
+                    });
+                    let highlight = if blocked {
+                        dock_style.drop_overlay.blocked_color
+                    } else {
+                        dock_style.drop_overlay.color
+                    };
                     let zone_bounds = drop_zone_rect(bounds, zone, self.drop_edge_fraction);
                     renderer.fill_quad(
                         renderer::Quad {
@@ -459,13 +467,21 @@ where
                 shell,
             );
 
-            let marker_index = self.dock_state.borrow().drag.and_then(|session| {
-                let (pane, index) = session.tab_insert?;
-                (pane == self.pane_id
-                    && !tab_insert_is_noop(session, self.pane_id, index, &self.tabs))
-                .then_some(index)
-            });
+            let (marker_index, marker_blocked) = {
+                let state = self.dock_state.borrow();
+                let result = state.drag.and_then(|session| {
+                    let (pane, index) = session.tab_insert?;
+                    (pane == self.pane_id
+                        && !tab_insert_is_noop(session, self.pane_id, index, &self.tabs))
+                    .then_some((index, session.source_pane != self.pane_id
+                        && !DockManager.groups_compatible(&state.layout, session.source_panel, self.pane_id)))
+                });
+                result.map_or((None, false), |(index, blocked)| (Some(index), blocked))
+            };
             if tab_strip::set_insert_marker_index::<Theme>(&mut tree.children[0], marker_index) {
+                shell.request_redraw();
+            }
+            if tab_strip::set_drag_blocked::<Theme>(&mut tree.children[0], marker_blocked) {
                 shell.request_redraw();
             }
         } else {

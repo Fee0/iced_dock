@@ -43,6 +43,7 @@ struct TabStripState<Theme> {
     pressed_tab: Option<NodeId>,
     hovered_tab: Option<NodeId>,
     insert_marker_index: Option<usize>,
+    drag_blocked: bool,
     /// When true, tab label and close-button hover are disabled (active global tab drag).
     suppress_hover: bool,
     /// Theme used for the last [`build_tabs_row`] rebuild.
@@ -67,6 +68,7 @@ impl<Theme> TabStripState<Theme> {
             pressed_tab: None,
             hovered_tab: None,
             insert_marker_index: None,
+            drag_blocked: false,
             suppress_hover: false,
             built_theme: theme,
         }
@@ -351,10 +353,11 @@ fn close_button_bounds(tab_bounds: Rectangle, close: &CloseButtonStyle) -> Recta
     }
 }
 
-fn insert_marker_color(drop: &DropOverlayStyle) -> Color {
+fn insert_marker_color(drop: &DropOverlayStyle, blocked: bool) -> Color {
+    let base = if blocked { drop.blocked_color } else { drop.color };
     Color {
-        a: drop.color.a.max(drop.insert_marker_min_alpha),
-        ..drop.color
+        a: base.a.max(drop.insert_marker_min_alpha),
+        ..base
     }
 }
 
@@ -418,6 +421,16 @@ pub(crate) fn set_insert_marker_index<Theme: 'static>(
         return false;
     }
     state.insert_marker_index = index;
+    true
+}
+
+/// Mark the insertion marker as blocked (group mismatch) so it renders in a different color.
+pub(crate) fn set_drag_blocked<Theme: 'static>(tree: &mut Tree, blocked: bool) -> bool {
+    let state = tree.state.downcast_mut::<TabStripState<Theme>>();
+    if state.drag_blocked == blocked {
+        return false;
+    }
+    state.drag_blocked = blocked;
     true
 }
 
@@ -856,7 +869,7 @@ where
                                 bounds: marker,
                                 ..renderer::Quad::default()
                             },
-                            insert_marker_color(drop_overlay),
+                            insert_marker_color(drop_overlay, state.drag_blocked),
                         );
                     }
                 }

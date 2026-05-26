@@ -77,7 +77,7 @@ impl DockManager {
         }
     }
 
-    fn groups_compatible<K>(&self, layout: &Layout<K>, panel: NodeId, target_pane: NodeId) -> bool {
+    pub(crate) fn groups_compatible<K>(&self, layout: &Layout<K>, panel: NodeId, target_pane: NodeId) -> bool {
         let panel_group = match layout.kind(panel) {
             Some(NodeKind::Panel(p)) => p.group.as_deref(),
             _ => return false,

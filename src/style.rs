@@ -124,6 +124,8 @@ pub struct SplitterStyle {
 #[derive(Debug, Clone)]
 pub struct DropOverlayStyle {
     pub color: Color,
+    /// Color shown when the drag would be rejected (e.g. group mismatch).
+    pub blocked_color: Color,
     /// Width of the vertical insertion marker in the tab bar during drag.
     pub insert_marker_width: f32,
     /// Minimum alpha for the tab-bar insertion marker (derived from [`Self::color`]).

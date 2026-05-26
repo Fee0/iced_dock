@@ -109,6 +109,7 @@ impl DockStyle {
             },
             drop_overlay: DropOverlayStyle {
                 color: Color::from_rgba(0.38, 0.62, 0.98, 0.28),
+                blocked_color: Color::from_rgba(0.92, 0.25, 0.25, 0.28),
                 insert_marker_width: 3.0,
                 insert_marker_min_alpha: 0.65,
             },
@@ -197,6 +198,7 @@ impl DockStyle {
             },
             drop_overlay: DropOverlayStyle {
                 color: Color::from_rgba(0.12, 0.45, 0.92, 0.25),
+                blocked_color: Color::from_rgba(0.92, 0.20, 0.20, 0.25),
                 insert_marker_width: 3.0,
                 insert_marker_min_alpha: 0.65,
             },
@@ -270,6 +272,7 @@ pub fn default(theme: &Theme) -> DockStyle {
     style.splitter.hover_color = splitter_hover;
     style.splitter.drag_color = splitter_drag;
     style.drop_overlay.color = accent.scale_alpha(0.28);
+    style.drop_overlay.blocked_color = Color::from_rgba(0.92, 0.25, 0.25, 0.28);
     style
 }
 
