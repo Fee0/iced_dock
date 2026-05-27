@@ -3,7 +3,7 @@
 A docking layout widget for [iced](https://github.com/iced-rs/iced) 0.14. Resizable splits, tabbed panes, drag-and-drop
 docking, focus tracking, keyboard navigation, tab groups, tabs overflow handling.
 
-![Digraph viewer: controls, byte rail, and matrix heatmap](assets/screenshot.png)
+![Digraph viewer: controls, byte rail, and matrix heatmap](assets/demo.gif)
 
 ## Example
 
