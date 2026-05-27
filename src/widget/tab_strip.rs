@@ -18,6 +18,7 @@ use iced::keyboard;
 use iced::mouse::{self, Cursor};
 use iced::time::{Duration, Instant};
 use iced::widget::overlay::menu;
+use iced::widget::text::{LineHeight, Shaping};
 use iced::widget::{button, container, mouse_area, row, text, Space};
 use iced::window;
 use iced::Theme as IcedTheme;
@@ -238,6 +239,8 @@ where
     tab_bar_padding: [f32; 2],
     tab_text_size: f32,
     tab_font: Option<Renderer::Font>,
+    tab_line_height: Option<LineHeight>,
+    tab_text_shaping: Option<Shaping>,
     tab_padding: [f32; 2],
     tab_accent_height: f32,
     close_button_text_size: f32,
@@ -285,6 +288,8 @@ where
         tab_bar_padding: [f32; 2],
         tab_text_size: f32,
         tab_font: Option<Renderer::Font>,
+        tab_line_height: Option<LineHeight>,
+        tab_text_shaping: Option<Shaping>,
         tab_padding: [f32; 2],
         tab_accent_height: f32,
         close_button_text_size: f32,
@@ -321,6 +326,8 @@ where
             tab_bar_padding,
             tab_text_size,
             tab_font,
+            tab_line_height,
+            tab_text_shaping,
             tab_padding,
             close_button_text_size,
             close_button_size,
@@ -344,6 +351,8 @@ where
             tab_bar_padding,
             tab_text_size,
             tab_font,
+            tab_line_height,
+            tab_text_shaping,
             tab_padding,
             tab_accent_height,
             close_button_text_size,
@@ -392,6 +401,8 @@ where
             self.tab_bar_padding,
             self.tab_text_size,
             self.tab_font,
+            self.tab_line_height,
+            self.tab_text_shaping,
             self.tab_padding,
             self.close_button_text_size,
             self.close_button_size,
@@ -444,6 +455,8 @@ fn build_tabs_row<Message, Theme, Renderer>(
     tab_bar_padding: [f32; 2],
     tab_text_size: f32,
     tab_font: Option<Renderer::Font>,
+    tab_line_height: Option<LineHeight>,
+    tab_text_shaping: Option<Shaping>,
     tab_padding: [f32; 2],
     close_button_text_size: f32,
     close_button_size: f32,
@@ -491,12 +504,17 @@ where
             (tab_style.inactive_background, tab_style.inactive_text)
         };
         let border_radius = tab_style.border_radius;
-        let label = container(
-            text(tab.title.clone())
-                .size(tab_text_size)
-                .color(text_color)
-                .font_maybe(tab_font),
-        )
+        let mut label_text = text(tab.title.clone())
+            .size(tab_text_size)
+            .color(text_color)
+            .font_maybe(tab_font);
+        if let Some(line_height) = tab_line_height {
+            label_text = label_text.line_height(line_height);
+        }
+        if let Some(shaping) = tab_text_shaping {
+            label_text = label_text.shaping(shaping);
+        }
+        let label = container(label_text)
         .padding(Padding {
             top: tab_padding[0],
             bottom: tab_padding[0],
@@ -2001,6 +2019,12 @@ where
         .text_size(iced::Pixels(self.tab_text_size));
         if let Some(font) = self.tab_font {
             menu = menu.font(font);
+        }
+        if let Some(line_height) = self.tab_line_height {
+            menu = menu.text_line_height(line_height);
+        }
+        if let Some(shaping) = self.tab_text_shaping {
+            menu = menu.text_shaping(shaping);
         }
         let menu = menu.overlay(
             layout.position() + translation + Vector::new(state.viewport_width, 0.0),

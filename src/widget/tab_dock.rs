@@ -11,6 +11,7 @@ use iced::mouse::{self, Cursor};
 use iced::time::Duration;
 use iced::touch;
 use iced::widget::overlay::menu;
+use iced::widget::text::{LineHeight, Shaping};
 use iced::widget::{button, container, text as iced_text};
 use iced::{Element, Event, Length, Rectangle, Size, Vector};
 
@@ -135,6 +136,8 @@ where
         tab_bar_padding: [f32; 2],
         tab_text_size: f32,
         tab_font: Option<Renderer::Font>,
+        tab_line_height: Option<LineHeight>,
+        tab_text_shaping: Option<Shaping>,
         tab_padding: [f32; 2],
         tab_accent_height: f32,
         close_button_text_size: f32,
@@ -165,6 +168,8 @@ where
             tab_bar_padding,
             tab_text_size,
             tab_font,
+            tab_line_height,
+            tab_text_shaping,
             tab_padding,
             tab_accent_height,
             close_button_text_size,

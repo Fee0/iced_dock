@@ -11,6 +11,7 @@ use iced::advanced::{Clipboard, Shell};
 use iced::mouse::{self, Cursor};
 use iced::time::Duration;
 use iced::widget::overlay::menu;
+use iced::widget::text::{LineHeight, Shaping};
 use iced::widget::{self, button, container, text as iced_text};
 use iced::{Element, Event, Length, Rectangle, Size, Vector};
 
@@ -73,6 +74,8 @@ where
     tab_bar_padding: [f32; 2],
     tab_text_size: f32,
     tab_font: Option<Renderer::Font>,
+    tab_line_height: Option<LineHeight>,
+    tab_text_shaping: Option<Shaping>,
     tab_padding: [f32; 2],
     tab_accent_height: f32,
     close_button_text_size: f32,
@@ -288,6 +291,8 @@ where
                 self.tab_bar_padding,
                 self.tab_text_size,
                 self.tab_font,
+                self.tab_line_height,
+                self.tab_text_shaping,
                 self.tab_padding,
                 self.tab_accent_height,
                 self.close_button_text_size,
@@ -361,6 +366,8 @@ where
     tab_bar_padding: [f32; 2],
     tab_text_size: f32,
     tab_font: Option<Renderer::Font>,
+    tab_line_height: Option<LineHeight>,
+    tab_text_shaping: Option<Shaping>,
     tab_padding: [f32; 2],
     tab_accent_height: f32,
     close_button_text_size: f32,
@@ -400,6 +407,8 @@ where
             tab_bar_padding: [0.0, 0.0],
             tab_text_size: 12.0,
             tab_font: None,
+            tab_line_height: None,
+            tab_text_shaping: None,
             tab_padding: [0.0, 10.0],
             tab_accent_height: 2.0,
             close_button_text_size: 15.0,
@@ -610,6 +619,20 @@ where
         self
     }
 
+    /// Line height for tab labels. When unset, uses the text widget default.
+    #[must_use]
+    pub fn tab_line_height(mut self, line_height: impl Into<LineHeight>) -> Self {
+        self.tab_line_height = Some(line_height.into());
+        self
+    }
+
+    /// Text shaping for tab labels (e.g. for RTL). When unset, uses the text widget default.
+    #[must_use]
+    pub fn tab_text_shaping(mut self, shaping: Shaping) -> Self {
+        self.tab_text_shaping = Some(shaping);
+        self
+    }
+
     /// Inner padding of each tab label: `[vertical, horizontal]`. Default `[0, 10]`.
     #[must_use]
     pub fn tab_padding(mut self, p: [f32; 2]) -> Self {
@@ -621,6 +644,20 @@ where
     #[must_use]
     pub fn tab_accent_height(mut self, h: f32) -> Self {
         self.tab_accent_height = h.max(0.0);
+        self
+    }
+
+    /// Line scale of the close button glyph. Default `15.0`.
+    #[must_use]
+    pub fn close_button_text_size(mut self, s: f32) -> Self {
+        self.close_button_text_size = s.max(1.0);
+        self
+    }
+
+    /// Inner padding of the close button: `[vertical, horizontal]`. Default `[0, 0]`.
+    #[must_use]
+    pub fn close_button_padding(mut self, p: [f32; 2]) -> Self {
+        self.close_button_padding = p;
         self
     }
 
@@ -704,6 +741,8 @@ where
             tab_bar_padding: self.tab_bar_padding,
             tab_text_size: self.tab_text_size,
             tab_font: self.tab_font,
+            tab_line_height: self.tab_line_height,
+            tab_text_shaping: self.tab_text_shaping,
             tab_padding: self.tab_padding,
             tab_accent_height: self.tab_accent_height,
             close_button_text_size: self.close_button_text_size,
