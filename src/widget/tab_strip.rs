@@ -225,7 +225,7 @@ where
 pub struct TabStrip<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
-    Renderer: advanced::Renderer,
+    Renderer: advanced::Renderer + advanced::text::Renderer,
 {
     pane_id: NodeId,
     tabs: Vec<TabInfo>,
@@ -237,6 +237,7 @@ where
     tab_bar_spacing: f32,
     tab_bar_padding: [f32; 2],
     tab_text_size: f32,
+    tab_font: Option<Renderer::Font>,
     tab_padding: [f32; 2],
     tab_accent_height: f32,
     close_button_text_size: f32,
@@ -283,6 +284,7 @@ where
         tab_bar_spacing: f32,
         tab_bar_padding: [f32; 2],
         tab_text_size: f32,
+        tab_font: Option<Renderer::Font>,
         tab_padding: [f32; 2],
         tab_accent_height: f32,
         close_button_text_size: f32,
@@ -318,6 +320,7 @@ where
             tab_bar_spacing,
             tab_bar_padding,
             tab_text_size,
+            tab_font,
             tab_padding,
             close_button_text_size,
             close_button_size,
@@ -340,6 +343,7 @@ where
             tab_bar_spacing,
             tab_bar_padding,
             tab_text_size,
+            tab_font,
             tab_padding,
             tab_accent_height,
             close_button_text_size,
@@ -387,6 +391,7 @@ where
             self.tab_bar_spacing,
             self.tab_bar_padding,
             self.tab_text_size,
+            self.tab_font,
             self.tab_padding,
             self.close_button_text_size,
             self.close_button_size,
@@ -438,6 +443,7 @@ fn build_tabs_row<Message, Theme, Renderer>(
     tab_bar_spacing: f32,
     tab_bar_padding: [f32; 2],
     tab_text_size: f32,
+    tab_font: Option<Renderer::Font>,
     tab_padding: [f32; 2],
     close_button_text_size: f32,
     close_button_size: f32,
@@ -488,7 +494,8 @@ where
         let label = container(
             text(tab.title.clone())
                 .size(tab_text_size)
-                .color(text_color),
+                .color(text_color)
+                .font_maybe(tab_font),
         )
         .padding(Padding {
             top: tab_padding[0],
@@ -1972,7 +1979,7 @@ where
         let pane_id = self.pane_id;
         let overflow_ui = Rc::clone(&state.overflow_ui);
 
-        let menu = menu::Menu::new(
+        let mut menu = menu::Menu::new(
             &mut state.overflow_menu_state,
             &state.overflow_options,
             &mut state.overflow_menu_hovered,
@@ -1991,8 +1998,11 @@ where
         )
         .width(button_bounds.width.max(160.0))
         .padding(OVERFLOW_MENU_PADDING)
-        .text_size(iced::Pixels(self.tab_text_size))
-        .overlay(
+        .text_size(iced::Pixels(self.tab_text_size));
+        if let Some(font) = self.tab_font {
+            menu = menu.font(font);
+        }
+        let menu = menu.overlay(
             layout.position() + translation + Vector::new(state.viewport_width, 0.0),
             *viewport,
             button_bounds.height,

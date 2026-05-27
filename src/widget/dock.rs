@@ -61,7 +61,7 @@ where
 pub struct Dock<'a, K, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
-    Renderer: advanced::Renderer,
+    Renderer: advanced::Renderer + advanced::text::Renderer,
 {
     content: Box<dyn Fn(K) -> PaneContent<'a, Message, Theme, Renderer> + 'a>,
     on_event: Rc<dyn Fn(DockEvent<K>) -> Message>,
@@ -72,6 +72,7 @@ where
     tab_bar_spacing: f32,
     tab_bar_padding: [f32; 2],
     tab_text_size: f32,
+    tab_font: Option<Renderer::Font>,
     tab_padding: [f32; 2],
     tab_accent_height: f32,
     close_button_text_size: f32,
@@ -286,6 +287,7 @@ where
                 self.tab_bar_spacing,
                 self.tab_bar_padding,
                 self.tab_text_size,
+                self.tab_font,
                 self.tab_padding,
                 self.tab_accent_height,
                 self.close_button_text_size,
@@ -348,7 +350,7 @@ type ContentFn<'a, K, Message, Theme, Renderer> =
 pub struct DockBuilder<'a, K, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
-    Renderer: advanced::Renderer,
+    Renderer: advanced::Renderer + advanced::text::Renderer,
 {
     content: Option<ContentFn<'a, K, Message, Theme, Renderer>>,
     on_event: Option<Rc<dyn Fn(DockEvent<K>) -> Message>>,
@@ -358,6 +360,7 @@ where
     tab_bar_spacing: f32,
     tab_bar_padding: [f32; 2],
     tab_text_size: f32,
+    tab_font: Option<Renderer::Font>,
     tab_padding: [f32; 2],
     tab_accent_height: f32,
     close_button_text_size: f32,
@@ -384,7 +387,7 @@ where
 impl<'a, K, Message, Theme, Renderer> Default for DockBuilder<'a, K, Message, Theme, Renderer>
 where
     Theme: Catalog,
-    Renderer: advanced::Renderer,
+    Renderer: advanced::Renderer + advanced::text::Renderer,
 {
     fn default() -> Self {
         Self {
@@ -396,6 +399,7 @@ where
             tab_bar_spacing: 0.0,
             tab_bar_padding: [0.0, 0.0],
             tab_text_size: 12.0,
+            tab_font: None,
             tab_padding: [0.0, 10.0],
             tab_accent_height: 2.0,
             close_button_text_size: 15.0,
@@ -598,6 +602,14 @@ where
         self
     }
 
+    /// Font for tab labels. When unset, tab text uses the renderer's
+    /// [`default_font`](iced::Settings::default_font) (same as plain `text()`).
+    #[must_use]
+    pub fn tab_font(mut self, font: impl Into<Renderer::Font>) -> Self {
+        self.tab_font = Some(font.into());
+        self
+    }
+
     /// Inner padding of each tab label: `[vertical, horizontal]`. Default `[0, 10]`.
     #[must_use]
     pub fn tab_padding(mut self, p: [f32; 2]) -> Self {
@@ -691,6 +703,7 @@ where
             tab_bar_spacing: self.tab_bar_spacing,
             tab_bar_padding: self.tab_bar_padding,
             tab_text_size: self.tab_text_size,
+            tab_font: self.tab_font,
             tab_padding: self.tab_padding,
             tab_accent_height: self.tab_accent_height,
             close_button_text_size: self.close_button_text_size,
