@@ -14,12 +14,9 @@ iced = { version = "0.14", features = ["wgpu"] }
 ```
 
 ```rust
-use iced::{Element, Length};
 use iced::widget::{container, text};
-use iced_dock::{
-    dock, horizontal, panel as tab, tabs, DockEvent, DockSession,
-    InitialFocus, LayoutTree,
-};
+use iced::{application, Element, Length, Task};
+use iced_dock::{dock, horizontal, panel as tab, tabs, DockEvent, DockSession, LayoutTree};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Panel {
@@ -30,20 +27,15 @@ enum Panel {
 
 fn layout() -> LayoutTree<Panel> {
     horizontal([
-        tabs([
-            tab("explorer", "Explorer", Panel::Explorer),
-        ])
-        .group("tools"),
-        tabs([
-            tab("editor", "main.rs", Panel::Editor),
-        ])
-        .group("documents"),
-        tabs([
-            tab("terminal", "Terminal", Panel::Terminal),
-        ])
-        .group("tools"),
+        tabs([tab("explorer", "Explorer", Panel::Explorer)]),
+        tabs([tab("editor", "main.rs", Panel::Editor)]),
+        tabs([tab("terminal", "Terminal", Panel::Terminal)]),
     ])
     .weights([0.2, 0.6, 0.2])
+}
+
+fn main() -> iced::Result {
+    application(App::new, update, view).run()
 }
 
 struct App {
@@ -53,25 +45,19 @@ struct App {
 impl App {
     fn new() -> Self {
         Self {
-            dock: DockSession::from_tree_with_focus(
-                layout(),
-                InitialFocus::NamedPanel("editor".into()),
-            ).unwrap(),
+            dock: DockSession::from_tree(layout()).unwrap(),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 enum Message {
-    Dock(DockEvent),
+    Dock(DockEvent<Panel>),
 }
 
-fn update(app: &mut App, message: Message) {
-    match message {
-        Message::Dock(event) => {
-            // Handle dock events here
-        }
-    }
+fn update(_app: &mut App, message: Message) -> Task<Message> {
+    let Message::Dock(_event) = message;
+    Task::none()
 }
 
 fn view(app: &App) -> Element<'_, Message> {
@@ -79,7 +65,7 @@ fn view(app: &App) -> Element<'_, Message> {
         dock()
             .state(app.dock.state())
             .on_event(Message::Dock)
-            .content(panel_content)
+            .content(panel)
             .build(),
     )
     .width(Length::Fill)
@@ -87,13 +73,12 @@ fn view(app: &App) -> Element<'_, Message> {
     .into()
 }
 
-fn panel_content(panel: Panel) -> Element<'static, Message> {
-    let label = match panel {
+fn panel(key: Panel) -> Element<'static, Message> {
+    let label = match key {
         Panel::Explorer => "Explorer",
         Panel::Editor => "Editor",
         Panel::Terminal => "Terminal",
     };
-
     container(text(label))
         .width(Length::Fill)
         .height(Length::Fill)
