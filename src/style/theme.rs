@@ -198,7 +198,6 @@ pub fn default(theme: &Theme) -> DockStyle {
     };
     let splitter_hover = palette.primary.base.color;
     let splitter_drag = palette.primary.strong.color;
-    let radius = 0.0;
 
     DockStyle {
         background: DockBackgroundStyle { color: canvas },
@@ -207,12 +206,12 @@ pub fn default(theme: &Theme) -> DockStyle {
             border: Border {
                 width: 1.0,
                 color: border,
-                radius: radius.into(),
+                radius: 0.0.into(),
             },
             focused_border: Some(Border {
                 width: 1.0,
                 color: accent_strong,
-                radius: radius.into(),
+                radius: 0.0.into(),
             }),
         },
         tab_bar: TabBarStyle {
