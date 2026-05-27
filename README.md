@@ -56,7 +56,11 @@ enum Message {
 }
 
 fn update(_app: &mut App, message: Message) -> Task<Message> {
-    let Message::Dock(_event) = message;
+    match message {
+        Message::Dock(_event) => {
+            // react to events
+        }
+    }
     Task::none()
 }
 
