@@ -9,6 +9,7 @@ use crate::widget::action::{DockAction, TabAction};
 use crate::widget::compose;
 use crate::widget::dock::TabBarScrollbarAttachment;
 use crate::widget::tab_dock::TabInfo;
+use iced::animation::Animation;
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::overlay;
 use iced::advanced::renderer;
@@ -57,8 +58,9 @@ struct TabStripState<Theme: menu::Catalog> {
     viewport_width: f32,
     show_overflow_button: bool,
     tab_bar_hovered: bool,
-    scrollbar_visible: bool,
-    hide_at: Option<Instant>,
+    scrollbar_visibility: Animation<bool>,
+    scrollbar_fade_duration: Duration,
+    scrollbar_animated: bool,
     scrollbar_drag: Option<ScrollbarDrag>,
     scrollbar_thumb_hovered: bool,
     overflow_button_hovered: bool,
@@ -85,15 +87,20 @@ impl<Theme> TabStripState<Theme>
 where
     Theme: menu::Catalog,
 {
-    fn new(theme: Option<Theme>) -> Self {
+    fn new(
+        theme: Option<Theme>,
+        scrollbar_fade_duration: Duration,
+        scrollbar_animated: bool,
+    ) -> Self {
         Self {
             scroll_offset: 0.0,
             content_width: 0.0,
             viewport_width: 0.0,
             show_overflow_button: false,
             tab_bar_hovered: false,
-            scrollbar_visible: false,
-            hide_at: None,
+            scrollbar_visibility: Animation::new(false).duration(scrollbar_fade_duration),
+            scrollbar_fade_duration,
+            scrollbar_animated,
             scrollbar_drag: None,
             scrollbar_thumb_hovered: false,
             overflow_button_hovered: false,
@@ -243,7 +250,8 @@ where
     separator_height: f32,
     drag_threshold: f32,
     drop_edge_fraction: f32,
-    hide_delay: Duration,
+    scrollbar_fade_duration: Duration,
+    scrollbar_animated: bool,
     show_scrollbar: bool,
     scrollbar_attachment: TabBarScrollbarAttachment,
     theme: Rc<RefCell<Option<Theme>>>,
@@ -288,7 +296,8 @@ where
         separator_height: f32,
         drag_threshold: f32,
         drop_edge_fraction: f32,
-        hide_delay: Duration,
+        scrollbar_fade_duration: Duration,
+        scrollbar_animated: bool,
         show_scrollbar: bool,
         scrollbar_attachment: TabBarScrollbarAttachment,
     ) -> Self {
@@ -344,7 +353,8 @@ where
             separator_height,
             drag_threshold,
             drop_edge_fraction,
-            hide_delay,
+            scrollbar_fade_duration,
+            scrollbar_animated,
             show_scrollbar,
             scrollbar_attachment,
             theme,
@@ -821,14 +831,23 @@ fn draw_scrollbar<Renderer: advanced::Renderer>(
     thumb_hovered: bool,
     bar: &TabBarStyle,
     scrollbar_height: f32,
+    alpha: f32,
     renderer: &mut Renderer,
 ) {
+    if alpha <= 0.0 {
+        return;
+    }
+
     let thumb_color = if thumb_hovered {
         bar.scrollbar_thumb_hovered
     } else {
         bar.scrollbar_thumb
-    };
-    if thumb_color.a <= 0.0 {
+    }
+    .scale_alpha(alpha);
+    let track_color = bar.scrollbar_track.scale_alpha(alpha);
+    let thumb_border = bar.scrollbar_thumb_border.scale_alpha(alpha);
+
+    if thumb_color.a <= 0.0 && track_color.a <= 0.0 {
         return;
     }
 
@@ -841,14 +860,14 @@ fn draw_scrollbar<Renderer: advanced::Renderer>(
             },
             ..renderer::Quad::default()
         },
-        bar.scrollbar_track,
+        track_color,
     );
     renderer.fill_quad(
         renderer::Quad {
             bounds: metrics.thumb,
             border: iced::Border {
                 width: 1.0,
-                color: bar.scrollbar_thumb_border,
+                color: thumb_border,
                 radius: (scrollbar_height * 0.5).into(),
             },
             ..renderer::Quad::default()
@@ -982,30 +1001,59 @@ pub(crate) fn is_tab_drag_active<Theme: menu::Catalog + 'static>(
     tab_strip_tree.is_some_and(|tree| tree.state.downcast_ref::<TabStripState<Theme>>().dragging)
 }
 
-/// Pending scrollbar hide deadline, if a delayed hide was scheduled.
-pub(crate) fn pending_hide_deadline<Theme: menu::Catalog + 'static>(
-    tree: &Tree,
-) -> Option<Instant> {
-    tree.state.downcast_ref::<TabStripState<Theme>>().hide_at
+fn set_scrollbar_fade_duration<Theme: menu::Catalog>(
+    state: &mut TabStripState<Theme>,
+    duration: Duration,
+) {
+    if state.scrollbar_fade_duration == duration {
+        return;
+    }
+
+    state.scrollbar_visibility = state.scrollbar_visibility.clone().duration(duration);
+    state.scrollbar_fade_duration = duration;
 }
 
-/// Ensure a redraw is scheduled when the hide deadline elapses.
-pub(crate) fn schedule_hide_redraw<Message, Theme: menu::Catalog + 'static>(
-    tree: &Tree,
-    shell: &mut Shell<'_, Message>,
+fn set_scrollbar_animation_enabled<Theme: menu::Catalog>(
+    state: &mut TabStripState<Theme>,
+    animated: bool,
 ) {
-    let Some(deadline) = pending_hide_deadline::<Theme>(tree) else {
-        return;
-    };
+    state.scrollbar_animated = animated;
+}
 
-    if Instant::now() >= deadline {
-        Shell::replace_redraw_request(shell, window::RedrawRequest::NextFrame);
-        return;
+fn set_scrollbar_visibility<Theme: menu::Catalog>(
+    state: &mut TabStripState<Theme>,
+    visible: bool,
+    at: Instant,
+) -> bool {
+    let changed = state.scrollbar_visibility.value() != visible;
+
+    if visible {
+        state.scrollbar_visibility = Animation::new(true).duration(state.scrollbar_fade_duration);
+    } else if state.scrollbar_animated {
+        state.scrollbar_visibility.go_mut(false, at);
+    } else {
+        state.scrollbar_visibility = Animation::new(false).duration(state.scrollbar_fade_duration);
     }
 
-    if shell.redraw_request() != window::RedrawRequest::NextFrame {
-        Shell::replace_redraw_request(shell, window::RedrawRequest::At(deadline));
+    changed
+}
+
+fn scrollbar_alpha<Theme: menu::Catalog>(state: &TabStripState<Theme>, at: Instant) -> f32 {
+    if state.scrollbar_drag.is_some() {
+        1.0
+    } else {
+        state
+            .scrollbar_visibility
+            .interpolate(0.0_f32, 1.0_f32, at)
+            .clamp(0.0, 1.0)
     }
+}
+
+fn scrollbar_is_interactive<Theme: menu::Catalog>(
+    state: &TabStripState<Theme>,
+    at: Instant,
+) -> bool {
+    state.scrollbar_drag.is_some() || scrollbar_alpha(state, at) > 0.0
 }
 
 fn tab_row_cursor(tab_bounds: Rectangle, cursor: Cursor, scroll_offset: f32) -> Cursor {
@@ -1021,19 +1069,17 @@ pub(crate) fn sync_hover_in_tree<Message, Theme: menu::Catalog + 'static>(
     tab_strip_tree: &mut Tree,
     tab_bounds: Rectangle,
     cursor: Cursor,
-    hide_delay: Duration,
     show_scrollbar: bool,
     shell: &mut Shell<'_, Message>,
 ) {
     let state = tab_strip_tree.state.downcast_mut::<TabStripState<Theme>>();
-    sync_tab_bar_hover(state, tab_bounds, cursor, hide_delay, show_scrollbar, shell);
+    sync_tab_bar_hover(state, tab_bounds, cursor, show_scrollbar, shell);
 }
 
 fn sync_tab_bar_hover<Message, Theme: menu::Catalog>(
     state: &mut TabStripState<Theme>,
     tab_bounds: Rectangle,
     cursor: Cursor,
-    hide_delay: Duration,
     show_scrollbar: bool,
     shell: &mut Shell<'_, Message>,
 ) {
@@ -1041,34 +1087,21 @@ fn sync_tab_bar_hover<Message, Theme: menu::Catalog>(
         return;
     }
 
-    if let Some(deadline) = state.hide_at {
-        if Instant::now() >= deadline {
-            state.scrollbar_visible = false;
-            state.hide_at = None;
-        }
+    let over = cursor_over_tab_bar(tab_bounds, cursor);
+    let now = Instant::now();
+    let mut changed = false;
+
+    if state.tab_bar_hovered != over {
+        state.tab_bar_hovered = over;
+        changed = true;
     }
 
-    let over = cursor_over_tab_bar(tab_bounds, cursor);
-    let was_hovered = state.tab_bar_hovered;
+    if set_scrollbar_visibility(state, over, now) {
+        changed = true;
+    }
 
-    if over {
-        let changed = !state.tab_bar_hovered || !state.scrollbar_visible || state.hide_at.is_some();
-        state.tab_bar_hovered = true;
-        state.scrollbar_visible = true;
-        state.hide_at = None;
-        if changed {
-            shell.request_redraw();
-        }
-    } else {
-        if state.tab_bar_hovered {
-            state.tab_bar_hovered = false;
-        }
-        if state.scrollbar_visible && state.hide_at.is_none() {
-            state.hide_at = Some(Instant::now() + hide_delay);
-        }
-        if was_hovered {
-            shell.request_redraw();
-        }
+    if changed {
+        shell.request_redraw();
     }
 }
 
@@ -1094,7 +1127,11 @@ where
     }
 
     fn state(&self) -> State {
-        State::new(TabStripState::new(self.resolved_theme()))
+        State::new(TabStripState::new(
+            self.resolved_theme(),
+            self.scrollbar_fade_duration,
+            self.scrollbar_animated,
+        ))
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -1297,6 +1334,7 @@ where
             });
 
             if self.show_scrollbar && overflow {
+                let alpha = scrollbar_alpha(state, Instant::now());
                 if let Some(metrics) = scrollbar_metrics(
                     row_bounds,
                     self.scrollbar_height,
@@ -1313,6 +1351,7 @@ where
                         thumb_hovered || state.scrollbar_drag.is_some(),
                         bar,
                         self.scrollbar_height,
+                        alpha,
                         renderer,
                     );
                 }
@@ -1348,10 +1387,13 @@ where
         let current_theme = self.resolved_theme();
         let threshold = self.drag_threshold;
         let cursor_pos = cursor.position();
+        let now = Instant::now();
         let mut row_refresh: Option<(Option<NodeId>, Option<NodeId>)> = None;
 
         {
             let state = tree.state.downcast_mut::<TabStripState<Theme>>();
+            set_scrollbar_fade_duration(state, self.scrollbar_fade_duration);
+            set_scrollbar_animation_enabled(state, self.scrollbar_animated);
             let row_bounds = visible_row_bounds(tab_bounds, state.viewport_width);
             let overflow_button_bounds = overflow_button_bounds(tab_bounds, state.viewport_width);
             let over_row = cursor
@@ -1392,16 +1434,8 @@ where
 
             if self.show_scrollbar {
                 if let Event::Window(window::Event::RedrawRequested(now)) = event {
-                    if let Some(deadline) = state.hide_at {
-                        if *now >= deadline {
-                            state.scrollbar_visible = false;
-                            state.hide_at = None;
-                        } else {
-                            Shell::replace_redraw_request(
-                                shell,
-                                window::RedrawRequest::At(deadline),
-                            );
-                        }
+                    if state.scrollbar_visibility.is_animating(*now) {
+                        Shell::replace_redraw_request(shell, window::RedrawRequest::NextFrame);
                     }
                 }
             }
@@ -1419,6 +1453,7 @@ where
                 state.content_width,
                 state.viewport_width,
             );
+            let scrollbar_interactive = self.show_scrollbar && scrollbar_is_interactive(state, now);
 
             let mut captured_scrollbar = false;
             let mut captured_wheel = false;
@@ -1437,16 +1472,16 @@ where
                         shell.request_redraw();
                         captured_label = true;
                     }
-                    if !captured_label && self.show_scrollbar {
+                    if !captured_label && scrollbar_interactive {
                         if let (Some(pos), Some(metrics)) = (cursor_pos, scrollbar_metrics.as_ref())
                         {
                             if metrics.thumb.contains(pos) {
                                 state.scrollbar_drag = Some(ScrollbarDrag {
                                     grab_x: pos.x - metrics.thumb.x,
                                 });
-                                state.scrollbar_visible = true;
-                                state.hide_at = None;
+                                let _ = set_scrollbar_visibility(state, true, now);
                                 shell.capture_event();
+                                shell.request_redraw();
                                 captured_scrollbar = true;
                             } else if metrics.track.contains(pos) {
                                 let click =
@@ -1458,8 +1493,7 @@ where
                                         metrics.max_offset,
                                     );
                                 }
-                                state.scrollbar_visible = true;
-                                state.hide_at = None;
+                                let _ = set_scrollbar_visibility(state, true, now);
                                 shell.capture_event();
                                 shell.request_redraw();
                                 captured_scrollbar = true;
@@ -1583,8 +1617,7 @@ where
                         state.scroll_offset =
                             clamp_scroll_offset(state.scroll_offset + dx, max_offset);
                         if self.show_scrollbar {
-                            state.scrollbar_visible = true;
-                            state.hide_at = None;
+                            let _ = set_scrollbar_visibility(state, true, now);
                         }
                         shell.capture_event();
                         shell.request_redraw();
@@ -1611,12 +1644,17 @@ where
             }
 
             if self.show_scrollbar {
-                if let Some(metrics) = scrollbar_metrics.as_ref() {
-                    let hovered = cursor_pos.is_some_and(|p| metrics.thumb.contains(p));
-                    if hovered != state.scrollbar_thumb_hovered {
-                        state.scrollbar_thumb_hovered = hovered;
-                        shell.request_redraw();
-                    }
+                let hovered = if scrollbar_interactive {
+                    scrollbar_metrics
+                        .as_ref()
+                        .is_some_and(|metrics| cursor_pos.is_some_and(|p| metrics.thumb.contains(p)))
+                } else {
+                    false
+                };
+
+                if hovered != state.scrollbar_thumb_hovered {
+                    state.scrollbar_thumb_hovered = hovered;
+                    shell.request_redraw();
                 }
             }
 
@@ -1647,7 +1685,6 @@ where
                 state,
                 row_bounds,
                 cursor,
-                self.hide_delay,
                 self.show_scrollbar,
                 shell,
             );
@@ -1691,7 +1728,7 @@ where
         {
             return mouse::Interaction::Pointer;
         }
-        if self.show_scrollbar {
+        if self.show_scrollbar && scrollbar_is_interactive(state, Instant::now()) {
             if let Some(metrics) = scrollbar_metrics(
                 row_bounds,
                 self.scrollbar_height,
@@ -1832,8 +1869,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{ensure_tab_visible, tab_fully_visible};
-    use iced::Rectangle;
+    use super::{
+        ensure_tab_visible, scrollbar_alpha, scrollbar_is_interactive, set_scrollbar_visibility,
+        tab_fully_visible, ScrollbarDrag, TabStripState,
+    };
+    use iced::time::{Duration, Instant};
+    use iced::{Rectangle, Theme};
 
     #[test]
     fn tab_visibility_requires_full_containment() {
@@ -1896,5 +1937,82 @@ mod tests {
             ),
             60.0
         );
+    }
+
+    #[test]
+    fn entering_tab_bar_shows_scrollbar_immediately() {
+        let mut state = TabStripState::<Theme>::new(None, Duration::from_millis(500), true);
+        let start = Instant::now();
+
+        assert!(set_scrollbar_visibility(&mut state, true, start));
+        assert!(state.scrollbar_visibility.value());
+        assert_eq!(scrollbar_alpha(&state, start), 1.0);
+        assert_eq!(scrollbar_alpha(&state, start + Duration::from_millis(250)), 1.0);
+    }
+
+    #[test]
+    fn leaving_tab_bar_starts_immediate_fade_out_and_disables_hit_testing_after_completion() {
+        let mut state = TabStripState::<Theme>::new(None, Duration::from_millis(500), true);
+        let start = Instant::now();
+        let visible_at = start + Duration::from_millis(500);
+
+        let _ = set_scrollbar_visibility(&mut state, true, start);
+        let _ = set_scrollbar_visibility(&mut state, false, visible_at);
+
+        assert!(!state.scrollbar_visibility.value());
+
+        let mid = visible_at + Duration::from_millis(250);
+        let alpha = scrollbar_alpha(&state, mid);
+        assert!(alpha > 0.0 && alpha < 1.0);
+
+        let end = visible_at + Duration::from_millis(500);
+        assert_eq!(scrollbar_alpha(&state, end), 0.0);
+        assert!(!scrollbar_is_interactive(&state, end));
+    }
+
+    #[test]
+    fn reentering_during_fade_reverses_toward_visible() {
+        let mut state = TabStripState::<Theme>::new(None, Duration::from_millis(500), true);
+        let start = Instant::now();
+        let visible_at = start + Duration::from_millis(500);
+        let fade_mid = visible_at + Duration::from_millis(250);
+
+        let _ = set_scrollbar_visibility(&mut state, true, start);
+        let _ = set_scrollbar_visibility(&mut state, false, visible_at);
+        let fading_alpha = scrollbar_alpha(&state, fade_mid);
+
+        let _ = set_scrollbar_visibility(&mut state, true, fade_mid);
+        let reversed_alpha = scrollbar_alpha(&state, fade_mid);
+
+        assert!(reversed_alpha > fading_alpha);
+        assert_eq!(reversed_alpha, 1.0);
+    }
+
+    #[test]
+    fn dragging_keeps_scrollbar_fully_visible() {
+        let mut state = TabStripState::<Theme>::new(None, Duration::from_millis(500), true);
+        let start = Instant::now();
+        let visible_at = start + Duration::from_millis(500);
+        let hidden_at = visible_at + Duration::from_millis(500);
+
+        let _ = set_scrollbar_visibility(&mut state, true, start);
+        let _ = set_scrollbar_visibility(&mut state, false, visible_at);
+        state.scrollbar_drag = Some(ScrollbarDrag { grab_x: 4.0 });
+
+        assert_eq!(scrollbar_alpha(&state, hidden_at), 1.0);
+        assert!(scrollbar_is_interactive(&state, hidden_at));
+    }
+
+    #[test]
+    fn disabling_animation_hides_scrollbar_immediately() {
+        let mut state = TabStripState::<Theme>::new(None, Duration::from_millis(500), false);
+        let start = Instant::now();
+        let visible_at = start + Duration::from_millis(500);
+
+        let _ = set_scrollbar_visibility(&mut state, true, start);
+        let _ = set_scrollbar_visibility(&mut state, false, visible_at);
+
+        assert_eq!(scrollbar_alpha(&state, visible_at), 0.0);
+        assert!(!scrollbar_is_interactive(&state, visible_at));
     }
 }

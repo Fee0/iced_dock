@@ -101,7 +101,6 @@ where
     tab_bar_height: f32,
     pane_padding: f32,
     drop_edge_fraction: f32,
-    tab_bar_scrollbar_hide_delay: Duration,
     tab_bar_show_scrollbar: bool,
 }
 
@@ -148,7 +147,8 @@ where
         separator_height: f32,
         drag_threshold: f32,
         drop_edge_fraction: f32,
-        tab_bar_scrollbar_hide_delay: Duration,
+        tab_bar_scrollbar_fade_duration: Duration,
+        tab_bar_scrollbar_animated: bool,
         tab_bar_show_scrollbar: bool,
         tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
     ) -> Self {
@@ -175,7 +175,8 @@ where
             separator_height,
             drag_threshold,
             drop_edge_fraction,
-            tab_bar_scrollbar_hide_delay,
+            tab_bar_scrollbar_fade_duration,
+            tab_bar_scrollbar_animated,
             tab_bar_show_scrollbar,
             tab_bar_scrollbar_attachment,
         )
@@ -193,7 +194,6 @@ where
             tab_bar_height,
             pane_padding,
             drop_edge_fraction,
-            tab_bar_scrollbar_hide_delay,
             tab_bar_show_scrollbar,
         }
     }
@@ -502,7 +502,6 @@ where
                 &mut tree.children[0],
                 tab_layout.bounds(),
                 cursor,
-                self.tab_bar_scrollbar_hide_delay,
                 self.tab_bar_show_scrollbar,
                 shell,
             );
@@ -590,7 +589,6 @@ where
             }
         }
 
-        tab_strip::schedule_hide_redraw::<_, Theme>(&tree.children[0], shell);
     }
 
     fn mouse_interaction(

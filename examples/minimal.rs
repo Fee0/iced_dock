@@ -5,7 +5,7 @@ use iced::widget::{column, container, text};
 use iced::{application, Element, Length, Size, Subscription, Task, Theme};
 use iced_dock::{
     dock, horizontal, panel as tab, tabs, vertical, Direction, DockEvent, DockSession,
-    InitialFocus, LayoutTree, TabBarScrollbarAttachment,
+    InitialFocus, LayoutTree,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

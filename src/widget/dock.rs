@@ -89,7 +89,8 @@ where
     min_pane_height: f32,
     drag_threshold: f32,
     drop_edge_fraction: f32,
-    tab_bar_scrollbar_hide_delay: Duration,
+    tab_bar_scrollbar_fade_duration: Duration,
+    tab_bar_scrollbar_animated: bool,
     tab_bar_show_scrollbar: bool,
     tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
 }
@@ -136,12 +137,22 @@ where
         self
     }
 
-    /// Delay before the tab-bar scrollbar hides after the pointer leaves the tab bar.
+    /// Fade duration for the tab-bar scrollbar when its visibility changes.
     ///
-    /// Default is one second.
+    /// Default is 0.5 seconds.
     #[must_use]
-    pub fn tab_bar_scrollbar_hide_delay(mut self, delay: Duration) -> Self {
-        self.tab_bar_scrollbar_hide_delay = delay;
+    pub fn tab_bar_scrollbar_fade_duration(mut self, duration: Duration) -> Self {
+        self.tab_bar_scrollbar_fade_duration = duration;
+        self
+    }
+
+    /// Whether the tab-bar scrollbar fades out when it hides.
+    ///
+    /// When `false`, the scrollbar snaps visible and hidden instantly.
+    /// Default is `true`.
+    #[must_use]
+    pub fn tab_bar_scrollbar_animated(mut self, animated: bool) -> Self {
+        self.tab_bar_scrollbar_animated = animated;
         self
     }
 
@@ -292,7 +303,8 @@ where
                 self.separator_height,
                 self.drag_threshold,
                 self.drop_edge_fraction,
-                self.tab_bar_scrollbar_hide_delay,
+                self.tab_bar_scrollbar_fade_duration,
+                self.tab_bar_scrollbar_animated,
                 self.tab_bar_show_scrollbar,
                 self.tab_bar_scrollbar_attachment,
             )
@@ -367,7 +379,8 @@ where
     min_pane_height: f32,
     drag_threshold: f32,
     drop_edge_fraction: f32,
-    tab_bar_scrollbar_hide_delay: Duration,
+    tab_bar_scrollbar_fade_duration: Duration,
+    tab_bar_scrollbar_animated: bool,
     tab_bar_show_scrollbar: bool,
     tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
 }
@@ -404,7 +417,8 @@ where
             min_pane_height: 80.0,
             drag_threshold: 6.0,
             drop_edge_fraction: 0.2,
-            tab_bar_scrollbar_hide_delay: Duration::from_secs(1),
+            tab_bar_scrollbar_fade_duration: Duration::from_millis(500),
+            tab_bar_scrollbar_animated: true,
             tab_bar_show_scrollbar: false,
             tab_bar_scrollbar_attachment: TabBarScrollbarAttachment::Top,
         }
@@ -525,12 +539,22 @@ where
         self
     }
 
-    /// Delay before the tab-bar scrollbar hides after the pointer leaves the tab bar.
+    /// Fade duration for the tab-bar scrollbar when its visibility changes.
     ///
-    /// Default is one second.
+    /// Default is 0.5 seconds.
     #[must_use]
-    pub fn tab_bar_scrollbar_hide_delay(mut self, delay: Duration) -> Self {
-        self.tab_bar_scrollbar_hide_delay = delay;
+    pub fn tab_bar_scrollbar_fade_duration(mut self, duration: Duration) -> Self {
+        self.tab_bar_scrollbar_fade_duration = duration;
+        self
+    }
+
+    /// Whether the tab-bar scrollbar fades out when it hides.
+    ///
+    /// When `false`, the scrollbar snaps visible and hidden instantly.
+    /// Default is `true`.
+    #[must_use]
+    pub fn tab_bar_scrollbar_animated(mut self, animated: bool) -> Self {
+        self.tab_bar_scrollbar_animated = animated;
         self
     }
 
@@ -694,7 +718,8 @@ where
             min_pane_height: self.min_pane_height,
             drag_threshold: self.drag_threshold,
             drop_edge_fraction: self.drop_edge_fraction,
-            tab_bar_scrollbar_hide_delay: self.tab_bar_scrollbar_hide_delay,
+            tab_bar_scrollbar_fade_duration: self.tab_bar_scrollbar_fade_duration,
+            tab_bar_scrollbar_animated: self.tab_bar_scrollbar_animated,
             tab_bar_show_scrollbar: self.tab_bar_show_scrollbar,
             tab_bar_scrollbar_attachment: self.tab_bar_scrollbar_attachment,
         }
