@@ -44,7 +44,8 @@ pub struct WindowStyle {
 /// Close control on each tab (paint only).
 #[derive(Debug, Clone)]
 pub struct CloseButtonStyle {
-    /// Label shown on the close control (default `"×"`).
+    /// Label string used for widget-tree queries (e.g. `iced_test` selectors); the
+    /// close mark itself is drawn without a font.
     pub label: String,
     /// Text color in the default (idle) state.
     pub text_color: Color,

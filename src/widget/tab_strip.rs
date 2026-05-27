@@ -25,6 +25,7 @@ use iced::{Border, Color, Element, Event, Length, Padding, Rectangle, Size, Vect
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result;
+use std::marker::PhantomData;
 
 #[derive(Debug, Clone, Copy)]
 struct ScrollbarDrag {
@@ -499,17 +500,23 @@ where
         .center_y(Length::Fill);
         let close: Element<'_, Message, Theme, Renderer> = if tab.can_close {
             button(
-                container(text(cb.label.clone()).size(close_button_text_size))
-                    .padding(Padding {
-                        top: close_button_padding[0],
-                        bottom: close_button_padding[0],
-                        left: close_button_padding[1],
-                        right: close_button_padding[1],
-                    })
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .align_x(iced::Alignment::Center)
-                    .align_y(iced::Alignment::Center),
+                container(Element::new(CloseXGlyph {
+                    idle: cb.text_color,
+                    hover: cb.hovered_text,
+                    line_scale: close_button_text_size,
+                    operate_label: cb.label.clone(),
+                    _msg: PhantomData,
+                }))
+                .padding(Padding {
+                    top: close_button_padding[0],
+                    bottom: close_button_padding[0],
+                    left: close_button_padding[1],
+                    right: close_button_padding[1],
+                })
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(iced::Alignment::Center)
+                .align_y(iced::Alignment::Center),
             )
             .padding(Padding::ZERO)
             .width(Length::Fixed(close_button_size))
@@ -957,6 +964,196 @@ fn draw_chevron_down<Renderer: advanced::Renderer>(
             },
             color,
         );
+    }
+}
+
+/// Draws a close "×" using only `fill_quad`, matching the overflow chevron
+/// approach (no font glyphs).
+fn draw_close_x<Renderer: advanced::Renderer>(
+    renderer: &mut Renderer,
+    bounds: Rectangle,
+    color: Color,
+    line_scale: f32,
+) {
+    let m = bounds.width.min(bounds.height);
+    let pad = m * 0.32;
+    let inner = Rectangle {
+        x: bounds.x + pad,
+        y: bounds.y + pad,
+        width: (bounds.width - 2.0 * pad).max(1.0),
+        height: (bounds.height - 2.0 * pad).max(1.0),
+    };
+    let half = ((line_scale * 0.048).clamp(0.75, 1.85)) * 0.5;
+    let span = (inner.width * inner.width + inner.height * inner.height).sqrt();
+    let mut steps = (span / (half * 1.75)).ceil() as usize;
+    steps = steps.clamp(4, 28);
+
+    let stroke_diag = |renderer: &mut Renderer, x0: f32, y0: f32, x1: f32, y1: f32| {
+        for i in 0..=steps {
+            let t = i as f32 / steps as f32;
+            let cx = x0 + (x1 - x0) * t;
+            let cy = y0 + (y1 - y0) * t;
+            let w = half * 2.0;
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds: Rectangle {
+                        x: cx - half,
+                        y: cy - half,
+                        width: w,
+                        height: w,
+                    },
+                    ..renderer::Quad::default()
+                },
+                color,
+            );
+        }
+    };
+
+    stroke_diag(
+        renderer,
+        inner.x,
+        inner.y,
+        inner.x + inner.width,
+        inner.y + inner.height,
+    );
+    stroke_diag(
+        renderer,
+        inner.x + inner.width,
+        inner.y,
+        inner.x,
+        inner.y + inner.height,
+    );
+}
+
+#[derive(Default)]
+struct CloseXGlyphState {
+    hovered: bool,
+    pressed: bool,
+}
+
+struct CloseXGlyph<Message> {
+    idle: Color,
+    hover: Color,
+    line_scale: f32,
+    /// Reported via [`Operation::text`] for testing / inspection (not painted).
+    operate_label: String,
+    _msg: PhantomData<Message>,
+}
+
+impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer> for CloseXGlyph<Message>
+where
+    Renderer: advanced::Renderer,
+{
+    fn tag(&self) -> Tag {
+        Tag::of::<CloseXGlyphState>()
+    }
+
+    fn state(&self) -> State {
+        State::new(CloseXGlyphState::default())
+    }
+
+    fn size(&self) -> Size<Length> {
+        Size {
+            width: Length::Fill,
+            height: Length::Fill,
+        }
+    }
+
+    fn layout(
+        &mut self,
+        _tree: &mut Tree,
+        _renderer: &Renderer,
+        limits: &layout::Limits,
+    ) -> layout::Node {
+        layout::Node::new(limits.max())
+    }
+
+    fn operate(
+        &mut self,
+        _tree: &mut Tree,
+        layout: Layout<'_>,
+        _renderer: &Renderer,
+        operation: &mut dyn Operation,
+    ) {
+        operation.text(None, layout.bounds(), self.operate_label.as_str());
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut Renderer,
+        _theme: &Theme,
+        _style: &renderer::Style,
+        layout: Layout<'_>,
+        _cursor: Cursor,
+        _viewport: &Rectangle,
+    ) {
+        let state = tree.state.downcast_ref::<CloseXGlyphState>();
+        let color = if state.hovered || state.pressed {
+            self.hover
+        } else {
+            self.idle
+        };
+        draw_close_x(renderer, layout.bounds(), color, self.line_scale);
+    }
+
+    fn update(
+        &mut self,
+        tree: &mut Tree,
+        event: &Event,
+        layout: Layout<'_>,
+        cursor: Cursor,
+        _renderer: &Renderer,
+        _clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        _viewport: &Rectangle,
+    ) {
+        let bounds = layout.bounds();
+        let over = cursor
+            .position()
+            .is_some_and(|point| bounds.contains(point));
+        let state = tree.state.downcast_mut::<CloseXGlyphState>();
+
+        match event {
+            Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                if state.hovered != over {
+                    state.hovered = over;
+                    shell.request_redraw();
+                }
+            }
+            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) if over => {
+                if !state.pressed {
+                    state.pressed = true;
+                    shell.request_redraw();
+                }
+            }
+            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
+                if state.pressed {
+                    state.pressed = false;
+                    shell.request_redraw();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn mouse_interaction(
+        &self,
+        tree: &Tree,
+        layout: Layout<'_>,
+        cursor: Cursor,
+        _viewport: &Rectangle,
+        _renderer: &Renderer,
+    ) -> mouse::Interaction {
+        let state = tree.state.downcast_ref::<CloseXGlyphState>();
+        let over = cursor
+            .position()
+            .is_some_and(|point| layout.bounds().contains(point));
+        if state.hovered || over {
+            mouse::Interaction::Pointer
+        } else {
+            mouse::Interaction::default()
+        }
     }
 }
 
