@@ -1,17 +1,13 @@
 use iced_dock::unstable::{build_tree, dispatch_action, owning_pane};
 use iced_dock::{
-    adjacent_pane, horizontal, pane_bounds_map, panel, tabs, vertical, Direction,
-    DockAction, DockSession, DockWidgetState, InitialFocus, PaneTarget, PanelCycle, TabAction,
+    adjacent_pane, horizontal, pane_bounds_map, panel, tabs, vertical, Direction, DockAction,
+    DockSession, DockWidgetState, InitialFocus, PaneTarget, PanelCycle, TabAction,
 };
 
 fn nested_layout() -> iced_dock::LayoutTree<u32> {
     horizontal([
         vertical([
-            tabs([
-                panel("main", "main.rs", 0u32),
-                panel("lib", "lib.rs", 1u32),
-            ])
-            .active("main"),
+            tabs([panel("main", "main.rs", 0u32), panel("lib", "lib.rs", 1u32)]).active("main"),
             tabs([panel("preview", "preview", 2u32)]),
         ])
         .weights([0.55, 0.45]),
@@ -139,10 +135,7 @@ fn open_panel_active_targets_focused_pane() {
 
     session.focus_pane(output_pane).expect("focus output pane");
     session
-        .open_panel(
-            PaneTarget::Active,
-            panel("terminal", "Terminal", 99u32),
-        )
+        .open_panel(PaneTarget::Active, panel("terminal", "Terminal", 99u32))
         .expect("open");
 
     assert_eq!(session.active_panel().as_deref(), Some("terminal"));

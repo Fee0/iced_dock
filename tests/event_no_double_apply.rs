@@ -5,11 +5,7 @@ use iced_dock::{panel, tabs, DockAction, DockSession, DockWidgetState, TabAction
 
 #[test]
 fn dispatch_close_once_removes_panel() {
-    let built = build_tree(&tabs([
-        panel("a", "A", 0u32),
-        panel("b", "B", 1u32),
-    ]))
-    .expect("built");
+    let built = build_tree(&tabs([panel("a", "A", 0u32), panel("b", "B", 1u32)])).expect("built");
     let panel_b = built.index.panel_node("b").expect("b");
     let mut state = DockWidgetState::<u32>::from_built(built, None);
 
@@ -29,11 +25,9 @@ fn dispatch_close_once_removes_panel() {
 
 #[test]
 fn session_select_does_not_require_update_handler() {
-    let session: DockSession<u32> = DockSession::from_tree(tabs([
-        panel("a", "A", 0u32),
-        panel("b", "B", 1u32),
-    ]))
-    .expect("session");
+    let session: DockSession<u32> =
+        DockSession::from_tree(tabs([panel("a", "A", 0u32), panel("b", "B", 1u32)]))
+            .expect("session");
     session.select_panel("b").expect("select");
     assert_eq!(session.active_panel().as_deref(), Some("b"));
     let count_after_one = session.state().borrow().layout.nodes.len();

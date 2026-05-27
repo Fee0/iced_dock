@@ -77,7 +77,6 @@ pub struct TabBarStyle {
     pub scrollbar_thumb_border: Color,
 }
 
-
 /// Individual tab label colors.
 #[derive(Debug, Clone)]
 pub struct TabStyle {

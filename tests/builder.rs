@@ -1,16 +1,10 @@
 use iced_dock::unstable::build_tree;
-use iced_dock::{
-    horizontal, panel, tabs, vertical, DockSession, Error, LayoutTree, PaneTarget,
-};
+use iced_dock::{horizontal, panel, tabs, vertical, DockSession, Error, LayoutTree, PaneTarget};
 
 fn nested_layout() -> LayoutTree<u32> {
     horizontal([
         vertical([
-            tabs([
-                panel("main", "main.rs", 0u32),
-                panel("lib", "lib.rs", 1u32),
-            ])
-            .active("main"),
+            tabs([panel("main", "main.rs", 0u32), panel("lib", "lib.rs", 1u32)]).active("main"),
             tabs([panel("preview", "preview", 2u32)]),
         ])
         .weights([0.55, 0.45]),
@@ -44,10 +38,7 @@ fn nested_layout_produces_horizontal_root() {
 
 #[test]
 fn duplicate_panel_id_is_rejected() {
-    let tree = tabs([
-        panel("a", "A", 0u32),
-        panel("a", "B", 1u32),
-    ]);
+    let tree = tabs([panel("a", "A", 0u32), panel("a", "B", 1u32)]);
     let err = build_tree(&tree).unwrap_err();
     assert_eq!(err, Error::DuplicatePanelId("a".into()));
 }
@@ -68,10 +59,7 @@ fn mismatched_weights_are_rejected() {
 
 #[test]
 fn simple_split_matches_manual_structure() {
-    let tree = horizontal([
-        tabs([panel("a", "A", 0u32)]),
-        tabs([panel("b", "B", 1u32)]),
-    ]);
+    let tree = horizontal([tabs([panel("a", "A", 0u32)]), tabs([panel("b", "B", 1u32)])]);
     let built = build_tree(&tree).expect("compile");
     let root = built.layout.root_child().unwrap();
     let iced_dock::model::NodeKind::Proportional(pg) = built.layout.kind(root).unwrap() else {
@@ -112,22 +100,15 @@ fn named_pane_target_opens_panel() {
     let tree = tabs([panel("a", "A", 0u32)]).named("editor");
     let session: DockSession<u32> = DockSession::from_tree(tree).expect("session");
     session
-        .open_panel(
-            PaneTarget::Named("editor".into()),
-            panel("b", "B", 1u32),
-        )
+        .open_panel(PaneTarget::Named("editor".into()), panel("b", "B", 1u32))
         .expect("open in named pane");
     assert!(session.panel_ids().contains(&"b".into()));
 }
 
 #[test]
 fn widget_state_from_tree() {
-    let state = iced_dock::DockWidgetState::<u32>::from_tree(tabs([panel(
-        "a",
-        "A",
-        0u32,
-    )]))
-    .expect("state");
+    let state =
+        iced_dock::DockWidgetState::<u32>::from_tree(tabs([panel("a", "A", 0u32)])).expect("state");
     assert!(state.layout_dirty);
     assert!(state.layout.root_child().is_some());
 }

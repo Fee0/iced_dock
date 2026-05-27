@@ -167,11 +167,7 @@ impl<K: Copy> LayoutTree<K> {
 }
 
 /// Create a panel definition (for use inside [`tabs`]).
-pub fn panel<K: Copy>(
-    id: impl Into<String>,
-    title: impl Into<String>,
-    content: K,
-) -> PanelDef<K> {
+pub fn panel<K: Copy>(id: impl Into<String>, title: impl Into<String>, content: K) -> PanelDef<K> {
     PanelDef::new(id, title, content)
 }
 

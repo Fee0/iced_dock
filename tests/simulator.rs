@@ -1,8 +1,6 @@
 use iced::widget::{container, text};
 use iced::{Element, Length, Point, Size};
-use iced_dock::{
-    dock, horizontal, panel, single, tabs, DockEvent, DockSession, PanelDef,
-};
+use iced_dock::{dock, horizontal, panel, single, tabs, DockEvent, DockSession, PanelDef};
 use iced_test::{simulator, Simulator};
 
 #[derive(Debug, Clone)]
@@ -124,11 +122,7 @@ fn view_with_unique_content(session: &DockSession<u32>) -> Element<'_, Message> 
 }
 
 fn narrow_view(session: &DockSession<u32>) -> Simulator<'_, Message> {
-    Simulator::with_size(
-        Default::default(),
-        Size::new(180.0, 240.0),
-        view(session),
-    )
+    Simulator::with_size(Default::default(), Size::new(180.0, 240.0), view(session))
 }
 
 #[test]
@@ -188,10 +182,9 @@ fn clicking_close_button_produces_tab_closed() {
 
     let messages: Vec<_> = ui.into_messages().collect();
     assert!(
-        messages.iter().any(|msg| matches!(
-            msg,
-            Message::Dock(DockEvent::TabClosed { .. })
-        )),
+        messages
+            .iter()
+            .any(|msg| matches!(msg, Message::Dock(DockEvent::TabClosed { .. }))),
         "expected TabClosed, got: {messages:?}"
     );
 }
@@ -322,8 +315,7 @@ fn click_mutates_shared_session_state() {
 
 #[test]
 fn single_panel_layout_renders() {
-    let session =
-        DockSession::from_tree(single(panel("solo", "Solo", 0u32))).expect("valid");
+    let session = DockSession::from_tree(single(panel("solo", "Solo", 0u32))).expect("valid");
     let mut ui = simulator(view_with_unique_content(&session));
 
     ui.find("Solo").expect("tab label should be visible");
@@ -337,8 +329,7 @@ fn non_closable_tab_has_no_close_button_effect() {
     let mut ui = simulator(view(&session));
 
     ui.find("Pinned").expect("Pinned tab should be visible");
-    ui.find("Closable")
-        .expect("Closable tab should be visible");
+    ui.find("Closable").expect("Closable tab should be visible");
 
     // The first "×" hit belongs to the closable tab (Pinned has no close button).
     // Clicking it should produce TabClosed for "closable", NOT for "pinned".

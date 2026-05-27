@@ -77,7 +77,12 @@ impl DockManager {
         }
     }
 
-    pub(crate) fn groups_compatible<K>(&self, layout: &Layout<K>, panel: NodeId, target_pane: NodeId) -> bool {
+    pub(crate) fn groups_compatible<K>(
+        &self,
+        layout: &Layout<K>,
+        panel: NodeId,
+        target_pane: NodeId,
+    ) -> bool {
         let panel_group = match layout.kind(panel) {
             Some(NodeKind::Panel(p)) => p.group.as_deref(),
             _ => return false,
@@ -292,7 +297,9 @@ impl DockManager {
                 node: session.source_panel,
             });
         }
-        if session.source_pane != pane && !self.groups_compatible(layout, session.source_panel, pane) {
+        if session.source_pane != pane
+            && !self.groups_compatible(layout, session.source_panel, pane)
+        {
             return Err(Error::ValidationFailed);
         }
         let factory = Factory;

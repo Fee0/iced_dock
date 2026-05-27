@@ -5,11 +5,7 @@ use iced_dock::{horizontal, panel, tabs, vertical, Layout, LayoutTree};
 fn nested_layout() -> LayoutTree<u32> {
     horizontal([
         vertical([
-            tabs([
-                panel("main", "main.rs", 0u32),
-                panel("lib", "lib.rs", 1u32),
-            ])
-            .active("main"),
+            tabs([panel("main", "main.rs", 0u32), panel("lib", "lib.rs", 1u32)]).active("main"),
             tabs([panel("preview", "preview", 2u32)]),
         ])
         .weights([0.55, 0.45]),

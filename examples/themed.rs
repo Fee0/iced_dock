@@ -171,15 +171,15 @@ fn panel_content(key: Content) -> PaneContent<'static, Message> {
     };
 
     let body: Element<'static, Message> = match key {
-        Content::MainRs     => panel_body("main.rs", "Editor — per-pane theming demo", fg, muted),
-        Content::LibRs      => panel_body("lib.rs", "Editor", fg, muted),
-        Content::Preview    => panel_body("Preview", "Default palette style", fg, muted),
-        Content::ModA       => panel_body("mod_a.rs", "Editor", fg, muted),
-        Content::ModB       => panel_body("mod_b.rs", "Editor", fg, muted),
+        Content::MainRs => panel_body("main.rs", "Editor — per-pane theming demo", fg, muted),
+        Content::LibRs => panel_body("lib.rs", "Editor", fg, muted),
+        Content::Preview => panel_body("Preview", "Default palette style", fg, muted),
+        Content::ModA => panel_body("mod_a.rs", "Editor", fg, muted),
+        Content::ModB => panel_body("mod_b.rs", "Editor", fg, muted),
         Content::Properties => panel_body("Properties", "Sidebar — warm accent style", fg, muted),
-        Content::Output     => panel_body("Output", "Sidebar — warm accent style", fg, muted),
-        Content::Explorer   => panel_body("Explorer", "Sidebar — warm accent style", fg, muted),
-        Content::Search     => panel_body("Search", "Sidebar — warm accent style", fg, muted),
+        Content::Output => panel_body("Output", "Sidebar — warm accent style", fg, muted),
+        Content::Explorer => panel_body("Explorer", "Sidebar — warm accent style", fg, muted),
+        Content::Search => panel_body("Search", "Sidebar — warm accent style", fg, muted),
     };
 
     let element: Element<'static, Message> = container(body)

@@ -430,10 +430,15 @@ where
                     .flatten();
 
                 if let Some(zone) = zone {
-                    let blocked = zone == DropZone::Center && drag_session.is_some_and(|s| {
-                        let state = self.dock_state.borrow();
-                        !DockManager.groups_compatible(&state.layout, s.source_panel, self.pane_id)
-                    });
+                    let blocked = zone == DropZone::Center
+                        && drag_session.is_some_and(|s| {
+                            let state = self.dock_state.borrow();
+                            !DockManager.groups_compatible(
+                                &state.layout,
+                                s.source_panel,
+                                self.pane_id,
+                            )
+                        });
                     let highlight = if blocked {
                         dock_style.drop_overlay.blocked_color
                     } else {
@@ -512,8 +517,15 @@ where
                     let (pane, index) = session.tab_insert?;
                     (pane == self.pane_id
                         && !tab_insert_is_noop(session, self.pane_id, index, &self.tabs))
-                    .then_some((index, session.source_pane != self.pane_id
-                        && !DockManager.groups_compatible(&state.layout, session.source_panel, self.pane_id)))
+                    .then_some((
+                        index,
+                        session.source_pane != self.pane_id
+                            && !DockManager.groups_compatible(
+                                &state.layout,
+                                session.source_panel,
+                                self.pane_id,
+                            ),
+                    ))
                 });
                 result.map_or((None, false), |(index, blocked)| (Some(index), blocked))
             };
@@ -588,7 +600,6 @@ where
                 }
             }
         }
-
     }
 
     fn mouse_interaction(
@@ -674,8 +685,7 @@ where
                 renderer,
                 viewport,
                 translation,
-            )
-            {
+            ) {
                 overlays.push(overlay);
             }
         }
@@ -687,8 +697,7 @@ where
                 renderer,
                 viewport,
                 translation,
-            )
-            {
+            ) {
                 overlays.push(overlay);
             }
         }

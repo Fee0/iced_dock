@@ -46,7 +46,12 @@ impl Factory {
         id
     }
 
-    pub fn add_panel_to_pane<K>(&self, layout: &mut Layout<K>, pane: NodeId, panel: NodeId) -> Result {
+    pub fn add_panel_to_pane<K>(
+        &self,
+        layout: &mut Layout<K>,
+        pane: NodeId,
+        panel: NodeId,
+    ) -> Result {
         if !layout.is_leaf(panel) {
             return Err(Error::NotPanel { node: panel });
         }
@@ -334,7 +339,9 @@ impl Factory {
         };
         let new_pane = self.create_pane(layout);
         if let Some(group) = panel_group {
-            if let Some(NodeKind::Pane(ref mut pane)) = layout.get_mut(new_pane).map(|e| &mut e.kind) {
+            if let Some(NodeKind::Pane(ref mut pane)) =
+                layout.get_mut(new_pane).map(|e| &mut e.kind)
+            {
                 pane.group = Some(group);
             }
         }

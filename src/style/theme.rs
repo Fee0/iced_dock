@@ -186,11 +186,11 @@ pub fn default(theme: &Theme) -> DockStyle {
         Color::from_rgba(0.0, 0.0, 0.0, 0.08)
     };
     let separator_alpha = if palette.is_dark { 0.35 } else { 0.12 };
-    let scrollbar_track = palette.background.strong.color.scale_alpha(if palette.is_dark {
-        0.28
-    } else {
-        0.16
-    });
+    let scrollbar_track = palette
+        .background
+        .strong
+        .color
+        .scale_alpha(if palette.is_dark { 0.28 } else { 0.16 });
     let scrollbar_thumb = palette.background.weak.text;
     let scrollbar_thumb_hovered = palette.background.base.text;
     let scrollbar_thumb_border = if palette.is_dark {

@@ -170,10 +170,7 @@ where
     ///
     /// Default is [`TabBarScrollbarAttachment::Top`].
     #[must_use]
-    pub fn tab_bar_scrollbar_attachment(
-        mut self,
-        attachment: TabBarScrollbarAttachment,
-    ) -> Self {
+    pub fn tab_bar_scrollbar_attachment(mut self, attachment: TabBarScrollbarAttachment) -> Self {
         self.tab_bar_scrollbar_attachment = attachment;
         self
     }
@@ -184,8 +181,7 @@ where
         action: DockAction,
     ) -> Message {
         let mut state = holder.borrow_mut();
-        let event = action_to_event(&state.layout, &action)
-            .unwrap_or(DockEvent::LayoutChanged);
+        let event = action_to_event(&state.layout, &action).unwrap_or(DockEvent::LayoutChanged);
         dispatch_action(&mut state, action);
         (on_event)(event)
     }
@@ -447,10 +443,7 @@ where
     /// The closure may borrow from application state; it only needs to live
     /// as long as the view frame (`'a`).
     #[must_use]
-    pub fn content(
-        mut self,
-        f: impl Fn(K) -> Element<'a, Message, Theme, Renderer> + 'a,
-    ) -> Self {
+    pub fn content(mut self, f: impl Fn(K) -> Element<'a, Message, Theme, Renderer> + 'a) -> Self {
         self.content = Some(Box::new(move |key| PaneContent::from(f(key))));
         self
     }
@@ -572,10 +565,7 @@ where
     ///
     /// Default is [`TabBarScrollbarAttachment::Top`].
     #[must_use]
-    pub fn tab_bar_scrollbar_attachment(
-        mut self,
-        attachment: TabBarScrollbarAttachment,
-    ) -> Self {
+    pub fn tab_bar_scrollbar_attachment(mut self, attachment: TabBarScrollbarAttachment) -> Self {
         self.tab_bar_scrollbar_attachment = attachment;
         self
     }

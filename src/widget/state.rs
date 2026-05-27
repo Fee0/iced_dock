@@ -92,10 +92,7 @@ impl<K> Default for DockWidgetState<K> {
 }
 
 /// End an active drag at `cursor`, applying a drop when valid.
-pub fn finish_drag<K>(
-    state: &mut DockWidgetState<K>,
-    cursor: Option<iced::Point>,
-) -> bool {
+pub fn finish_drag<K>(state: &mut DockWidgetState<K>, cursor: Option<iced::Point>) -> bool {
     let Some(cursor) = cursor else {
         let had_drag = state.drag.is_some();
         state.drag = None;
@@ -132,10 +129,7 @@ pub fn finish_drag<K>(
 ///
 /// Does not emit [`DockEvent`](crate::DockEvent) values. After a successful structural change, call
 /// [`DockWidgetState::sync_index`] or rely on the widget's next layout pass.
-pub fn dispatch_action<K>(
-    state: &mut DockWidgetState<K>,
-    action: DockAction,
-) -> bool {
+pub fn dispatch_action<K>(state: &mut DockWidgetState<K>, action: DockAction) -> bool {
     let factory = Factory;
     let mut changed = false;
 

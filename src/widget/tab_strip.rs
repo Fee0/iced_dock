@@ -2,20 +2,18 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::model::NodeId;
-use crate::style::{
-    self, close_button_style, Catalog, DockStyle, DropOverlayStyle, TabBarStyle,
-};
+use crate::style::{self, close_button_style, Catalog, DockStyle, DropOverlayStyle, TabBarStyle};
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::compose;
 use crate::widget::dock::TabBarScrollbarAttachment;
 use crate::widget::tab_dock::TabInfo;
-use iced::animation::Animation;
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::overlay;
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
 use iced::advanced::{self, Clipboard, Shell};
+use iced::animation::Animation;
 use iced::keyboard;
 use iced::mouse::{self, Cursor};
 use iced::time::{Duration, Instant};
@@ -556,7 +554,11 @@ fn hit_test_tab(
     None
 }
 
-fn close_button_bounds(tab_bounds: Rectangle, close_size: f32, close_margin_right: f32) -> Rectangle {
+fn close_button_bounds(
+    tab_bounds: Rectangle,
+    close_size: f32,
+    close_margin_right: f32,
+) -> Rectangle {
     Rectangle {
         x: tab_bounds.x + tab_bounds.width - close_margin_right - close_size,
         y: tab_bounds.y,
@@ -1645,9 +1647,9 @@ where
 
             if self.show_scrollbar {
                 let hovered = if scrollbar_interactive {
-                    scrollbar_metrics
-                        .as_ref()
-                        .is_some_and(|metrics| cursor_pos.is_some_and(|p| metrics.thumb.contains(p)))
+                    scrollbar_metrics.as_ref().is_some_and(|metrics| {
+                        cursor_pos.is_some_and(|p| metrics.thumb.contains(p))
+                    })
                 } else {
                     false
                 };
@@ -1681,13 +1683,7 @@ where
                 }
             }
 
-            sync_tab_bar_hover(
-                state,
-                row_bounds,
-                cursor,
-                self.show_scrollbar,
-                shell,
-            );
+            sync_tab_bar_hover(state, row_bounds, cursor, self.show_scrollbar, shell);
         };
 
         if let Some((hovered, pressed)) = row_refresh {
@@ -1947,7 +1943,10 @@ mod tests {
         assert!(set_scrollbar_visibility(&mut state, true, start));
         assert!(state.scrollbar_visibility.value());
         assert_eq!(scrollbar_alpha(&state, start), 1.0);
-        assert_eq!(scrollbar_alpha(&state, start + Duration::from_millis(250)), 1.0);
+        assert_eq!(
+            scrollbar_alpha(&state, start + Duration::from_millis(250)),
+            1.0
+        );
     }
 
     #[test]

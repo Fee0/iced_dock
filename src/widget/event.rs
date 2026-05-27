@@ -58,10 +58,7 @@ pub enum DockEvent<K> {
 }
 
 /// Map an applied [`DockAction`] to a public [`DockEvent`], if any.
-pub fn action_to_event<K: Clone>(
-    layout: &Layout<K>,
-    action: &DockAction,
-) -> Option<DockEvent<K>> {
+pub fn action_to_event<K: Clone>(layout: &Layout<K>, action: &DockAction) -> Option<DockEvent<K>> {
     match action {
         DockAction::Tab(tab) => tab_action_to_event(layout, tab),
         DockAction::PaneFocused { pane, panel } => Some(DockEvent::PaneFocused {
@@ -79,10 +76,7 @@ pub fn action_to_event<K: Clone>(
     }
 }
 
-fn tab_action_to_event<K: Clone>(
-    layout: &Layout<K>,
-    action: &TabAction,
-) -> Option<DockEvent<K>> {
+fn tab_action_to_event<K: Clone>(layout: &Layout<K>, action: &TabAction) -> Option<DockEvent<K>> {
     match action {
         TabAction::Select { pane, panel } => Some(DockEvent::TabSelected {
             pane: pane_name(layout, *pane),
