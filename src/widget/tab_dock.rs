@@ -19,6 +19,7 @@ use crate::model::NodeId;
 use crate::style::{self, Catalog, DockStyle};
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::compose;
+use crate::widget::dock::TabBarScrollbarAttachment;
 use crate::widget::state::DockWidgetState;
 use crate::widget::tab_strip::{self, TabStrip};
 
@@ -149,6 +150,7 @@ where
         drop_edge_fraction: f32,
         tab_bar_scrollbar_hide_delay: Duration,
         tab_bar_show_scrollbar: bool,
+        tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
     ) -> Self {
         let tab_strip = TabStrip::new(
             pane_id,
@@ -175,6 +177,7 @@ where
             drop_edge_fraction,
             tab_bar_scrollbar_hide_delay,
             tab_bar_show_scrollbar,
+            tab_bar_scrollbar_attachment,
         )
         .into();
         Self {

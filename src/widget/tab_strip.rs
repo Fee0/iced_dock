@@ -7,6 +7,7 @@ use crate::style::{
 };
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::compose;
+use crate::widget::dock::TabBarScrollbarAttachment;
 use crate::widget::tab_dock::TabInfo;
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::overlay;
@@ -244,6 +245,7 @@ where
     drop_edge_fraction: f32,
     hide_delay: Duration,
     show_scrollbar: bool,
+    scrollbar_attachment: TabBarScrollbarAttachment,
     theme: Rc<RefCell<Option<Theme>>>,
 }
 
@@ -288,6 +290,7 @@ where
         drop_edge_fraction: f32,
         hide_delay: Duration,
         show_scrollbar: bool,
+        scrollbar_attachment: TabBarScrollbarAttachment,
     ) -> Self {
         let paint_style = match &*theme.borrow() {
             Some(t) => {
@@ -343,6 +346,7 @@ where
             drop_edge_fraction,
             hide_delay,
             show_scrollbar,
+            scrollbar_attachment,
             theme,
         }
     }
@@ -765,6 +769,7 @@ struct ScrollbarMetrics {
 fn scrollbar_metrics(
     tab_bounds: Rectangle,
     scrollbar_height: f32,
+    scrollbar_attachment: TabBarScrollbarAttachment,
     scrollbar_thumb_min_width: f32,
     scroll_offset: f32,
     content_width: f32,
@@ -778,7 +783,12 @@ fn scrollbar_metrics(
     let thumb_height = scrollbar_height.max(1.0);
     let track = Rectangle {
         x: tab_bounds.x,
-        y: tab_bounds.y,
+        y: match scrollbar_attachment {
+            TabBarScrollbarAttachment::Top => tab_bounds.y,
+            TabBarScrollbarAttachment::Bottom => {
+                tab_bounds.y + (tab_bounds.height - thumb_height).max(0.0)
+            }
+        },
         width: tab_bounds.width,
         height: thumb_height,
     };
@@ -1290,6 +1300,7 @@ where
                 if let Some(metrics) = scrollbar_metrics(
                     row_bounds,
                     self.scrollbar_height,
+                    self.scrollbar_attachment,
                     self.scrollbar_thumb_min_width,
                     scroll_offset,
                     state.content_width,
@@ -1402,6 +1413,7 @@ where
             let scrollbar_metrics = scrollbar_metrics(
                 row_bounds,
                 self.scrollbar_height,
+                self.scrollbar_attachment,
                 self.scrollbar_thumb_min_width,
                 state.scroll_offset,
                 state.content_width,
@@ -1683,6 +1695,7 @@ where
             if let Some(metrics) = scrollbar_metrics(
                 row_bounds,
                 self.scrollbar_height,
+                self.scrollbar_attachment,
                 self.scrollbar_thumb_min_width,
                 state.scroll_offset,
                 state.content_width,

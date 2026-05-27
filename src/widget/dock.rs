@@ -22,6 +22,16 @@ use crate::widget::split::SplitContainer;
 use crate::widget::state::{dispatch_action, DockWidgetState};
 use crate::widget::tab_dock::{TabDock, TabInfo};
 
+/// Vertical attachment edge for the optional tab-bar scrollbar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TabBarScrollbarAttachment {
+    /// Render the scrollbar flush with the top edge of the tab bar.
+    #[default]
+    Top,
+    /// Render the scrollbar flush with the bottom edge of the tab bar.
+    Bottom,
+}
+
 /// Persistent tree state shared across frames. Holds the dock layout state
 /// and a cached theme reference for the layout pass (which doesn't receive `&Theme`).
 struct DockTreeHolder<K, Theme>
@@ -81,6 +91,7 @@ where
     drop_edge_fraction: f32,
     tab_bar_scrollbar_hide_delay: Duration,
     tab_bar_show_scrollbar: bool,
+    tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
 }
 
 impl<'a, K, Message, Theme, Renderer> Dock<'a, K, Message, Theme, Renderer>
@@ -141,6 +152,18 @@ where
     #[must_use]
     pub fn tab_bar_show_scrollbar(mut self, show: bool) -> Self {
         self.tab_bar_show_scrollbar = show;
+        self
+    }
+
+    /// Vertical edge used to attach the optional tab-bar scrollbar.
+    ///
+    /// Default is [`TabBarScrollbarAttachment::Top`].
+    #[must_use]
+    pub fn tab_bar_scrollbar_attachment(
+        mut self,
+        attachment: TabBarScrollbarAttachment,
+    ) -> Self {
+        self.tab_bar_scrollbar_attachment = attachment;
         self
     }
 
@@ -271,6 +294,7 @@ where
                 self.drop_edge_fraction,
                 self.tab_bar_scrollbar_hide_delay,
                 self.tab_bar_show_scrollbar,
+                self.tab_bar_scrollbar_attachment,
             )
             .into(),
         )
@@ -345,6 +369,7 @@ where
     drop_edge_fraction: f32,
     tab_bar_scrollbar_hide_delay: Duration,
     tab_bar_show_scrollbar: bool,
+    tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
 }
 
 impl<'a, K, Message, Theme, Renderer> Default for DockBuilder<'a, K, Message, Theme, Renderer>
@@ -381,6 +406,7 @@ where
             drop_edge_fraction: 0.2,
             tab_bar_scrollbar_hide_delay: Duration::from_secs(1),
             tab_bar_show_scrollbar: false,
+            tab_bar_scrollbar_attachment: TabBarScrollbarAttachment::Top,
         }
     }
 }
@@ -515,6 +541,18 @@ where
     #[must_use]
     pub fn tab_bar_show_scrollbar(mut self, show: bool) -> Self {
         self.tab_bar_show_scrollbar = show;
+        self
+    }
+
+    /// Vertical edge used to attach the optional tab-bar scrollbar.
+    ///
+    /// Default is [`TabBarScrollbarAttachment::Top`].
+    #[must_use]
+    pub fn tab_bar_scrollbar_attachment(
+        mut self,
+        attachment: TabBarScrollbarAttachment,
+    ) -> Self {
+        self.tab_bar_scrollbar_attachment = attachment;
         self
     }
 
@@ -658,6 +696,7 @@ where
             drop_edge_fraction: self.drop_edge_fraction,
             tab_bar_scrollbar_hide_delay: self.tab_bar_scrollbar_hide_delay,
             tab_bar_show_scrollbar: self.tab_bar_show_scrollbar,
+            tab_bar_scrollbar_attachment: self.tab_bar_scrollbar_attachment,
         }
     }
 }

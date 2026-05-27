@@ -46,4 +46,6 @@ pub use style::{
     DockStyle, DropOverlayStyle, PaneContent, SplitterStyle, StyleFn, TabBarStyle, TabStyle,
     WindowStyle,
 };
-pub use widget::{dock, Dock, DockAction, DockEvent, DockWidgetState, TabAction};
+pub use widget::{
+    dock, Dock, DockAction, DockEvent, DockWidgetState, TabAction, TabBarScrollbarAttachment,
+};
