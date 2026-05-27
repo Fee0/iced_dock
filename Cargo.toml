@@ -31,7 +31,12 @@ path = "tests/simulator.rs"
 
 [[example]]
 name = "minimal"
-path = "examples/minimal.rs"
+path = "examples/ide.rs"
+required-features = []
+
+[[example]]
+name = "readme"
+path = "examples/readme.rs"
 required-features = []
 
 [lints.clippy]
