@@ -51,7 +51,6 @@ impl DockStyle {
             tab_bar: TabBarStyle {
                 background: tab_bar_bg,
                 close_button: CloseButtonStyle {
-                    label: "×".into(),
                     text_color: text_muted,
                     background: Color::TRANSPARENT,
                     hovered_background: Color::from_rgb(0.85, 0.25, 0.28),
@@ -123,7 +122,6 @@ impl DockStyle {
             tab_bar: TabBarStyle {
                 background: tab_bar_bg,
                 close_button: CloseButtonStyle {
-                    label: "×".into(),
                     text_color: text_muted,
                     background: Color::TRANSPARENT,
                     hovered_background: Color::from_rgb(0.85, 0.25, 0.28),
@@ -220,7 +218,6 @@ pub fn default(theme: &Theme) -> DockStyle {
         tab_bar: TabBarStyle {
             background: tab_bar_bg,
             close_button: CloseButtonStyle {
-                label: "×".into(),
                 text_color: text_muted,
                 background: Color::TRANSPARENT,
                 hovered_background: Color::from_rgb(0.85, 0.25, 0.28),

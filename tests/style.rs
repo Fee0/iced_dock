@@ -87,7 +87,7 @@ fn preset_modern_dark_matches_modern_dark_constructor() {
 fn modern_dark_exposes_separator_and_close_button() {
     let style = DockStyle::modern_dark();
     assert!(style.tab_bar.separator.is_some());
-    assert_eq!(style.tab_bar.close_button.label, "×");
+    assert_eq!(style.tab_bar.close_button.border_radius, 3.0);
 }
 
 #[test]

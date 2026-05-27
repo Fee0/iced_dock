@@ -504,7 +504,6 @@ where
                     idle: cb.text_color,
                     hover: cb.hovered_text,
                     line_scale: close_button_text_size,
-                    operate_label: cb.label.clone(),
                     _msg: PhantomData,
                 }))
                 .padding(Padding {
@@ -1035,8 +1034,6 @@ struct CloseXGlyph<Message> {
     idle: Color,
     hover: Color,
     line_scale: f32,
-    /// Reported via [`Operation::text`] for testing / inspection (not painted).
-    operate_label: String,
     _msg: PhantomData<Message>,
 }
 
@@ -1066,16 +1063,6 @@ where
         limits: &layout::Limits,
     ) -> layout::Node {
         layout::Node::new(limits.max())
-    }
-
-    fn operate(
-        &mut self,
-        _tree: &mut Tree,
-        layout: Layout<'_>,
-        _renderer: &Renderer,
-        operation: &mut dyn Operation,
-    ) {
-        operation.text(None, layout.bounds(), self.operate_label.as_str());
     }
 
     fn draw(

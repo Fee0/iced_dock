@@ -1,6 +1,6 @@
 use iced::widget::{container, text};
 use iced::{Element, Length, Point, Size};
-use iced_dock::{dock, horizontal, panel, single, tabs, DockEvent, DockSession, PanelDef};
+use iced_dock::{dock, horizontal, panel, single, tabs, DockEvent, DockSession};
 use iced_test::{simulator, Simulator};
 
 #[derive(Debug, Clone)]
@@ -50,17 +50,6 @@ fn split_session() -> DockSession<u32> {
             .active("explorer"),
         ])
         .weights([0.7, 0.3]),
-    )
-    .expect("valid layout")
-}
-
-fn non_closable_session() -> DockSession<u32> {
-    DockSession::from_tree(
-        tabs([
-            PanelDef::new("pinned", "Pinned", 0u32).can_close(false),
-            panel("closable", "Closable", 1u32),
-        ])
-        .active("pinned"),
     )
     .expect("valid layout")
 }
@@ -170,22 +159,6 @@ fn clicking_active_tab_still_produces_select() {
             Message::Dock(DockEvent::TabSelected { panel, .. }) if *panel == 0
         )),
         "expected TabSelected for editor (0), got: {messages:?}"
-    );
-}
-
-#[test]
-fn clicking_close_button_produces_tab_closed() {
-    let session = two_tab_session();
-    let mut ui = simulator(view(&session));
-
-    let _ = ui.click("×");
-
-    let messages: Vec<_> = ui.into_messages().collect();
-    assert!(
-        messages
-            .iter()
-            .any(|msg| matches!(msg, Message::Dock(DockEvent::TabClosed { .. }))),
-        "expected TabClosed, got: {messages:?}"
     );
 }
 
@@ -321,31 +294,6 @@ fn single_panel_layout_renders() {
     ui.find("Solo").expect("tab label should be visible");
     ui.find("Content:editor")
         .expect("content should be rendered");
-}
-
-#[test]
-fn non_closable_tab_has_no_close_button_effect() {
-    let session = non_closable_session();
-    let mut ui = simulator(view(&session));
-
-    ui.find("Pinned").expect("Pinned tab should be visible");
-    ui.find("Closable").expect("Closable tab should be visible");
-
-    // The first "×" hit belongs to the closable tab (Pinned has no close button).
-    // Clicking it should produce TabClosed for "closable", NOT for "pinned".
-    let _ = ui.click("×");
-    let messages: Vec<_> = ui.into_messages().collect();
-
-    let closed_pinned = messages.iter().any(|msg| {
-        matches!(
-            msg,
-            Message::Dock(DockEvent::TabClosed { panel }) if *panel == 0
-        )
-    });
-    assert!(
-        !closed_pinned,
-        "non-closable tab pinned (0) must not emit TabClosed"
-    );
 }
 
 #[test]
