@@ -10,13 +10,13 @@ default = []
 serde = ["dep:serde", "slotmap/serde"]
 
 [dependencies]
-iced = { version = "0.14", default-features = false, features = ["wgpu", "advanced", "thread-pool"] }
+iced = { version = "0.14", default-features = false, features = ["wgpu", "advanced", "thread-pool", "svg"] }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 slotmap = "1.0"
 thiserror = "2.0"
 
 [dev-dependencies]
-iced = { version = "0.14", default-features = false, features = ["wgpu", "advanced", "tokio"] }
+iced = { version = "0.14", default-features = false, features = ["wgpu", "advanced", "tokio", "svg"] }
 iced_test = "0.14"
 serde_json = "1.0"
 

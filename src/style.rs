@@ -3,7 +3,7 @@
 pub mod theme;
 pub use theme::{default, preset};
 
-use iced::widget::button;
+use iced::widget::{button, svg};
 use iced::{Background, Border, Color, Theme};
 
 /// Complete style for the dock UI.
@@ -228,6 +228,20 @@ where
             element,
             style: None,
         }
+    }
+}
+
+/// Convert a [`CloseButtonStyle`] into an iced SVG [`svg::Style`] closure
+/// suitable for use with [`iced::widget::Svg::style`].
+pub fn close_icon_style<T>(
+    close: &CloseButtonStyle,
+) -> impl Fn(&T, svg::Status) -> svg::Style + Clone {
+    let close = close.clone();
+    move |_, status| svg::Style {
+        color: Some(match status {
+            svg::Status::Hovered => close.hovered_text,
+            svg::Status::Idle => close.text_color,
+        }),
     }
 }
 

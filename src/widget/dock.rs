@@ -12,7 +12,7 @@ use iced::mouse::{self, Cursor};
 use iced::time::Duration;
 use iced::widget::overlay::menu;
 use iced::widget::text::{LineHeight, Shaping};
-use iced::widget::{self, button, container, text as iced_text};
+use iced::widget::{self, button, container, text as iced_text, svg};
 use iced::{Element, Event, Length, Rectangle, Size, Vector};
 
 use crate::model::{Layout as ModelLayout, NodeId, NodeKind, Pane};
@@ -62,7 +62,7 @@ where
 pub struct Dock<'a, K, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
-    Renderer: advanced::Renderer + advanced::text::Renderer,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer,
 {
     content: Box<dyn Fn(K) -> PaneContent<'a, Message, Theme, Renderer> + 'a>,
     on_event: Rc<dyn Fn(DockEvent<K>) -> Message>,
@@ -78,7 +78,6 @@ where
     tab_text_shaping: Option<Shaping>,
     tab_padding: [f32; 2],
     tab_accent_height: f32,
-    close_button_text_size: f32,
     close_button_size: f32,
     close_button_margin_right: f32,
     close_button_padding: [f32; 2],
@@ -108,11 +107,13 @@ where
         + container::Catalog
         + iced_text::Catalog
         + menu::Catalog
+        + svg::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer + 'static,
     <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    for<'c> <Theme as svg::Catalog>::Class<'c>: From<svg::StyleFn<'c, Theme>>,
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
@@ -295,7 +296,6 @@ where
                 self.tab_text_shaping,
                 self.tab_padding,
                 self.tab_accent_height,
-                self.close_button_text_size,
                 self.close_button_size,
                 self.close_button_margin_right,
                 self.close_button_padding,
@@ -355,7 +355,7 @@ type ContentFn<'a, K, Message, Theme, Renderer> =
 pub struct DockBuilder<'a, K, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
-    Renderer: advanced::Renderer + advanced::text::Renderer,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer,
 {
     content: Option<ContentFn<'a, K, Message, Theme, Renderer>>,
     on_event: Option<Rc<dyn Fn(DockEvent<K>) -> Message>>,
@@ -370,7 +370,6 @@ where
     tab_text_shaping: Option<Shaping>,
     tab_padding: [f32; 2],
     tab_accent_height: f32,
-    close_button_text_size: f32,
     close_button_size: f32,
     close_button_margin_right: f32,
     close_button_padding: [f32; 2],
@@ -394,7 +393,7 @@ where
 impl<'a, K, Message, Theme, Renderer> Default for DockBuilder<'a, K, Message, Theme, Renderer>
 where
     Theme: Catalog,
-    Renderer: advanced::Renderer + advanced::text::Renderer,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer,
 {
     fn default() -> Self {
         Self {
@@ -411,7 +410,6 @@ where
             tab_text_shaping: None,
             tab_padding: [0.0, 10.0],
             tab_accent_height: 2.0,
-            close_button_text_size: 15.0,
             close_button_size: 20.0,
             close_button_margin_right: 6.0,
             close_button_padding: [0.0, 0.0],
@@ -443,11 +441,13 @@ where
         + container::Catalog
         + iced_text::Catalog
         + menu::Catalog
+        + svg::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer + 'static,
     <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    for<'c> <Theme as svg::Catalog>::Class<'c>: From<svg::StyleFn<'c, Theme>>,
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
@@ -647,13 +647,6 @@ where
         self
     }
 
-    /// Line scale of the close button glyph. Default `15.0`.
-    #[must_use]
-    pub fn close_button_text_size(mut self, s: f32) -> Self {
-        self.close_button_text_size = s.max(1.0);
-        self
-    }
-
     /// Inner padding of the close button: `[vertical, horizontal]`. Default `[0, 0]`.
     #[must_use]
     pub fn close_button_padding(mut self, p: [f32; 2]) -> Self {
@@ -745,7 +738,6 @@ where
             tab_text_shaping: self.tab_text_shaping,
             tab_padding: self.tab_padding,
             tab_accent_height: self.tab_accent_height,
-            close_button_text_size: self.close_button_text_size,
             close_button_size: self.close_button_size,
             close_button_margin_right: self.close_button_margin_right,
             close_button_padding: self.close_button_padding,
@@ -782,11 +774,13 @@ where
         + container::Catalog
         + iced_text::Catalog
         + menu::Catalog
+        + svg::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer + 'static,
     <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    for<'c> <Theme as svg::Catalog>::Class<'c>: From<svg::StyleFn<'c, Theme>>,
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
@@ -803,11 +797,13 @@ where
         + container::Catalog
         + iced_text::Catalog
         + menu::Catalog
+        + svg::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer + 'static,
     <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    for<'c> <Theme as svg::Catalog>::Class<'c>: From<svg::StyleFn<'c, Theme>>,
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
@@ -1024,11 +1020,13 @@ where
         + container::Catalog
         + iced_text::Catalog
         + menu::Catalog
+        + svg::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer + 'static,
     <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    for<'c> <Theme as svg::Catalog>::Class<'c>: From<svg::StyleFn<'c, Theme>>,
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {

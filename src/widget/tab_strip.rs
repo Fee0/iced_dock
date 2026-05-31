@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::LazyLock;
 
 use crate::model::NodeId;
-use crate::style::{self, close_button_style, Catalog, DockStyle, DropOverlayStyle, TabBarStyle};
+use crate::style::{self, close_button_style, close_icon_style, Catalog, DockStyle, DropOverlayStyle, TabBarStyle};
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::compose;
 use crate::widget::dock::TabBarScrollbarAttachment;
@@ -19,14 +20,18 @@ use iced::mouse::{self, Cursor};
 use iced::time::{Duration, Instant};
 use iced::widget::overlay::menu;
 use iced::widget::text::{LineHeight, Shaping};
-use iced::widget::{button, container, mouse_area, row, text, Space};
+use iced::widget::{button, container, mouse_area, row, svg, text, Space};
+use iced::widget::svg::Handle;
 use iced::window;
 use iced::Theme as IcedTheme;
 use iced::{Border, Color, Element, Event, Length, Padding, Rectangle, Size, Vector};
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result;
-use std::marker::PhantomData;
+
+static CLOSE_ICON: LazyLock<Handle> = LazyLock::new(|| {
+    Handle::from_memory(include_bytes!("../../assets/close.svg").as_slice())
+});
 
 #[derive(Debug, Clone, Copy)]
 struct ScrollbarDrag {
@@ -226,7 +231,7 @@ where
 pub struct TabStrip<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
-    Renderer: advanced::Renderer + advanced::text::Renderer,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer,
 {
     pane_id: NodeId,
     tabs: Vec<TabInfo>,
@@ -243,7 +248,6 @@ where
     tab_text_shaping: Option<Shaping>,
     tab_padding: [f32; 2],
     tab_accent_height: f32,
-    close_button_text_size: f32,
     close_button_size: f32,
     close_button_margin_right: f32,
     close_button_padding: [f32; 2],
@@ -267,12 +271,14 @@ where
         + button::Catalog
         + container::Catalog
         + menu::Catalog
+        + svg::Catalog
         + text::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer + 'static,
     <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    for<'c> <Theme as svg::Catalog>::Class<'c>: From<svg::StyleFn<'c, Theme>>,
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as text::Catalog>::Class<'b>: From<text::StyleFn<'b, Theme>>,
 {
@@ -292,7 +298,6 @@ where
         tab_text_shaping: Option<Shaping>,
         tab_padding: [f32; 2],
         tab_accent_height: f32,
-        close_button_text_size: f32,
         close_button_size: f32,
         close_button_margin_right: f32,
         close_button_padding: [f32; 2],
@@ -329,7 +334,6 @@ where
             tab_line_height,
             tab_text_shaping,
             tab_padding,
-            close_button_text_size,
             close_button_size,
             close_button_margin_right,
             close_button_padding,
@@ -355,7 +359,6 @@ where
             tab_text_shaping,
             tab_padding,
             tab_accent_height,
-            close_button_text_size,
             close_button_size,
             close_button_margin_right,
             close_button_padding,
@@ -404,7 +407,6 @@ where
             self.tab_line_height,
             self.tab_text_shaping,
             self.tab_padding,
-            self.close_button_text_size,
             self.close_button_size,
             self.close_button_margin_right,
             self.close_button_padding,
@@ -458,7 +460,6 @@ fn build_tabs_row<Message, Theme, Renderer>(
     tab_line_height: Option<LineHeight>,
     tab_text_shaping: Option<Shaping>,
     tab_padding: [f32; 2],
-    close_button_text_size: f32,
     close_button_size: f32,
     close_button_margin_right: f32,
     close_button_padding: [f32; 2],
@@ -470,9 +471,10 @@ fn build_tabs_row<Message, Theme, Renderer>(
 ) -> Element<'static, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
-    Theme: Catalog + button::Catalog + container::Catalog + text::Catalog + 'static,
-    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    Theme: Catalog + button::Catalog + container::Catalog + svg::Catalog + text::Catalog + 'static,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer + 'static,
     <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    for<'c> <Theme as svg::Catalog>::Class<'c>: From<svg::StyleFn<'c, Theme>>,
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'a> <Theme as text::Catalog>::Class<'a>: From<text::StyleFn<'a, Theme>>,
 {
@@ -525,12 +527,12 @@ where
         .center_y(Length::Fill);
         let close: Element<'_, Message, Theme, Renderer> = if tab.can_close {
             button(
-                container(Element::new(CloseXGlyph {
-                    idle: cb.text_color,
-                    hover: cb.hovered_text,
-                    line_scale: close_button_text_size,
-                    _msg: PhantomData,
-                }))
+                container(
+                    svg(CLOSE_ICON.clone())
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .style(close_icon_style(cb)),
+                )
                 .padding(Padding {
                     top: close_button_padding[0],
                     bottom: close_button_padding[0],
@@ -991,184 +993,6 @@ fn draw_chevron_down<Renderer: advanced::Renderer>(
     }
 }
 
-/// Draws a close "×" using only `fill_quad`, matching the overflow chevron
-/// approach (no font glyphs).
-fn draw_close_x<Renderer: advanced::Renderer>(
-    renderer: &mut Renderer,
-    bounds: Rectangle,
-    color: Color,
-    line_scale: f32,
-) {
-    let m = bounds.width.min(bounds.height);
-    let pad = m * 0.32;
-    let inner = Rectangle {
-        x: bounds.x + pad,
-        y: bounds.y + pad,
-        width: (bounds.width - 2.0 * pad).max(1.0),
-        height: (bounds.height - 2.0 * pad).max(1.0),
-    };
-    let half = ((line_scale * 0.048).clamp(0.75, 1.85)) * 0.5;
-    let span = (inner.width * inner.width + inner.height * inner.height).sqrt();
-    let mut steps = (span / (half * 1.75)).ceil() as usize;
-    steps = steps.clamp(4, 28);
-
-    let stroke_diag = |renderer: &mut Renderer, x0: f32, y0: f32, x1: f32, y1: f32| {
-        for i in 0..=steps {
-            let t = i as f32 / steps as f32;
-            let cx = x0 + (x1 - x0) * t;
-            let cy = y0 + (y1 - y0) * t;
-            let w = half * 2.0;
-            renderer.fill_quad(
-                renderer::Quad {
-                    bounds: Rectangle {
-                        x: cx - half,
-                        y: cy - half,
-                        width: w,
-                        height: w,
-                    },
-                    ..renderer::Quad::default()
-                },
-                color,
-            );
-        }
-    };
-
-    stroke_diag(
-        renderer,
-        inner.x,
-        inner.y,
-        inner.x + inner.width,
-        inner.y + inner.height,
-    );
-    stroke_diag(
-        renderer,
-        inner.x + inner.width,
-        inner.y,
-        inner.x,
-        inner.y + inner.height,
-    );
-}
-
-#[derive(Default)]
-struct CloseXGlyphState {
-    hovered: bool,
-    pressed: bool,
-}
-
-struct CloseXGlyph<Message> {
-    idle: Color,
-    hover: Color,
-    line_scale: f32,
-    _msg: PhantomData<Message>,
-}
-
-impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer> for CloseXGlyph<Message>
-where
-    Renderer: advanced::Renderer,
-{
-    fn tag(&self) -> Tag {
-        Tag::of::<CloseXGlyphState>()
-    }
-
-    fn state(&self) -> State {
-        State::new(CloseXGlyphState::default())
-    }
-
-    fn size(&self) -> Size<Length> {
-        Size {
-            width: Length::Fill,
-            height: Length::Fill,
-        }
-    }
-
-    fn layout(
-        &mut self,
-        _tree: &mut Tree,
-        _renderer: &Renderer,
-        limits: &layout::Limits,
-    ) -> layout::Node {
-        layout::Node::new(limits.max())
-    }
-
-    fn draw(
-        &self,
-        tree: &Tree,
-        renderer: &mut Renderer,
-        _theme: &Theme,
-        _style: &renderer::Style,
-        layout: Layout<'_>,
-        _cursor: Cursor,
-        _viewport: &Rectangle,
-    ) {
-        let state = tree.state.downcast_ref::<CloseXGlyphState>();
-        let color = if state.hovered || state.pressed {
-            self.hover
-        } else {
-            self.idle
-        };
-        draw_close_x(renderer, layout.bounds(), color, self.line_scale);
-    }
-
-    fn update(
-        &mut self,
-        tree: &mut Tree,
-        event: &Event,
-        layout: Layout<'_>,
-        cursor: Cursor,
-        _renderer: &Renderer,
-        _clipboard: &mut dyn Clipboard,
-        shell: &mut Shell<'_, Message>,
-        _viewport: &Rectangle,
-    ) {
-        let bounds = layout.bounds();
-        let over = cursor
-            .position()
-            .is_some_and(|point| bounds.contains(point));
-        let state = tree.state.downcast_mut::<CloseXGlyphState>();
-
-        match event {
-            Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                if state.hovered != over {
-                    state.hovered = over;
-                    shell.request_redraw();
-                }
-            }
-            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) if over => {
-                if !state.pressed {
-                    state.pressed = true;
-                    shell.request_redraw();
-                }
-            }
-            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-                if state.pressed {
-                    state.pressed = false;
-                    shell.request_redraw();
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn mouse_interaction(
-        &self,
-        tree: &Tree,
-        layout: Layout<'_>,
-        cursor: Cursor,
-        _viewport: &Rectangle,
-        _renderer: &Renderer,
-    ) -> mouse::Interaction {
-        let state = tree.state.downcast_ref::<CloseXGlyphState>();
-        let over = cursor
-            .position()
-            .is_some_and(|point| layout.bounds().contains(point));
-        if state.hovered || over {
-            mouse::Interaction::Pointer
-        } else {
-            mouse::Interaction::default()
-        }
-    }
-}
-
 /// Horizontal scroll delta for the tab row (vertical wheel scrolls horizontally).
 fn scroll_delta_x(delta: mouse::ScrollDelta, shift: bool) -> f32 {
     const WHEEL_LINES: f32 = 60.0;
@@ -1324,12 +1148,14 @@ where
         + button::Catalog
         + container::Catalog
         + menu::Catalog
+        + svg::Catalog
         + text::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer + 'static,
     <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    for<'c> <Theme as svg::Catalog>::Class<'c>: From<svg::StyleFn<'c, Theme>>,
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as text::Catalog>::Class<'b>: From<text::StyleFn<'b, Theme>>,
 {
@@ -2077,12 +1903,14 @@ where
         + button::Catalog
         + container::Catalog
         + menu::Catalog
+        + svg::Catalog
         + text::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer + 'static,
     <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    for<'c> <Theme as svg::Catalog>::Class<'c>: From<svg::StyleFn<'c, Theme>>,
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as text::Catalog>::Class<'b>: From<text::StyleFn<'b, Theme>>,
 {

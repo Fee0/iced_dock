@@ -12,7 +12,7 @@ use iced::time::Duration;
 use iced::touch;
 use iced::widget::overlay::menu;
 use iced::widget::text::{LineHeight, Shaping};
-use iced::widget::{button, container, text as iced_text};
+use iced::widget::{button, container, svg, text as iced_text};
 use iced::{Element, Event, Length, Rectangle, Size, Vector};
 
 use crate::manager::{DockManager, DragSession, DropZone, TabBarTarget};
@@ -88,7 +88,7 @@ fn tab_insert_is_noop(
 pub struct TabDock<'a, K, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
-    Renderer: advanced::Renderer,
+    Renderer: advanced::Renderer + advanced::svg::Renderer,
 {
     dock_state: Rc<RefCell<DockWidgetState<K>>>,
     pane_id: NodeId,
@@ -114,11 +114,13 @@ where
         + container::Catalog
         + iced_text::Catalog
         + menu::Catalog
+        + svg::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer + 'static,
     <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    for<'c> <Theme as svg::Catalog>::Class<'c>: From<svg::StyleFn<'c, Theme>>,
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
@@ -140,7 +142,6 @@ where
         tab_text_shaping: Option<Shaping>,
         tab_padding: [f32; 2],
         tab_accent_height: f32,
-        close_button_text_size: f32,
         close_button_size: f32,
         close_button_margin_right: f32,
         close_button_padding: [f32; 2],
@@ -172,7 +173,6 @@ where
             tab_text_shaping,
             tab_padding,
             tab_accent_height,
-            close_button_text_size,
             close_button_size,
             close_button_margin_right,
             close_button_padding,
@@ -210,7 +210,7 @@ impl<K, Message, Theme, Renderer> TabDock<'_, K, Message, Theme, Renderer>
 where
     K: 'static,
     Theme: Catalog + Clone + menu::Catalog + 'static,
-    Renderer: advanced::Renderer,
+    Renderer: advanced::Renderer + advanced::svg::Renderer,
 {
     fn resolved_theme(&self) -> Option<Theme> {
         self.theme.borrow().clone()
@@ -269,11 +269,13 @@ where
         + container::Catalog
         + iced_text::Catalog
         + menu::Catalog
+        + svg::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer + 'static,
     <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    for<'c> <Theme as svg::Catalog>::Class<'c>: From<svg::StyleFn<'c, Theme>>,
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
@@ -723,11 +725,13 @@ where
         + container::Catalog
         + iced_text::Catalog
         + menu::Catalog
+        + svg::Catalog
         + Clone
         + PartialEq
         + 'static,
-    Renderer: advanced::Renderer + advanced::text::Renderer + 'static,
+    Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer + 'static,
     <Theme as button::Catalog>::Class<'static>: From<button::StyleFn<'static, Theme>>,
+    for<'c> <Theme as svg::Catalog>::Class<'c>: From<svg::StyleFn<'c, Theme>>,
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'b> <Theme as iced_text::Catalog>::Class<'b>: From<iced_text::StyleFn<'b, Theme>>,
 {
