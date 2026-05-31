@@ -29,6 +29,14 @@ required-features = ["serde"]
 name = "simulator"
 path = "tests/simulator.rs"
 
+[[test]]
+name = "tab_switch_layout_sync"
+path = "tests/tab_switch_layout_sync.rs"
+
+[[test]]
+name = "dock_update_layout_dirty"
+path = "tests/dock_update_layout_dirty.rs"
+
 [[example]]
 name = "minimal"
 path = "examples/ide.rs"

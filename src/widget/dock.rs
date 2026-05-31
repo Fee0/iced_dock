@@ -939,9 +939,11 @@ where
         );
 
         if dock_state.borrow().layout_dirty {
-            dock_state.borrow_mut().commit_layout();
-            dock_state.borrow_mut().pane_bounds.clear();
-            self.rebuild_root(tree);
+            // Rebuild only in `layout()` (responsive pattern). Rebuilding here desyncs
+            // the widget tree from the current layout and can panic nested containers
+            // during `mouse_interaction` on the same frame as a tab switch.
+            shell.invalidate_layout();
+            shell.invalidate_widgets();
         }
 
         if dock_state.borrow().focus_dirty {
