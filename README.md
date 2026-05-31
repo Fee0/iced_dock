@@ -10,7 +10,7 @@ docking, focus tracking, keyboard navigation, tab groups, tabs overflow handling
 ```toml
 [dependencies]
 iced_dock = { git = "https://github.com/Fee0/iced_dock.git" }
-iced = { version = "0.14", features = ["wgpu"] }
+iced = { version = "0.14", features = ["wgpu", "svg"] }
 ```
 
 ```rust
