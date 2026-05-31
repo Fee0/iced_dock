@@ -3,7 +3,9 @@ use std::rc::Rc;
 use std::sync::LazyLock;
 
 use crate::model::NodeId;
-use crate::style::{self, close_button_style, close_icon_style, Catalog, DockStyle, DropOverlayStyle, TabBarStyle};
+use crate::style::{
+    self, close_button_style, close_icon_style, Catalog, DockStyle, DropOverlayStyle, TabBarStyle,
+};
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::compose;
 use crate::widget::dock::TabBarScrollbarAttachment;
@@ -19,9 +21,9 @@ use iced::keyboard;
 use iced::mouse::{self, Cursor};
 use iced::time::{Duration, Instant};
 use iced::widget::overlay::menu;
+use iced::widget::svg::Handle;
 use iced::widget::text::{LineHeight, Shaping};
 use iced::widget::{button, container, mouse_area, row, svg, text, Space};
-use iced::widget::svg::Handle;
 use iced::window;
 use iced::Theme as IcedTheme;
 use iced::{Border, Color, Element, Event, Length, Padding, Rectangle, Size, Vector};
@@ -29,8 +31,11 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result;
 
-static CLOSE_ICON: LazyLock<Handle> = LazyLock::new(|| {
-    Handle::from_memory(include_bytes!("../../assets/close.svg").as_slice())
+static CLOSE_ICON: LazyLock<Handle> =
+    LazyLock::new(|| Handle::from_memory(include_bytes!("../../assets/close.svg").as_slice()));
+
+static CHEVRON_DOWN_ICON: LazyLock<Handle> = LazyLock::new(|| {
+    Handle::from_memory(include_bytes!("../../assets/chevron-down.svg").as_slice())
 });
 
 #[derive(Debug, Clone, Copy)]
@@ -517,14 +522,14 @@ where
             label_text = label_text.shaping(shaping);
         }
         let label = container(label_text)
-        .padding(Padding {
-            top: tab_padding[0],
-            bottom: tab_padding[0],
-            left: tab_padding[1],
-            right: tab_padding[1],
-        })
-        .height(Length::Fill)
-        .center_y(Length::Fill);
+            .padding(Padding {
+                top: tab_padding[0],
+                bottom: tab_padding[0],
+                left: tab_padding[1],
+                right: tab_padding[1],
+            })
+            .height(Length::Fill)
+            .center_y(Length::Fill);
         let close: Element<'_, Message, Theme, Renderer> = if tab.can_close {
             button(
                 container(
@@ -742,6 +747,17 @@ fn overflow_button_bounds(tab_bounds: Rectangle, viewport_width: f32) -> Rectang
     }
 }
 
+fn chevron_icon_bounds(button_bounds: Rectangle, separator_height: f32) -> Rectangle {
+    let available_height = (button_bounds.height - separator_height).max(0.0);
+    let size = OVERFLOW_BUTTON_CONTENT_WIDTH.min(available_height);
+    Rectangle {
+        x: button_bounds.x + (button_bounds.width - size) * 0.5,
+        y: button_bounds.y + (available_height - size) * 0.5,
+        width: size,
+        height: size,
+    }
+}
+
 fn visible_row_bounds(tab_bounds: Rectangle, viewport_width: f32) -> Rectangle {
     Rectangle {
         width: viewport_width.max(0.0),
@@ -911,7 +927,7 @@ fn draw_scrollbar<Renderer: advanced::Renderer>(
     );
 }
 
-fn draw_overflow_button<Renderer: advanced::Renderer>(
+fn draw_overflow_button<Renderer: advanced::Renderer + advanced::svg::Renderer>(
     renderer: &mut Renderer,
     bounds: Rectangle,
     bar: &TabBarStyle,
@@ -936,7 +952,12 @@ fn draw_overflow_button<Renderer: advanced::Renderer>(
         background,
     );
 
-    draw_chevron_down(renderer, bounds, color);
+    let icon_bounds = chevron_icon_bounds(bounds, separator_height);
+    renderer.draw_svg(
+        advanced::svg::Svg::new(CHEVRON_DOWN_ICON.clone()).color(color),
+        icon_bounds,
+        bounds,
+    );
 
     if let Some(separator_color) = bar.separator {
         if separator_height > 0.0 && separator_color.a > 0.0 {
@@ -953,43 +974,6 @@ fn draw_overflow_button<Renderer: advanced::Renderer>(
                 separator_color,
             );
         }
-    }
-}
-
-/// Draws a downward-pointing chevron/triangle using only `fill_quad`, so it
-/// renders identically on every platform without depending on any font glyph.
-fn draw_chevron_down<Renderer: advanced::Renderer>(
-    renderer: &mut Renderer,
-    bounds: Rectangle,
-    color: Color,
-) {
-    let center_x = bounds.center_x();
-    let center_y = bounds.center_y();
-    let half_w: f32 = 4.5;
-    let half_h: f32 = 3.0;
-    let rows: u16 = 6;
-    let row_height = (half_h * 2.0) / f32::from(rows);
-
-    for i in 0..rows {
-        let offset = f32::from(i) * row_height;
-        let progress = offset / (half_h * 2.0);
-        let row_width = half_w * 2.0 * (1.0 - progress);
-        let row_x = center_x - row_width * 0.5;
-        let row_y = center_y - half_h + offset;
-        let height = row_height.min(center_y + half_h - row_y);
-
-        renderer.fill_quad(
-            renderer::Quad {
-                bounds: Rectangle {
-                    x: row_x,
-                    y: row_y,
-                    width: row_width,
-                    height,
-                },
-                ..renderer::Quad::default()
-            },
-            color,
-        );
     }
 }
 
