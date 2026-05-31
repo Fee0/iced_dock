@@ -1370,6 +1370,16 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
+        let (hovered_tab, pressed_tab) = {
+            let state = tree.state.downcast_ref::<TabStripState<Theme>>();
+            (state.hovered_tab, visual_pressed_tab(state))
+        };
+        if hovered_tab.is_some() || pressed_tab.is_some() {
+            if let Some(theme) = self.resolved_theme() {
+                self.refresh_tabs_row(tree, &theme, hovered_tab, pressed_tab);
+            }
+        }
+
         let bar_height = self.tab_bar_height;
         let max = limits.max();
         let viewport_width = max.width;
