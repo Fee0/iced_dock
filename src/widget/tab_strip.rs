@@ -22,11 +22,12 @@ use iced::mouse::{self, Cursor};
 use iced::time::{Duration, Instant};
 use iced::widget::overlay::menu;
 use iced::widget::svg::Handle;
-use iced::widget::text::{LineHeight, Shaping};
+use iced::advanced::text::paragraph;
+use iced::widget::text::{layout as text_layout, Format, LineHeight, Shaping};
 use iced::widget::{button, container, mouse_area, row, svg, text, Space};
 use iced::window;
 use iced::Theme as IcedTheme;
-use iced::{Border, Color, Element, Event, Length, Padding, Rectangle, Size, Vector};
+use iced::{Border, Color, Element, Event, Length, Padding, Pixels, Rectangle, Size, Vector};
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result;
@@ -799,6 +800,51 @@ fn hidden_tabs(
             })
         })
         .collect()
+}
+
+fn overflow_menu_width<Renderer: advanced::text::Renderer>(
+    renderer: &Renderer,
+    options: &[HiddenTabOption],
+    text_size: Pixels,
+    font: Option<Renderer::Font>,
+    line_height: LineHeight,
+    shaping: Shaping,
+) -> f32 {
+    if options.is_empty() {
+        return OVERFLOW_MENU_PADDING.left + OVERFLOW_MENU_PADDING.right;
+    }
+
+    let mut paragraph = paragraph::Plain::default();
+    let limits = layout::Limits::new(
+        Size::ZERO,
+        Size::new(f32::INFINITY, f32::INFINITY),
+    );
+    let format = Format {
+        width: Length::Shrink,
+        height: Length::Shrink,
+        size: Some(text_size),
+        font,
+        line_height,
+        shaping,
+        ..Format::default()
+    };
+
+    let max_text_width = options
+        .iter()
+        .map(|option| {
+            text_layout(
+                &mut paragraph,
+                renderer,
+                &limits,
+                &option.title,
+                format,
+            )
+            .size()
+            .width
+        })
+        .fold(0.0_f32, f32::max);
+
+    max_text_width + OVERFLOW_MENU_PADDING.left + OVERFLOW_MENU_PADDING.right
 }
 
 fn ensure_tab_visible(
@@ -1790,7 +1836,7 @@ where
         &'b mut self,
         tree: &'b mut Tree,
         layout: Layout<'b>,
-        _renderer: &Renderer,
+        renderer: &Renderer,
         viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
@@ -1813,6 +1859,15 @@ where
         }
 
         let button_bounds = overflow_button_bounds(layout.bounds(), state.viewport_width);
+        let content_width = overflow_menu_width(
+            renderer,
+            &state.overflow_options,
+            Pixels(self.tab_text_size),
+            self.tab_font,
+            self.tab_line_height.unwrap_or_default(),
+            self.tab_text_shaping.unwrap_or_default(),
+        );
+        let menu_width = content_width.max(button_bounds.width);
         let on_event = Rc::clone(&self.on_event);
         let pane_id = self.pane_id;
         let overflow_ui = Rc::clone(&state.overflow_ui);
@@ -1834,7 +1889,7 @@ where
             None,
             &state.overflow_menu_class,
         )
-        .width(button_bounds.width.max(160.0))
+        .width(menu_width)
         .padding(OVERFLOW_MENU_PADDING)
         .text_size(iced::Pixels(self.tab_text_size));
         if let Some(font) = self.tab_font {
@@ -1906,11 +1961,62 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        ensure_tab_visible, scrollbar_alpha, scrollbar_is_interactive, set_scrollbar_visibility,
-        tab_fully_visible, ScrollbarDrag, TabStripState,
+        ensure_tab_visible, overflow_menu_width, scrollbar_alpha, scrollbar_is_interactive,
+        set_scrollbar_visibility, tab_fully_visible, HiddenTabOption, ScrollbarDrag,
+        TabStripState,
     };
+    use crate::model::NodeId;
     use iced::time::{Duration, Instant};
-    use iced::{Rectangle, Theme};
+    use iced::{Font, Pixels, Rectangle, Theme};
+    use iced::advanced::renderer::Headless;
+    use iced_test::renderer::Renderer;
+    use slotmap::SlotMap;
+
+    fn test_node_id() -> NodeId {
+        SlotMap::<NodeId, ()>::with_key().insert(())
+    }
+
+    fn headless_renderer() -> Renderer {
+        iced_test::futures::futures::executor::block_on(<Renderer as Headless>::new(
+            Font::with_name("Fira Sans"),
+            Pixels(16.0),
+            None,
+        ))
+        .expect("headless renderer")
+    }
+
+    #[test]
+    fn overflow_menu_width_prefers_longer_title() {
+        let renderer = headless_renderer();
+        let text_size = Pixels(14.0);
+        let short = vec![HiddenTabOption {
+            id: test_node_id(),
+            title: "Short".into(),
+        }];
+        let long = vec![HiddenTabOption {
+            id: test_node_id(),
+            title: "A much longer file name.rs".into(),
+        }];
+
+        let short_width = overflow_menu_width(
+            &renderer,
+            &short,
+            text_size,
+            None,
+            Default::default(),
+            Default::default(),
+        );
+        let long_width = overflow_menu_width(
+            &renderer,
+            &long,
+            text_size,
+            None,
+            Default::default(),
+            Default::default(),
+        );
+
+        assert!(long_width > short_width);
+    }
 
     #[test]
     fn tab_visibility_requires_full_containment() {
