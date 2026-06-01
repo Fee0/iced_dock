@@ -27,7 +27,7 @@ use iced::widget::text::{layout as text_layout, Format, LineHeight, Shaping};
 use iced::widget::{button, container, mouse_area, row, svg, text, Space};
 use iced::window;
 use iced::Theme as IcedTheme;
-use iced::{Border, Color, Element, Event, Length, Padding, Pixels, Rectangle, Size, Vector};
+use iced::{Border, Color, Element, Event, Length, Padding, Pixels, Point, Rectangle, Size, Vector};
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result;
@@ -757,6 +757,26 @@ fn overflow_button_bounds(tab_bounds: Rectangle, viewport_width: f32) -> Rectang
         y: tab_bounds.y,
         width: (tab_bounds.width - viewport_width).max(0.0),
         height: tab_bounds.height,
+    }
+}
+
+fn overflow_menu_position(
+    button_position: Point,
+    button_width: f32,
+    menu_width: f32,
+    viewport: Rectangle,
+) -> Point {
+    let viewport_right = viewport.x + viewport.width;
+    let opens_past_right = button_position.x + menu_width > viewport_right;
+    let x = if opens_past_right {
+        (button_position.x + button_width - menu_width).max(viewport.x)
+    } else {
+        button_position.x
+    };
+
+    Point {
+        x,
+        y: button_position.y,
     }
 }
 
@@ -1932,12 +1952,13 @@ where
         if let Some(shaping) = self.tab_text_shaping {
             menu = menu.text_shaping(shaping);
         }
-        let menu = menu.overlay(
+        let menu_position = overflow_menu_position(
             layout.position() + translation + Vector::new(state.viewport_width, 0.0),
+            button_bounds.width,
+            menu_width,
             *viewport,
-            button_bounds.height,
-            Length::Shrink,
         );
+        let menu = menu.overlay(menu_position, *viewport, button_bounds.height, Length::Shrink);
 
         Some(overlay::Element::new(Box::new(OverflowMenuOverlay {
             menu,
@@ -1992,13 +2013,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        ensure_tab_visible, overflow_menu_width, scrollbar_alpha, scrollbar_is_interactive,
-        set_scrollbar_visibility, tab_fully_visible, HiddenTabOption, ScrollbarDrag, TabStripState,
+        ensure_tab_visible, overflow_menu_position, overflow_menu_width, scrollbar_alpha,
+        scrollbar_is_interactive, set_scrollbar_visibility, tab_fully_visible, HiddenTabOption,
+        ScrollbarDrag, TabStripState,
     };
     use crate::model::NodeId;
     use iced::advanced::renderer::Headless;
     use iced::time::{Duration, Instant};
-    use iced::{Font, Pixels, Rectangle, Theme};
+    use iced::{Font, Pixels, Point, Rectangle, Theme};
     use iced_test::renderer::Renderer;
     use slotmap::SlotMap;
 
@@ -2046,6 +2068,36 @@ mod tests {
         );
 
         assert!(long_width > short_width);
+    }
+
+    #[test]
+    fn overflow_menu_position_keeps_button_left_when_menu_fits_right() {
+        let viewport = Rectangle::new((0.0, 0.0).into(), (300.0, 200.0).into());
+        let button_position = Point::new(180.0, 10.0);
+
+        let position = overflow_menu_position(button_position, 32.0, 100.0, viewport);
+
+        assert_eq!(position, button_position);
+    }
+
+    #[test]
+    fn overflow_menu_position_flips_left_when_menu_exceeds_right_edge() {
+        let viewport = Rectangle::new((0.0, 0.0).into(), (300.0, 200.0).into());
+        let button_position = Point::new(280.0, 10.0);
+
+        let position = overflow_menu_position(button_position, 32.0, 100.0, viewport);
+
+        assert_eq!(position, Point::new(212.0, 10.0));
+    }
+
+    #[test]
+    fn overflow_menu_position_clamps_to_viewport_left_when_menu_is_too_wide() {
+        let viewport = Rectangle::new((20.0, 0.0).into(), (120.0, 200.0).into());
+        let button_position = Point::new(100.0, 10.0);
+
+        let position = overflow_menu_position(button_position, 32.0, 180.0, viewport);
+
+        assert_eq!(position, Point::new(20.0, 10.0));
     }
 
     #[test]
