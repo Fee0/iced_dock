@@ -10,7 +10,7 @@ use crate::builder::compile::{
 use crate::builder::spec::{LayoutTree, PanelDef};
 use crate::factory::Factory;
 use crate::manager::DockManager;
-use crate::model::{NodeId, NodeKind};
+use crate::model::{DockOperation, NodeId, NodeKind};
 use crate::spatial::{adjacent_pane, pane_bounds_map, Direction};
 use crate::widget::{dispatch_action, DockAction, DockWidgetState, TabAction};
 use crate::{Error, Result};
@@ -231,6 +231,60 @@ where
         true
     }
 
+    /// Split the focused pane in `direction` and move the active tab into the new pane.
+    ///
+    /// Returns `false` without changing the layout when the focused pane has fewer than
+    /// two tabs.
+    pub fn split_active_panel(&self, direction: Direction) -> bool {
+        let state = self.inner.borrow();
+        let Some(source_pane) = state.focused_pane else {
+            return false;
+        };
+        let Some(NodeKind::Pane(pane_state)) = state.layout.kind(source_pane) else {
+            return false;
+        };
+        if pane_state.tabs.len() <= 1 {
+            return false;
+        }
+        let Some(source_panel) = pane_state.active.or(pane_state.tabs.first().copied()) else {
+            return false;
+        };
+        drop(state);
+
+        let factory = Factory;
+        let mut state = self.inner.borrow_mut();
+        if factory
+            .split_same_pane_edge(
+                &mut state.layout,
+                source_pane,
+                source_panel,
+                operation_for_direction(direction),
+            )
+            .is_err()
+        {
+            return false;
+        }
+
+        let Some(target_pane) = state.layout.get(source_panel).and_then(|e| e.owner) else {
+            state.layout_dirty = true;
+            state.sync_index();
+            return false;
+        };
+        if !matches!(state.layout.kind(target_pane), Some(NodeKind::Pane(_))) {
+            state.layout_dirty = true;
+            state.sync_index();
+            return false;
+        }
+
+        state.layout_dirty = true;
+        if state.focused_pane != Some(target_pane) {
+            state.focused_pane = Some(target_pane);
+            state.focus_dirty = true;
+        }
+        state.sync_index();
+        true
+    }
+
     /// Clear global pane focus without changing active tabs.
     pub fn clear_focus(&self) {
         let mut state = self.inner.borrow_mut();
@@ -299,6 +353,15 @@ where
                 first_pane(&self.inner.borrow().layout).ok_or(Error::InvalidTarget)
             }
         }
+    }
+}
+
+fn operation_for_direction(direction: Direction) -> DockOperation {
+    match direction {
+        Direction::Left => DockOperation::Left,
+        Direction::Right => DockOperation::Right,
+        Direction::Up => DockOperation::Top,
+        Direction::Down => DockOperation::Bottom,
     }
 }
 

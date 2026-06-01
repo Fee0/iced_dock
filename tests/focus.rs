@@ -1,3 +1,4 @@
+use iced_dock::model::{Axis, NodeId, NodeKind};
 use iced_dock::unstable::{build_tree, dispatch_action, owning_pane};
 use iced_dock::{
     adjacent_pane, horizontal, pane_bounds_map, panel, tabs, vertical, Direction, DockAction,
@@ -26,15 +27,13 @@ fn nested_layout() -> iced_dock::LayoutTree<u32> {
     .weights([0.72, 0.28])
 }
 
-fn two_panes(
-    built: &iced_dock::unstable::BuiltLayout<u32>,
-) -> (iced_dock::model::NodeId, iced_dock::model::NodeId) {
+fn two_panes(built: &iced_dock::unstable::BuiltLayout<u32>) -> (NodeId, NodeId) {
     let left = iced_dock::unstable::first_pane(&built.layout).expect("left");
     let right = built
         .layout
         .root_child()
         .and_then(|root| {
-            if let iced_dock::model::NodeKind::Proportional(pg) = built.layout.kind(root)? {
+            if let NodeKind::Proportional(pg) = built.layout.kind(root)? {
                 pg.children.iter().find(|&&id| id != left).copied()
             } else {
                 None
@@ -44,11 +43,7 @@ fn two_panes(
     (left, right)
 }
 
-fn set_horizontal_bounds(
-    session: &DockSession<u32>,
-    left: iced_dock::model::NodeId,
-    right: iced_dock::model::NodeId,
-) {
+fn set_horizontal_bounds(session: &DockSession<u32>, left: NodeId, right: NodeId) {
     session.state().borrow_mut().pane_bounds = vec![
         (
             left,
@@ -59,6 +54,16 @@ fn set_horizontal_bounds(
             iced::Rectangle::new(iced::Point::new(100.0, 0.0), iced::Size::new(100.0, 100.0)),
         ),
     ];
+}
+
+fn root_split(session: &DockSession<u32>) -> (Axis, Vec<NodeId>) {
+    let state = session.state();
+    let state = state.borrow();
+    let root = state.layout.root_child().expect("root child");
+    let NodeKind::Proportional(pg) = state.layout.kind(root).expect("root split") else {
+        panic!("expected proportional root");
+    };
+    (pg.axis, pg.children.clone())
 }
 
 #[test]
@@ -415,6 +420,69 @@ fn move_active_panel_adjacent_rejects_incompatible_groups() {
     assert_eq!(session.focused_pane(), Some(left));
     assert_eq!(session.active_panel().as_deref(), Some("a"));
     assert_eq!(session.pane_for_panel("a"), Some(left));
+}
+
+#[test]
+fn split_active_panel_right_moves_tab_into_new_pane() {
+    let built = build_tree(&tabs([panel("a", "A", 0u32), panel("c", "C", 2u32)]).active("a"))
+        .expect("built");
+    let source = iced_dock::unstable::first_pane(&built.layout).expect("source");
+    let session: DockSession<u32> = DockSession::from_built(built, Some(source));
+
+    assert!(session.split_active_panel(Direction::Right));
+    let target = session.pane_for_panel("a").expect("target");
+    assert_ne!(source, target);
+    assert_eq!(session.focused_pane(), Some(target));
+    assert_eq!(session.active_panel().as_deref(), Some("a"));
+    assert_eq!(session.active_panel_in_pane(source).as_deref(), Some("c"));
+
+    let (axis, children) = root_split(&session);
+    assert_eq!(axis, Axis::Horizontal);
+    assert_eq!(children, vec![source, target]);
+}
+
+#[test]
+fn split_active_panel_places_new_pane_in_requested_direction() {
+    for (direction, expected_axis, expected_new_index) in [
+        (Direction::Left, Axis::Horizontal, 0),
+        (Direction::Up, Axis::Vertical, 0),
+        (Direction::Down, Axis::Vertical, 1),
+    ] {
+        let built = build_tree(&tabs([panel("a", "A", 0u32), panel("c", "C", 2u32)]).active("a"))
+            .expect("built");
+        let source = iced_dock::unstable::first_pane(&built.layout).expect("source");
+        let session: DockSession<u32> = DockSession::from_built(built, Some(source));
+
+        assert!(session.split_active_panel(direction));
+        let target = session.pane_for_panel("a").expect("target");
+        let (axis, children) = root_split(&session);
+        assert_eq!(axis, expected_axis);
+        assert_eq!(children[expected_new_index], target);
+        assert!(children.contains(&source));
+    }
+}
+
+#[test]
+fn split_active_panel_single_tab_is_noop() {
+    let built = build_tree(&tabs([panel("a", "A", 0u32)])).expect("built");
+    let source = iced_dock::unstable::first_pane(&built.layout).expect("source");
+    let session: DockSession<u32> = DockSession::from_built(built, Some(source));
+
+    assert!(!session.split_active_panel(Direction::Right));
+    assert_eq!(session.focused_pane(), Some(source));
+    assert_eq!(session.pane_for_panel("a"), Some(source));
+    assert_eq!(session.state().borrow().layout.root_child(), Some(source));
+}
+
+#[test]
+fn split_active_panel_without_focus_is_noop() {
+    let built = build_tree(&tabs([panel("a", "A", 0u32), panel("c", "C", 2u32)]).active("a"))
+        .expect("built");
+    let session: DockSession<u32> = DockSession::from_built(built, None);
+
+    assert!(!session.split_active_panel(Direction::Right));
+    assert!(session.focused_pane().is_none());
+    assert_eq!(session.active_panel(), None);
 }
 
 #[test]
