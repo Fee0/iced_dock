@@ -156,6 +156,8 @@ where
         tab_bar_scrollbar_animated: bool,
         tab_bar_show_scrollbar: bool,
         tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
+        close_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
+        overflow_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     ) -> Self {
         let tab_strip = TabStrip::new(
             pane_id,
@@ -186,6 +188,8 @@ where
             tab_bar_scrollbar_animated,
             tab_bar_show_scrollbar,
             tab_bar_scrollbar_attachment,
+            close_icon,
+            overflow_icon,
         )
         .into();
         Self {

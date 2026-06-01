@@ -47,6 +47,11 @@ name = "readme"
 path = "examples/readme.rs"
 required-features = []
 
+[[example]]
+name = "custom_icons"
+path = "examples/custom_icons.rs"
+required-features = []
+
 [lints.clippy]
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -2 }
@@ -116,3 +121,5 @@ uninlined_format_args = "allow"
 unseparated_literal_suffix = "allow"
 unused_self = "allow"
 unwrap_used = "allow"
+type_complexity = "allow"
+doc_markdown = "allow"

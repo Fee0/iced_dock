@@ -268,6 +268,8 @@ where
     show_scrollbar: bool,
     scrollbar_attachment: TabBarScrollbarAttachment,
     theme: Rc<RefCell<Option<Theme>>>,
+    close_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
+    overflow_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
 }
 
 impl<Message, Theme, Renderer> TabStrip<'_, Message, Theme, Renderer>
@@ -317,6 +319,8 @@ where
         scrollbar_animated: bool,
         show_scrollbar: bool,
         scrollbar_attachment: TabBarScrollbarAttachment,
+        close_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
+        overflow_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     ) -> Self {
         let paint_style = match &*theme.borrow() {
             Some(t) => {
@@ -348,6 +352,7 @@ where
             None,
             None,
             Rc::clone(&on_event),
+            close_icon.as_deref(),
         );
         Self {
             pane_id,
@@ -379,6 +384,8 @@ where
             show_scrollbar,
             scrollbar_attachment,
             theme,
+            close_icon,
+            overflow_icon,
         }
     }
 
@@ -421,6 +428,7 @@ where
             hovered_tab,
             pressed_tab,
             Rc::clone(&self.on_event),
+            self.close_icon.as_deref(),
         );
     }
 
@@ -474,6 +482,7 @@ fn build_tabs_row<Message, Theme, Renderer>(
     hovered_tab: Option<NodeId>,
     pressed_tab: Option<NodeId>,
     on_event: Rc<dyn Fn(DockAction) -> Message>,
+    close_icon: Option<&dyn Fn() -> Element<'static, Message, Theme, Renderer>>,
 ) -> Element<'static, Message, Theme, Renderer>
 where
     Message: Clone + 'static,
@@ -532,13 +541,16 @@ where
             .height(Length::Fill)
             .center_y(Length::Fill);
         let close: Element<'_, Message, Theme, Renderer> = if tab.can_close {
+            let icon: Element<'static, Message, Theme, Renderer> = match close_icon {
+                Some(f) => f(),
+                None => svg(CLOSE_ICON.clone())
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .style(close_icon_style(cb))
+                    .into(),
+            };
             button(
-                container(
-                    svg(CLOSE_ICON.clone())
-                        .width(Length::Fill)
-                        .height(Length::Fill)
-                        .style(close_icon_style(cb)),
-                )
+                container(icon)
                 .padding(Padding {
                     top: close_button_padding[0],
                     bottom: close_button_padding[0],
@@ -972,6 +984,7 @@ fn draw_overflow_button<Renderer: advanced::Renderer + advanced::svg::Renderer>(
     separator_height: f32,
     hovered: bool,
     pressed: bool,
+    draw_icon: bool,
 ) {
     let (background, color) = if pressed {
         (tab.pressed_background, tab.pressed_text)
@@ -989,12 +1002,14 @@ fn draw_overflow_button<Renderer: advanced::Renderer + advanced::svg::Renderer>(
         background,
     );
 
-    let icon_bounds = chevron_icon_bounds(bounds, separator_height);
-    renderer.draw_svg(
-        advanced::svg::Svg::new(CHEVRON_DOWN_ICON.clone()).color(color),
-        icon_bounds,
-        bounds,
-    );
+    if draw_icon {
+        let icon_bounds = chevron_icon_bounds(bounds, separator_height);
+        renderer.draw_svg(
+            advanced::svg::Svg::new(CHEVRON_DOWN_ICON.clone()).color(color),
+            icon_bounds,
+            bounds,
+        );
+    }
 
     if let Some(separator_color) = bar.separator {
         if separator_height > 0.0 && separator_color.a > 0.0 {
@@ -1436,7 +1451,32 @@ where
                 self.separator_height,
                 state.overflow_button_hovered,
                 overflow_pressed,
+                self.overflow_icon.is_none(),
             );
+            if let Some(f) = &self.overflow_icon {
+                let mut icon_el = f();
+                let icon_bounds = chevron_icon_bounds(button_bounds, self.separator_height);
+                let limits = layout::Limits::new(Size::ZERO, icon_bounds.size());
+                let mut icon_tree = Tree::new(&icon_el);
+                let icon_node = compose::child_layout(
+                    &mut icon_el,
+                    &mut icon_tree,
+                    renderer,
+                    &limits,
+                )
+                .move_to(icon_bounds.position());
+                let icon_layout = Layout::new(&icon_node);
+                compose::child_draw(
+                    &icon_el,
+                    &icon_tree,
+                    renderer,
+                    theme,
+                    style,
+                    icon_layout,
+                    cursor,
+                    viewport,
+                );
+            }
         }
     }
 

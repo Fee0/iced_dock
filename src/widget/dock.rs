@@ -96,6 +96,8 @@ where
     tab_bar_scrollbar_animated: bool,
     tab_bar_show_scrollbar: bool,
     tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
+    close_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
+    overflow_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
 }
 
 impl<'a, K, Message, Theme, Renderer> Dock<'a, K, Message, Theme, Renderer>
@@ -177,6 +179,34 @@ where
     #[must_use]
     pub fn tab_bar_scrollbar_attachment(mut self, attachment: TabBarScrollbarAttachment) -> Self {
         self.tab_bar_scrollbar_attachment = attachment;
+        self
+    }
+
+    /// Replace the default close-button SVG with a custom element.
+    ///
+    /// The closure is called once per closeable tab to produce the icon element
+    /// rendered inside the close button. The button wrapper (on_press, padding,
+    /// hover background) is unchanged.
+    #[must_use]
+    pub fn close_icon(
+        mut self,
+        f: impl Fn() -> Element<'static, Message, Theme, Renderer> + 'static,
+    ) -> Self {
+        self.close_icon = Some(Rc::new(f));
+        self
+    }
+
+    /// Replace the default chevron SVG in the overflow button with a custom element.
+    ///
+    /// The closure is called each frame the overflow button is drawn. The
+    /// button background and separator are still drawn by the dock; only the
+    /// icon glyph is replaced.
+    #[must_use]
+    pub fn overflow_icon(
+        mut self,
+        f: impl Fn() -> Element<'static, Message, Theme, Renderer> + 'static,
+    ) -> Self {
+        self.overflow_icon = Some(Rc::new(f));
         self
     }
 
@@ -310,6 +340,8 @@ where
                 self.tab_bar_scrollbar_animated,
                 self.tab_bar_show_scrollbar,
                 self.tab_bar_scrollbar_attachment,
+                self.close_icon.clone(),
+                self.overflow_icon.clone(),
             )
             .into(),
         )
@@ -388,6 +420,8 @@ where
     tab_bar_scrollbar_animated: bool,
     tab_bar_show_scrollbar: bool,
     tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
+    close_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
+    overflow_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
 }
 
 impl<K, Message, Theme, Renderer> Default for DockBuilder<'_, K, Message, Theme, Renderer>
@@ -428,6 +462,8 @@ where
             tab_bar_scrollbar_animated: true,
             tab_bar_show_scrollbar: false,
             tab_bar_scrollbar_attachment: TabBarScrollbarAttachment::Top,
+            close_icon: None,
+            overflow_icon: None,
         }
     }
 }
@@ -710,6 +746,34 @@ where
         self
     }
 
+    /// Replace the default close-button SVG with a custom element.
+    ///
+    /// The closure is called once per closeable tab to produce the icon element
+    /// rendered inside the close button. The button wrapper (on_press, padding,
+    /// hover background) is unchanged.
+    #[must_use]
+    pub fn close_icon(
+        mut self,
+        f: impl Fn() -> Element<'static, Message, Theme, Renderer> + 'static,
+    ) -> Self {
+        self.close_icon = Some(Rc::new(f));
+        self
+    }
+
+    /// Replace the default chevron SVG in the overflow button with a custom element.
+    ///
+    /// The closure is called each frame the overflow button is drawn. The
+    /// button background and separator are still drawn by the dock; only the
+    /// icon glyph is replaced.
+    #[must_use]
+    pub fn overflow_icon(
+        mut self,
+        f: impl Fn() -> Element<'static, Message, Theme, Renderer> + 'static,
+    ) -> Self {
+        self.overflow_icon = Some(Rc::new(f));
+        self
+    }
+
     /// # Panics
     ///
     /// Panics when [`on_event`](Self::on_event) was not set.
@@ -756,6 +820,8 @@ where
             tab_bar_scrollbar_animated: self.tab_bar_scrollbar_animated,
             tab_bar_show_scrollbar: self.tab_bar_show_scrollbar,
             tab_bar_scrollbar_attachment: self.tab_bar_scrollbar_attachment,
+            close_icon: self.close_icon,
+            overflow_icon: self.overflow_icon,
         }
     }
 }
