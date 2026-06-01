@@ -5,7 +5,7 @@
 //! desynced the widget tree from the cached layout and could panic in iced's
 //! `container::mouse_interaction` on the same frame.
 
-use iced::widget::{Column, container, text};
+use iced::widget::{container, text, Column};
 use iced::{Element, Length, Point, Size};
 use iced_dock::{dock, panel, tabs, DockSession};
 use iced_test::Simulator;
@@ -59,11 +59,7 @@ fn view(session: &DockSession<u32>) -> Element<'_, Message> {
 #[test]
 fn tab_switch_between_welcome_and_file_with_cursor_over_content() {
     let session = welcome_file_session();
-    let mut ui = Simulator::with_size(
-        Default::default(),
-        Size::new(1024.0, 768.0),
-        view(&session),
-    );
+    let mut ui = Simulator::with_size(Default::default(), Size::new(1024.0, 768.0), view(&session));
 
     ui.point_at(Point::new(512.0, 400.0));
 

@@ -13,6 +13,7 @@ use crate::widget::tab_dock::TabInfo;
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::overlay;
 use iced::advanced::renderer;
+use iced::advanced::text::paragraph;
 use iced::advanced::widget::tree::{State, Tag, Tree};
 use iced::advanced::widget::{Operation, Widget};
 use iced::advanced::{self, Clipboard, Shell};
@@ -22,7 +23,6 @@ use iced::mouse::{self, Cursor};
 use iced::time::{Duration, Instant};
 use iced::widget::overlay::menu;
 use iced::widget::svg::Handle;
-use iced::advanced::text::paragraph;
 use iced::widget::text::{layout as text_layout, Format, LineHeight, Shaping};
 use iced::widget::{button, container, mouse_area, row, svg, text, Space};
 use iced::window;
@@ -815,10 +815,7 @@ fn overflow_menu_width<Renderer: advanced::text::Renderer>(
     }
 
     let mut paragraph = paragraph::Plain::default();
-    let limits = layout::Limits::new(
-        Size::ZERO,
-        Size::new(f32::INFINITY, f32::INFINITY),
-    );
+    let limits = layout::Limits::new(Size::ZERO, Size::new(f32::INFINITY, f32::INFINITY));
     let format = Format {
         width: Length::Shrink,
         height: Length::Shrink,
@@ -832,15 +829,9 @@ fn overflow_menu_width<Renderer: advanced::text::Renderer>(
     let max_text_width = options
         .iter()
         .map(|option| {
-            text_layout(
-                &mut paragraph,
-                renderer,
-                &limits,
-                &option.title,
-                format,
-            )
-            .size()
-            .width
+            text_layout(&mut paragraph, renderer, &limits, &option.title, format)
+                .size()
+                .width
         })
         .fold(0.0_f32, f32::max);
 
@@ -1962,13 +1953,12 @@ where
 mod tests {
     use super::{
         ensure_tab_visible, overflow_menu_width, scrollbar_alpha, scrollbar_is_interactive,
-        set_scrollbar_visibility, tab_fully_visible, HiddenTabOption, ScrollbarDrag,
-        TabStripState,
+        set_scrollbar_visibility, tab_fully_visible, HiddenTabOption, ScrollbarDrag, TabStripState,
     };
     use crate::model::NodeId;
+    use iced::advanced::renderer::Headless;
     use iced::time::{Duration, Instant};
     use iced::{Font, Pixels, Rectangle, Theme};
-    use iced::advanced::renderer::Headless;
     use iced_test::renderer::Renderer;
     use slotmap::SlotMap;
 

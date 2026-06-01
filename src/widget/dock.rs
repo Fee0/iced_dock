@@ -12,7 +12,7 @@ use iced::mouse::{self, Cursor};
 use iced::time::Duration;
 use iced::widget::overlay::menu;
 use iced::widget::text::{LineHeight, Shaping};
-use iced::widget::{self, button, container, text as iced_text, svg};
+use iced::widget::{self, button, container, svg, text as iced_text};
 use iced::{Element, Event, Length, Rectangle, Size, Vector};
 
 use crate::model::{Layout as ModelLayout, NodeId, NodeKind, Pane};
