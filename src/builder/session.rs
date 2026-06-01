@@ -9,6 +9,7 @@ use crate::builder::compile::{
 };
 use crate::builder::spec::{LayoutTree, PanelDef};
 use crate::factory::Factory;
+use crate::manager::DockManager;
 use crate::model::{NodeId, NodeKind};
 use crate::spatial::{adjacent_pane, pane_bounds_map, Direction};
 use crate::widget::{dispatch_action, DockAction, DockWidgetState, TabAction};
@@ -184,6 +185,49 @@ where
             return false;
         };
         let _ = self.focus_pane(adjacent);
+        true
+    }
+
+    /// Move the active tab to the nearest pane in `direction`.
+    ///
+    /// Uses the same spatial lookup as [`Self::focus_adjacent`], so it also requires
+    /// at least one draw pass for [`DockWidgetState::pane_bounds`] to be populated.
+    /// Returns `true` if the active tab moved to a neighbor.
+    pub fn move_active_panel_adjacent(&self, direction: Direction) -> bool {
+        let state = self.inner.borrow();
+        let Some(source_pane) = state.focused_pane else {
+            return false;
+        };
+        let Some(NodeKind::Pane(pane_state)) = state.layout.kind(source_pane) else {
+            return false;
+        };
+        let Some(source_panel) = pane_state.active.or(pane_state.tabs.first().copied()) else {
+            return false;
+        };
+        let bounds = pane_bounds_map(&state.pane_bounds);
+        let Some(target_pane) = adjacent_pane(source_pane, direction, &bounds) else {
+            return false;
+        };
+        drop(state);
+
+        let factory = Factory;
+        let manager = DockManager;
+        let mut state = self.inner.borrow_mut();
+        if !manager.groups_compatible(&state.layout, source_panel, target_pane) {
+            return false;
+        }
+        if factory
+            .dock_fill(&mut state.layout, source_panel, target_pane)
+            .is_err()
+        {
+            return false;
+        }
+        state.layout_dirty = true;
+        if state.focused_pane != Some(target_pane) {
+            state.focused_pane = Some(target_pane);
+            state.focus_dirty = true;
+        }
+        state.sync_index();
         true
     }
 

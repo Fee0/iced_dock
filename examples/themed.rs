@@ -107,6 +107,7 @@ impl App {
 enum Message {
     Dock(DockEvent<Content>),
     FocusAdjacent(Direction),
+    MoveActivePanel(Direction),
 }
 
 fn subscription(_app: &App) -> Subscription<Message> {
@@ -114,7 +115,7 @@ fn subscription(_app: &App) -> Subscription<Message> {
         let keyboard::Event::KeyPressed { key, modifiers, .. } = event else {
             return None;
         };
-        if !modifiers.command() {
+        if !modifiers.command() && !modifiers.shift() {
             return None;
         }
         let direction = match key {
@@ -124,7 +125,11 @@ fn subscription(_app: &App) -> Subscription<Message> {
             Key::Named(keyboard::key::Named::ArrowDown) => Direction::Down,
             _ => return None,
         };
-        Some(Message::FocusAdjacent(direction))
+        if modifiers.shift() {
+            Some(Message::MoveActivePanel(direction))
+        } else {
+            Some(Message::FocusAdjacent(direction))
+        }
     })
 }
 
@@ -133,6 +138,9 @@ fn update(app: &mut App, message: Message) -> Task<Message> {
         Message::Dock(_event) => {}
         Message::FocusAdjacent(direction) => {
             app.dock.focus_adjacent(direction);
+        }
+        Message::MoveActivePanel(direction) => {
+            app.dock.move_active_panel_adjacent(direction);
         }
     }
     Task::none()

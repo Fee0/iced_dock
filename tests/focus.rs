@@ -26,6 +26,41 @@ fn nested_layout() -> iced_dock::LayoutTree<u32> {
     .weights([0.72, 0.28])
 }
 
+fn two_panes(
+    built: &iced_dock::unstable::BuiltLayout<u32>,
+) -> (iced_dock::model::NodeId, iced_dock::model::NodeId) {
+    let left = iced_dock::unstable::first_pane(&built.layout).expect("left");
+    let right = built
+        .layout
+        .root_child()
+        .and_then(|root| {
+            if let iced_dock::model::NodeKind::Proportional(pg) = built.layout.kind(root)? {
+                pg.children.iter().find(|&&id| id != left).copied()
+            } else {
+                None
+            }
+        })
+        .expect("right");
+    (left, right)
+}
+
+fn set_horizontal_bounds(
+    session: &DockSession<u32>,
+    left: iced_dock::model::NodeId,
+    right: iced_dock::model::NodeId,
+) {
+    session.state().borrow_mut().pane_bounds = vec![
+        (
+            left,
+            iced::Rectangle::new(iced::Point::ORIGIN, iced::Size::new(100.0, 100.0)),
+        ),
+        (
+            right,
+            iced::Rectangle::new(iced::Point::new(100.0, 0.0), iced::Size::new(100.0, 100.0)),
+        ),
+    ];
+}
+
 #[test]
 fn from_tree_initializes_focused_pane() {
     let session: DockSession<u32> = DockSession::from_tree(nested_layout()).expect("session");
@@ -301,33 +336,85 @@ fn focus_adjacent_moves_focus() {
         tabs([panel("b", "B", 1u32)]),
     ]))
     .expect("built");
-    let left = iced_dock::unstable::first_pane(&built.layout).expect("left");
-    let right = built
-        .layout
-        .root_child()
-        .and_then(|root| {
-            if let iced_dock::model::NodeKind::Proportional(pg) = built.layout.kind(root)? {
-                pg.children.iter().find(|&&id| id != left).copied()
-            } else {
-                None
-            }
-        })
-        .expect("right");
+    let (left, right) = two_panes(&built);
 
     let session: DockSession<u32> = DockSession::from_built(built, Some(left));
-    session.state().borrow_mut().pane_bounds = vec![
-        (
-            left,
-            iced::Rectangle::new(iced::Point::ORIGIN, iced::Size::new(100.0, 100.0)),
-        ),
-        (
-            right,
-            iced::Rectangle::new(iced::Point::new(100.0, 0.0), iced::Size::new(100.0, 100.0)),
-        ),
-    ];
+    set_horizontal_bounds(&session, left, right);
 
     assert!(session.focus_adjacent(Direction::Right));
     assert_eq!(session.focused_pane(), Some(right));
+}
+
+#[test]
+fn move_active_panel_adjacent_moves_tab_and_focus() {
+    let built = build_tree(&horizontal([
+        tabs([panel("a", "A", 0u32), panel("c", "C", 2u32)]).active("a"),
+        tabs([panel("b", "B", 1u32)]),
+    ]))
+    .expect("built");
+    let (left, right) = two_panes(&built);
+    let session: DockSession<u32> = DockSession::from_built(built, Some(left));
+    set_horizontal_bounds(&session, left, right);
+
+    assert!(session.move_active_panel_adjacent(Direction::Right));
+    assert_eq!(session.focused_pane(), Some(right));
+    assert_eq!(session.active_panel().as_deref(), Some("a"));
+    assert_eq!(session.active_panel_in_pane(left).as_deref(), Some("c"));
+    assert_eq!(session.pane_for_panel("a"), Some(right));
+}
+
+#[test]
+fn move_active_panel_adjacent_collapses_empty_source_pane() {
+    let built = build_tree(&horizontal([
+        tabs([panel("a", "A", 0u32)]),
+        tabs([panel("b", "B", 1u32)]),
+    ]))
+    .expect("built");
+    let (left, right) = two_panes(&built);
+    let session: DockSession<u32> = DockSession::from_built(built, Some(left));
+    set_horizontal_bounds(&session, left, right);
+
+    assert!(session.move_active_panel_adjacent(Direction::Right));
+    assert_eq!(session.focused_pane(), Some(right));
+    assert_eq!(session.active_panel().as_deref(), Some("a"));
+    assert_eq!(session.pane_for_panel("a"), Some(right));
+    assert!(session.state().borrow().layout.get(left).is_none());
+}
+
+#[test]
+fn move_active_panel_adjacent_without_neighbor_is_noop() {
+    let built = build_tree(&horizontal([
+        tabs([panel("a", "A", 0u32)]),
+        tabs([panel("b", "B", 1u32)]),
+    ]))
+    .expect("built");
+    let (left, right) = two_panes(&built);
+    let session: DockSession<u32> = DockSession::from_built(built, Some(left));
+    set_horizontal_bounds(&session, left, right);
+
+    assert!(!session.move_active_panel_adjacent(Direction::Left));
+    assert_eq!(session.focused_pane(), Some(left));
+    assert_eq!(session.active_panel().as_deref(), Some("a"));
+    assert_eq!(session.pane_for_panel("a"), Some(left));
+}
+
+#[test]
+fn move_active_panel_adjacent_rejects_incompatible_groups() {
+    let built = build_tree(&horizontal([
+        tabs([panel("a", "A", 0u32).group("documents")])
+            .active("a")
+            .group("documents"),
+        tabs([panel("b", "B", 1u32).group("tools")]).group("tools"),
+    ]))
+    .expect("built");
+    let (left, right) = two_panes(&built);
+    let session: DockSession<u32> = DockSession::from_built(built, Some(left));
+    set_horizontal_bounds(&session, left, right);
+
+    assert!(!session.move_active_panel_adjacent(Direction::Right));
+    assert_eq!(session.focused_pane(), Some(left));
+    assert_eq!(session.active_panel().as_deref(), Some("a"));
+    assert_eq!(session.pane_for_panel("a"), Some(left));
 }
 
 #[test]
