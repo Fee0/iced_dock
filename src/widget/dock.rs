@@ -390,7 +390,7 @@ where
     tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
 }
 
-impl<'a, K, Message, Theme, Renderer> Default for DockBuilder<'a, K, Message, Theme, Renderer>
+impl<K, Message, Theme, Renderer> Default for DockBuilder<'_, K, Message, Theme, Renderer>
 where
     Theme: Catalog,
     Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer,
