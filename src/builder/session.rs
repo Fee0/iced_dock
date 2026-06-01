@@ -176,7 +176,10 @@ where
     /// Requires at least one draw pass so [`DockWidgetState::pane_bounds`] is populated
     /// (run the dock widget once or wait for the first frame).
     /// Returns `true` if focus moved to a neighbor.
-    #[must_use] 
+    #[expect(
+        clippy::must_use_candidate,
+        reason = "This is a command-style API; callers may intentionally ignore failed movement."
+    )]
     pub fn focus_adjacent(&self, direction: Direction) -> bool {
         let Some(pane) = self.focused_pane() else {
             return false;
@@ -194,7 +197,10 @@ where
     /// Uses the same spatial lookup as [`Self::focus_adjacent`], so it also requires
     /// at least one draw pass for [`DockWidgetState::pane_bounds`] to be populated.
     /// Returns `true` if the active tab moved to a neighbor.
-    #[must_use] 
+    #[expect(
+        clippy::must_use_candidate,
+        reason = "This is a command-style API; callers may intentionally ignore failed movement."
+    )]
     pub fn move_active_panel_adjacent(&self, direction: Direction) -> bool {
         let state = self.inner.borrow();
         let Some(source_pane) = state.focused_pane else {
@@ -237,7 +243,10 @@ where
     ///
     /// Returns `false` without changing the layout when the focused pane has fewer than
     /// two tabs.
-    #[must_use] 
+    #[expect(
+        clippy::must_use_candidate,
+        reason = "This is a command-style API; callers may intentionally ignore failed movement."
+    )]
     pub fn split_active_panel(&self, direction: Direction) -> bool {
         let state = self.inner.borrow();
         let Some(source_pane) = state.focused_pane else {
