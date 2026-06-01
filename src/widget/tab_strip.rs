@@ -27,7 +27,9 @@ use iced::widget::text::{layout as text_layout, Format, LineHeight, Shaping};
 use iced::widget::{button, container, mouse_area, row, svg, text, Space};
 use iced::window;
 use iced::Theme as IcedTheme;
-use iced::{Border, Color, Element, Event, Length, Padding, Pixels, Point, Rectangle, Size, Vector};
+use iced::{
+    Border, Color, Element, Event, Length, Padding, Pixels, Point, Rectangle, Size, Vector,
+};
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result;
@@ -551,16 +553,16 @@ where
             };
             button(
                 container(icon)
-                .padding(Padding {
-                    top: close_button_padding[0],
-                    bottom: close_button_padding[0],
-                    left: close_button_padding[1],
-                    right: close_button_padding[1],
-                })
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .align_x(iced::Alignment::Center)
-                .align_y(iced::Alignment::Center),
+                    .padding(Padding {
+                        top: close_button_padding[0],
+                        bottom: close_button_padding[0],
+                        left: close_button_padding[1],
+                        right: close_button_padding[1],
+                    })
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .align_x(iced::Alignment::Center)
+                    .align_y(iced::Alignment::Center),
             )
             .padding(Padding::ZERO)
             .width(Length::Fixed(close_button_size))
@@ -1478,13 +1480,9 @@ where
                 let icon_bounds = chevron_icon_bounds(button_bounds, self.separator_height);
                 let limits = layout::Limits::new(Size::ZERO, icon_bounds.size());
                 let mut icon_tree = Tree::new(&icon_el);
-                let icon_node = compose::child_layout(
-                    &mut icon_el,
-                    &mut icon_tree,
-                    renderer,
-                    &limits,
-                )
-                .move_to(icon_bounds.position());
+                let icon_node =
+                    compose::child_layout(&mut icon_el, &mut icon_tree, renderer, &limits)
+                        .move_to(icon_bounds.position());
                 let icon_layout = Layout::new(&icon_node);
                 compose::child_draw(
                     &icon_el,
@@ -1958,7 +1956,12 @@ where
             menu_width,
             *viewport,
         );
-        let menu = menu.overlay(menu_position, *viewport, button_bounds.height, Length::Shrink);
+        let menu = menu.overlay(
+            menu_position,
+            *viewport,
+            button_bounds.height,
+            Length::Shrink,
+        );
 
         Some(overlay::Element::new(Box::new(OverflowMenuOverlay {
             menu,

@@ -6,7 +6,9 @@
 
 use iced::widget::{center, column, container, text};
 use iced::{application, Color, Element, Font, Length, Size, Task};
-use iced_dock::{dock, horizontal, panel as tab, tabs, vertical, DockEvent, DockSession, LayoutTree};
+use iced_dock::{
+    dock, horizontal, panel as tab, tabs, vertical, DockEvent, DockSession, LayoutTree,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Panel {
@@ -131,9 +133,15 @@ fn overflow_icon() -> Element<'static, Message> {
 
 fn panel_content(key: Panel) -> Element<'static, Message> {
     let (title, hint) = match key {
-        Panel::Explorer => ("Explorer", "Resize the window narrow to see the overflow icon (›)"),
+        Panel::Explorer => (
+            "Explorer",
+            "Resize the window narrow to see the overflow icon (›)",
+        ),
         Panel::Search => ("Search", ""),
-        Panel::Alpha => ("alpha.rs", "Close buttons show × instead of the default SVG"),
+        Panel::Alpha => (
+            "alpha.rs",
+            "Close buttons show × instead of the default SVG",
+        ),
         Panel::Beta => ("beta.rs", ""),
         Panel::Gamma => ("gamma.rs", ""),
         Panel::Delta => ("delta.rs", ""),
