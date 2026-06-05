@@ -98,6 +98,7 @@ where
     tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
     close_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     overflow_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
+    on_close_requested: Option<Rc<dyn Fn(K) -> Message>>,
 }
 
 impl<'a, K, Message, Theme, Renderer> Dock<'a, K, Message, Theme, Renderer>
@@ -213,8 +214,19 @@ where
     fn wrap_action(
         holder: &Rc<RefCell<DockWidgetState<K>>>,
         on_event: &Rc<dyn Fn(DockEvent<K>) -> Message>,
+        on_close_requested: Option<&Rc<dyn Fn(K) -> Message>>,
         action: DockAction,
     ) -> Message {
+        if let DockAction::Tab(crate::widget::action::TabAction::Close { panel }) = &action {
+            if let Some(hook) = on_close_requested {
+                let state = holder.borrow();
+                if let Some(NodeKind::Panel(p)) = state.layout.kind(*panel) {
+                    let key = p.content;
+                    drop(state);
+                    return (hook)(key);
+                }
+            }
+        }
         let mut state = holder.borrow_mut();
         let event = action_to_event(&state.layout, &action).unwrap_or(DockEvent::LayoutChanged);
         dispatch_action(&mut state, action);
@@ -240,8 +252,10 @@ where
                 }
                 let h = Rc::clone(holder);
                 let on_ev = Rc::clone(&self.on_event);
-                let on_split =
-                    Rc::new(move |action: DockAction| Self::wrap_action(&h, &on_ev, action));
+                let on_close = self.on_close_requested.as_ref().map(Rc::clone);
+                let on_split = Rc::new(move |action: DockAction| {
+                    Self::wrap_action(&h, &on_ev, on_close.as_ref(), action)
+                });
                 Some(
                     SplitContainer::new(
                         node,
@@ -306,7 +320,10 @@ where
 
         let h = Rc::clone(holder);
         let on_ev = Rc::clone(&self.on_event);
-        let on_tab = Rc::new(move |action: DockAction| Self::wrap_action(&h, &on_ev, action));
+        let on_close = self.on_close_requested.as_ref().map(Rc::clone);
+        let on_tab = Rc::new(move |action: DockAction| {
+            Self::wrap_action(&h, &on_ev, on_close.as_ref(), action)
+        });
         Some(
             TabDock::new(
                 Rc::clone(holder),
@@ -422,6 +439,7 @@ where
     tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
     close_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     overflow_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
+    on_close_requested: Option<Rc<dyn Fn(K) -> Message>>,
 }
 
 impl<K, Message, Theme, Renderer> Default for DockBuilder<'_, K, Message, Theme, Renderer>
@@ -464,6 +482,7 @@ where
             tab_bar_scrollbar_attachment: TabBarScrollbarAttachment::Top,
             close_icon: None,
             overflow_icon: None,
+            on_close_requested: None,
         }
     }
 }
@@ -774,6 +793,17 @@ where
         self
     }
 
+    /// Register a callback that fires when a tab close button is clicked,
+    /// **before** the tab is removed from the layout. Return the application
+    /// message to dispatch. If this hook is set the close action is suppressed;
+    /// call [`DockSession::close_panel`] from within the message handler to
+    /// perform the close programmatically.
+    #[must_use]
+    pub fn on_close_requested(mut self, f: impl Fn(K) -> Message + 'static) -> Self {
+        self.on_close_requested = Some(Rc::new(f));
+        self
+    }
+
     /// # Panics
     ///
     /// Panics when [`on_event`](Self::on_event) was not set.
@@ -822,6 +852,7 @@ where
             tab_bar_scrollbar_attachment: self.tab_bar_scrollbar_attachment,
             close_icon: self.close_icon,
             overflow_icon: self.overflow_icon,
+            on_close_requested: self.on_close_requested,
         }
     }
 }
