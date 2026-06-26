@@ -3,9 +3,7 @@ use std::rc::Rc;
 use std::sync::LazyLock;
 
 use crate::model::NodeId;
-use crate::style::{
-    self, close_button_style, close_icon_style, Catalog, DockStyle, DropOverlayStyle, TabBarStyle,
-};
+use crate::style::{Catalog, DockStyle, DropOverlayStyle, TabBarStyle};
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::compose;
 use crate::widget::dock::TabBarScrollbarAttachment;
@@ -26,7 +24,6 @@ use iced::widget::svg::Handle;
 use iced::widget::text::{layout as text_layout, Format, LineHeight, Shaping};
 use iced::widget::{button, container, mouse_area, row, svg, text, Space};
 use iced::window;
-use iced::Theme as IcedTheme;
 use iced::{
     Border, Color, Element, Event, Length, Padding, Pixels, Point, Rectangle, Size, Vector,
 };
@@ -324,20 +321,8 @@ where
         close_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
         overflow_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     ) -> Self {
-        let paint_style = match &*theme.borrow() {
-            Some(t) => {
-                let mut style = Catalog::style(t, &class);
-                style.sync_tab_appearance();
-                style
-            }
-            None => {
-                let mut style = style::default(&IcedTheme::Dark);
-                style.sync_tab_appearance();
-                style
-            }
-        };
         let tabs_row = build_tabs_row(
-            &paint_style,
+            Rc::clone(&class),
             tab_bar_height,
             tab_bar_spacing,
             tab_bar_padding,
@@ -407,13 +392,12 @@ where
 
     fn rebuild_tabs_row(
         &mut self,
-        theme: &Theme,
+        _theme: &Theme,
         hovered_tab: Option<NodeId>,
         pressed_tab: Option<NodeId>,
     ) {
-        let style = self.layout_style(theme);
         self.tabs_row = build_tabs_row(
-            &style,
+            Rc::clone(&self.class),
             self.tab_bar_height,
             self.tab_bar_spacing,
             self.tab_bar_padding,
@@ -467,7 +451,7 @@ fn tab_label_container_style(background: Color, border_radius: f32) -> container
 }
 
 fn build_tabs_row<Message, Theme, Renderer>(
-    style: &DockStyle,
+    class: Rc<<Theme as Catalog>::Class<'static>>,
     tab_bar_height: f32,
     tab_bar_spacing: f32,
     tab_bar_padding: [f32; 2],
@@ -495,8 +479,6 @@ where
     <Theme as container::Catalog>::Class<'static>: From<container::StyleFn<'static, Theme>>,
     for<'a> <Theme as text::Catalog>::Class<'a>: From<text::StyleFn<'a, Theme>>,
 {
-    let tab_style = &style.tab;
-    let cb = &style.tab_bar.close_button;
     let mut strip = row![]
         .spacing(tab_bar_spacing)
         .padding(tab_bar_padding)
@@ -509,23 +491,24 @@ where
         let is_active = tab.id == active_tab;
         let is_hovered = hovered_tab == Some(tab_id);
         let is_pressed = pressed_tab == Some(tab_id);
-        let (label_bg, text_color) = if is_active {
-            if is_pressed {
-                (Color::TRANSPARENT, tab_style.pressed_text)
-            } else {
-                (Color::TRANSPARENT, tab_style.active_text)
-            }
-        } else if is_pressed {
-            (tab_style.pressed_background, tab_style.pressed_text)
-        } else if is_hovered {
-            (tab_style.hovered_background, tab_style.hovered_text)
-        } else {
-            (tab_style.inactive_background, tab_style.inactive_text)
-        };
-        let border_radius = tab_style.border_radius;
         let mut label_text = text(tab.title.clone())
             .size(tab_text_size)
-            .color(text_color)
+            .style({
+                let class = Rc::clone(&class);
+                move |theme: &Theme| {
+                    let tab = Catalog::style(theme, &class).tab;
+                    let color = if is_active {
+                        if is_pressed { tab.pressed_text } else { tab.active_text }
+                    } else if is_pressed {
+                        tab.pressed_text
+                    } else if is_hovered {
+                        tab.hovered_text
+                    } else {
+                        tab.inactive_text
+                    };
+                    text::Style { color: Some(color) }
+                }
+            })
             .font_maybe(tab_font);
         if let Some(line_height) = tab_line_height {
             label_text = label_text.line_height(line_height);
@@ -548,7 +531,18 @@ where
                 None => svg(CLOSE_ICON.clone())
                     .width(Length::Fill)
                     .height(Length::Fill)
-                    .style(close_icon_style(cb))
+                    .style({
+                        let class = Rc::clone(&class);
+                        move |theme: &Theme, status: svg::Status| {
+                            let cb = Catalog::style(theme, &class).tab_bar.close_button;
+                            svg::Style {
+                                color: Some(match status {
+                                    svg::Status::Hovered => cb.hovered_text,
+                                    svg::Status::Idle => cb.text_color,
+                                }),
+                            }
+                        }
+                    })
                     .into(),
             };
             button(
@@ -567,7 +561,29 @@ where
             .padding(Padding::ZERO)
             .width(Length::Fixed(close_button_size))
             .height(Length::Fixed(close_button_size))
-            .style(close_button_style(cb))
+            .style({
+                let class = Rc::clone(&class);
+                move |theme: &Theme, status: button::Status| {
+                    let cb = Catalog::style(theme, &class).tab_bar.close_button;
+                    let (background, text_color) = match status {
+                        button::Status::Hovered | button::Status::Pressed => {
+                            (cb.hovered_background, cb.hovered_text)
+                        }
+                        _ => (cb.background, cb.text_color),
+                    };
+                    button::Style {
+                        background: (background.a > 0.0)
+                            .then_some(iced::Background::Color(background)),
+                        text_color,
+                        border: Border {
+                            radius: cb.border_radius.into(),
+                            ..Border::default()
+                        },
+                        shadow: iced::Shadow::default(),
+                        snap: false,
+                    }
+                }
+            })
             .on_press_with(move || (on_event)(DockAction::Tab(TabAction::Close { panel: tab_id })))
             .into()
         } else {
@@ -582,10 +598,22 @@ where
         ]
         .height(Length::Fixed(tab_bar_height))
         .align_y(iced::Alignment::Center);
-        let tab_cell = mouse_area(
-            container(tab_row)
-                .style(move |_: &Theme| tab_label_container_style(label_bg, border_radius)),
-        );
+        let tab_cell = mouse_area(container(tab_row).style({
+            let class = Rc::clone(&class);
+            move |theme: &Theme| {
+                let tab = Catalog::style(theme, &class).tab;
+                let bg = if is_active {
+                    Color::TRANSPARENT
+                } else if is_pressed {
+                    tab.pressed_background
+                } else if is_hovered {
+                    tab.hovered_background
+                } else {
+                    tab.inactive_background
+                };
+                tab_label_container_style(bg, tab.border_radius)
+            }
+        }));
         strip = strip.push(tab_cell);
     }
     strip.into()
