@@ -1401,7 +1401,7 @@ where
                             x: btn_bounds.x,
                             y: btn_bounds.y,
                             width: btn_bounds.width,
-                            height: (tab_bounds.height - btn_bounds.y + tab_bounds.y + 1.0)
+                            height: (tab_bounds.height - btn_bounds.y + tab_bounds.y)
                                 .max(0.0),
                         };
                         renderer.fill_quad(
