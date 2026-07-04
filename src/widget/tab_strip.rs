@@ -381,9 +381,7 @@ where
     }
 
     fn layout_style(&self, theme: &Theme) -> DockStyle {
-        let mut style = Catalog::style(theme, &self.class);
-        style.sync_tab_appearance();
-        style
+        Catalog::style(theme, &self.class)
     }
 
     fn active_tab_index(&self) -> Option<usize> {
