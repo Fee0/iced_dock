@@ -482,7 +482,7 @@ where
         .padding(tab_bar_padding)
         .width(Length::Shrink)
         .height(Length::Fixed(tab_bar_height))
-        .align_y(iced::Alignment::Center);
+        .align_y(iced::Alignment::Start);
     for tab in tabs {
         let on_event = Rc::clone(&on_event);
         let tab_id = tab.id;
@@ -594,7 +594,7 @@ where
             close,
             Space::new().width(Length::Fixed(close_button_margin_right))
         ]
-        .height(Length::Fixed(tab_bar_height))
+        .height(Length::Fixed((tab_bar_height - 1.0).max(0.0)))
         .align_y(iced::Alignment::Center);
         let tab_cell = mouse_area(container(tab_row).style({
             let class = Rc::clone(&class);
@@ -1401,7 +1401,7 @@ where
                             x: btn_bounds.x,
                             y: btn_bounds.y,
                             width: btn_bounds.width,
-                            height: (tab_bounds.height - btn_bounds.y + tab_bounds.y)
+                            height: (tab_bounds.height - 1.0 - btn_bounds.y + tab_bounds.y)
                                 .max(0.0),
                         };
                         renderer.fill_quad(
@@ -1413,7 +1413,7 @@ where
                         );
                         let accent_h = self.tab_accent_height.max(0.0);
                         if accent_h > 0.0 {
-                            let accent_y = tab_bounds.y + tab_bounds.height - accent_h;
+                            let accent_y = tab_bounds.y + tab_bounds.height - accent_h - 1.0;
                             renderer.fill_quad(
                                 renderer::Quad {
                                     bounds: Rectangle {
