@@ -26,6 +26,7 @@ impl DockStyle {
         let canvas = Color::from_rgb(0.094, 0.094, 0.106);
         let tab_bar_bg = Color::from_rgb(0.118, 0.118, 0.133);
         let tab_inactive = Color::from_rgb(0.149, 0.149, 0.165);
+        let tab_active = Color::from_rgb(0.20, 0.20, 0.22);
         let pane = Color::from_rgb(0.145, 0.145, 0.157);
         let border = Color::from_rgb(0.2, 0.2, 0.22);
         let text = Color::from_rgb(0.82, 0.82, 0.85);
@@ -71,7 +72,7 @@ impl DockStyle {
                 hovered_text: text,
                 pressed_background: Color::from_rgba(1.0, 1.0, 1.0, 0.1),
                 pressed_text: text,
-                active_background: pane,
+                active_background: tab_active,
                 active_text: text,
                 active_accent: accent,
             },
@@ -198,6 +199,11 @@ pub fn default(theme: &Theme) -> DockStyle {
     };
     let splitter_hover = palette.primary.base.color;
     let splitter_drag = palette.primary.strong.color;
+    let tab_active = if palette.is_dark {
+        palette.background.strong.color
+    } else {
+        pane
+    };
 
     DockStyle {
         background: DockBackgroundStyle { color: canvas },
@@ -237,7 +243,7 @@ pub fn default(theme: &Theme) -> DockStyle {
             hovered_text: text,
             pressed_background: pressed_overlay,
             pressed_text: text,
-            active_background: pane,
+            active_background: tab_active,
             active_text: text,
             active_accent: accent,
         },

@@ -364,8 +364,7 @@ where
     ) {
         self.register_pane_bounds(layout.bounds());
 
-        let mut dock_style = self.layout_style(theme);
-        dock_style.sync_tab_appearance();
+        let dock_style = self.layout_style(theme);
 
         let pane_bounds = layout.bounds();
         let window = &dock_style.window;

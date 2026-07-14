@@ -134,10 +134,6 @@ impl DockStyle {
         self.tab_bar.background = self.background.color;
     }
 
-    /// Keep the active tab fill aligned with the pane background.
-    pub fn sync_tab_appearance(&mut self) {
-        self.sync_active_tab_with_window();
-    }
 }
 
 /// The theme catalog of dock chrome.
