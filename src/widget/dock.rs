@@ -297,8 +297,7 @@ where
             return Some(
                 container(widget::space::Space::new())
                     .style(move |t: &Theme| {
-                        let mut ds = Catalog::style(t, &class);
-                        ds.sync_tab_appearance();
+                        let ds = Catalog::style(t, &class);
                         container::Style {
                             background: Some(Background::Color(ds.window.background)),
                             border: ds.window.border,
