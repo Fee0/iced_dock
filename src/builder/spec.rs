@@ -72,6 +72,7 @@ pub struct TabsNode<K> {
     pub panels: Vec<PanelDef<K>>,
     pub active: Option<String>,
     pub group: Option<String>,
+    pub persistent: bool,
 }
 
 impl<K: Copy> TabsNode<K> {
@@ -81,6 +82,7 @@ impl<K: Copy> TabsNode<K> {
             panels: panels.into_iter().collect(),
             active: None,
             group: None,
+            persistent: false,
         }
     }
 
@@ -99,6 +101,12 @@ impl<K: Copy> TabsNode<K> {
     #[must_use]
     pub fn group(mut self, g: impl Into<String>) -> Self {
         self.group = Some(g.into());
+        self
+    }
+
+    #[must_use]
+    pub fn persistent(mut self, value: bool) -> Self {
+        self.persistent = value;
         self
     }
 }
@@ -161,6 +169,15 @@ impl<K: Copy> LayoutTree<K> {
     pub fn group(mut self, g: impl Into<String>) -> Self {
         if let Self::Tabs(ref mut node) = self {
             node.group = Some(g.into());
+        }
+        self
+    }
+
+    /// Mark a `Tabs` node as persistent (never collapsed when empty).
+    #[must_use]
+    pub fn persistent(mut self, value: bool) -> Self {
+        if let Self::Tabs(ref mut node) = self {
+            node.persistent = value;
         }
         self
     }

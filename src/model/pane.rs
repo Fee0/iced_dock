@@ -35,6 +35,7 @@ pub struct Pane {
     pub tabs: Vec<NodeId>,
     pub active: Option<NodeId>,
     pub group: Option<String>,
+    pub persistent: bool,
 }
 
 impl Default for Pane {
@@ -51,6 +52,7 @@ impl Pane {
             tabs: Vec::new(),
             active: None,
             group: None,
+            persistent: false,
         }
     }
 

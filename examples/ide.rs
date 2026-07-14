@@ -47,6 +47,7 @@ fn demo_layout() -> LayoutTree<Content> {
                 tab("mod_d", "module_alpha_delta.rs", Content::ModD),
                 tab("cargo", "Cargo.toml", Content::CargoToml),
             ])
+            .persistent(true)
             .active("main")
             .group("documents"),
             // Right sidebar — tools group
