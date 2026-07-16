@@ -65,6 +65,7 @@ pub struct TabInfo {
     pub title: String,
     pub can_close: bool,
     pub can_drag: bool,
+    pub is_modified: bool,
 }
 
 #[derive(Default)]

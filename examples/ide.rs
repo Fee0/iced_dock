@@ -1,11 +1,13 @@
 //! Demo: classical IDE layout — left sidebar, editor tabs, right sidebar, bottom panel.
 
+use std::collections::HashSet;
+
 use iced::keyboard::{self, Key};
-use iced::widget::{column, container, text};
-use iced::{application, Element, Length, Size, Subscription, Task, Theme};
+use iced::widget::{button, column, container, text};
+use iced::{application, Color, Element, Length, Size, Subscription, Task, Theme};
 use iced_dock::{
-    dock, horizontal, panel as tab, tabs, vertical, Direction, DockEvent, DockSession,
-    InitialFocus, LayoutTree,
+    dock, horizontal, model::NodeKind, panel as tab, tabs, vertical, Direction, DockEvent,
+    DockSession, DockStyle, InitialFocus, LayoutTree,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -71,6 +73,26 @@ fn demo_layout() -> LayoutTree<Content> {
     .weights([0.75, 0.25])
 }
 
+fn panel_id(key: Content) -> &'static str {
+    match key {
+        Content::Explorer => "explorer",
+        Content::Search => "search",
+        Content::MainRs => "main",
+        Content::LibRs => "lib",
+        Content::ModA => "mod_a",
+        Content::ModB => "mod_b",
+        Content::ModC => "mod_c",
+        Content::ModD => "mod_d",
+        Content::CargoToml => "cargo",
+        Content::Outline => "outline",
+        Content::Properties => "properties",
+        Content::Terminal => "terminal",
+        Content::Output => "output",
+        Content::Problems => "problems",
+        Content::Debug => "debug",
+    }
+}
+
 fn main() -> iced::Result {
     application(App::new, update, view)
         .title("iced_dock — IDE layout")
@@ -85,6 +107,7 @@ fn main() -> iced::Result {
 
 struct App {
     dock: DockSession<Content>,
+    modified: HashSet<Content>,
 }
 
 impl App {
@@ -95,6 +118,7 @@ impl App {
                 InitialFocus::NamedPanel("main".into()),
             )
             .expect("failed to build demo layout"),
+            modified: HashSet::new(),
         }
     }
 }
@@ -105,6 +129,7 @@ enum Message {
     FocusAdjacent(Direction),
     MoveActivePanel(Direction),
     SplitActivePanel(Direction),
+    ToggleModified(Content),
 }
 
 fn subscription(_app: &App) -> Subscription<Message> {
@@ -146,16 +171,41 @@ fn update(app: &mut App, message: Message) -> Task<Message> {
         Message::SplitActivePanel(direction) => {
             app.dock.split_active_panel(direction);
         }
+        Message::ToggleModified(key) => {
+            let is_modified = !app.modified.contains(&key);
+            if is_modified {
+                app.modified.insert(key);
+            } else {
+                app.modified.remove(&key);
+            }
+            if let Some(node_id) = app.dock.panel_node(panel_id(key)) {
+                let state_rc = app.dock.state();
+                let mut state = state_rc.borrow_mut();
+                if let Some(NodeKind::Panel(ref mut panel)) =
+                    state.layout.get_mut(node_id).map(|e| &mut e.kind)
+                {
+                    panel.is_modified = is_modified;
+                }
+                state.layout_dirty = true;
+            }
+        }
     }
     Task::none()
 }
 
 fn view(app: &App) -> Element<'_, Message> {
+    let modified = app.modified.clone();
     container(
         dock()
             .state(app.dock.state())
             .on_event(Message::Dock)
-            .content(panel_content)
+            .content(move |key| panel_content(key, modified.contains(&key)))
+            .style(|theme| {
+                let mut style = DockStyle::from_palette(theme);
+                style.tab.modified_background =
+                    Some(Color::from_rgba(0.90, 0.55, 0.10, 0.30));
+                style
+            })
             .min_pane_width(160.0)
             .min_pane_height(80.0)
             .tab_bar_show_scrollbar(true)
@@ -167,7 +217,7 @@ fn view(app: &App) -> Element<'_, Message> {
     .into()
 }
 
-fn panel_content(key: Content) -> Element<'static, Message> {
+fn panel_content(key: Content, is_modified: bool) -> Element<'static, Message> {
     let (label, hint) = match key {
         Content::Explorer => ("Explorer", "File tree"),
         Content::Search => ("Search", "Workspace search"),
@@ -189,17 +239,40 @@ fn panel_content(key: Content) -> Element<'static, Message> {
         Content::Debug => ("Debug Console", "Debugger output"),
     };
 
-    container(
-        column![
-            text(label).size(15),
-            text(hint).size(12).style(text::secondary),
-        ]
-        .spacing(6),
-    )
-    .padding([20, 24])
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .center_x(Length::Fill)
-    .center_y(Length::Fill)
-    .into()
+    let is_doc = matches!(
+        key,
+        Content::MainRs
+            | Content::LibRs
+            | Content::ModA
+            | Content::ModB
+            | Content::ModC
+            | Content::ModD
+            | Content::CargoToml
+    );
+
+    let mut col = column![
+        text(label).size(15),
+        text(hint).size(12).style(text::secondary),
+    ]
+    .spacing(6);
+
+    if is_doc {
+        let btn_label = if is_modified {
+            "Mark as saved"
+        } else {
+            "Mark as modified"
+        };
+        col = col.push(
+            button(text(btn_label))
+                .on_press(Message::ToggleModified(key)),
+        );
+    }
+
+    container(col)
+        .padding([20, 24])
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .into()
 }

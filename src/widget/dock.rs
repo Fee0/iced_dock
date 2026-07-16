@@ -306,6 +306,7 @@ where
                         title: m.title.clone(),
                         can_close: m.can_close,
                         can_drag: m.can_drag,
+                        is_modified: m.is_modified,
                     }),
                     _ => None,
                 }

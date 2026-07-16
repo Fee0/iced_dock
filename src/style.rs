@@ -99,6 +99,9 @@ pub struct TabStyle {
     pub active_text: Color,
     /// Bottom accent bar color on the selected tab.
     pub active_accent: Color,
+    /// Background color override for modified (unsaved) inactive tabs.
+    /// `None` falls back to the normal inactive background.
+    pub modified_background: Option<Color>,
 }
 
 /// Splitter handle colors.

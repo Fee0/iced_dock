@@ -75,6 +75,7 @@ impl DockStyle {
                 active_background: tab_active,
                 active_text: text,
                 active_accent: accent,
+                modified_background: None,
             },
             splitter: SplitterStyle {
                 idle_color: Color::TRANSPARENT,
@@ -146,6 +147,7 @@ impl DockStyle {
                 active_background: pane,
                 active_text: text,
                 active_accent: accent,
+                modified_background: None,
             },
             splitter: SplitterStyle {
                 idle_color: Color::TRANSPARENT,
@@ -246,6 +248,7 @@ pub fn default(theme: &Theme) -> DockStyle {
             active_background: tab_active,
             active_text: text,
             active_accent: accent,
+            modified_background: None,
         },
         splitter: SplitterStyle {
             idle_color: Color::TRANSPARENT,

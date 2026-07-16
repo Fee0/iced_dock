@@ -489,7 +489,13 @@ where
         let is_active = tab.id == active_tab;
         let is_hovered = hovered_tab == Some(tab_id);
         let is_pressed = pressed_tab == Some(tab_id);
-        let mut label_text = text(tab.title.clone())
+        let is_modified = tab.is_modified;
+        let title = if is_modified {
+            format!("{}*", tab.title)
+        } else {
+            tab.title.clone()
+        };
+        let mut label_text = text(title)
             .size(tab_text_size)
             .style({
                 let class = Rc::clone(&class);
@@ -606,6 +612,8 @@ where
                     tab.pressed_background
                 } else if is_hovered {
                     tab.hovered_background
+                } else if is_modified {
+                    tab.modified_background.unwrap_or(tab.inactive_background)
                 } else {
                     tab.inactive_background
                 };
@@ -1404,12 +1412,17 @@ where
                             height: (tab_bounds.height - 1.0 - btn_bounds.y + tab_bounds.y)
                                 .max(0.0),
                         };
+                        let active_bg = if self.tabs.get(active_i).is_some_and(|t| t.is_modified) {
+                            tab_style.modified_background.unwrap_or(dock_style.tab.active_background)
+                        } else {
+                            dock_style.tab.active_background
+                        };
                         renderer.fill_quad(
                             renderer::Quad {
                                 bounds: fill,
                                 ..renderer::Quad::default()
                             },
-                            dock_style.tab.active_background,
+                            active_bg,
                         );
                         let accent_h = self.tab_accent_height.max(0.0);
                         if accent_h > 0.0 {
