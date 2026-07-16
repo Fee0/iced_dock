@@ -483,7 +483,7 @@ impl Factory {
                 Some(NodeKind::Root(r)) => r.child.and_then(|child| {
                     layout
                         .get(child)
-                        .map(|e| matches!(&e.kind, NodeKind::Pane(p) if p.tabs.is_empty()))
+                        .map(|e| matches!(&e.kind, NodeKind::Pane(p) if p.tabs.is_empty() && !p.persistent))
                 }),
                 _ => None,
             };
@@ -497,7 +497,7 @@ impl Factory {
         }
 
         let should_collapse = match layout.kind(owner) {
-            Some(NodeKind::Pane(p)) => p.tabs.is_empty(),
+            Some(NodeKind::Pane(p)) => p.tabs.is_empty() && !p.persistent,
             Some(NodeKind::Proportional(pg)) => pg.children.len() <= 1,
             _ => false,
         };

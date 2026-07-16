@@ -46,6 +46,7 @@ fn compile_tabs<K: Copy>(
     if let Some(NodeKind::Pane(ref mut pane)) = layout.get_mut(pane_id).map(|e| &mut e.kind) {
         pane.name.clone_from(&node.name);
         pane.group.clone_from(&node.group);
+        pane.persistent = node.persistent;
     }
     if let Some(name) = &node.name {
         index.panes.insert(name.clone(), pane_id);

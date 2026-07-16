@@ -13,7 +13,7 @@ use iced::time::Duration;
 use iced::widget::overlay::menu;
 use iced::widget::text::{LineHeight, Shaping};
 use iced::widget::{self, button, container, svg, text as iced_text};
-use iced::{Element, Event, Length, Rectangle, Size, Vector};
+use iced::{Background, Element, Event, Length, Rectangle, Size, Vector};
 
 use crate::model::{Layout as ModelLayout, NodeId, NodeKind, Pane};
 use crate::style::{Catalog, DockStyle, PaneContent, StyleFn};
@@ -289,6 +289,26 @@ where
         pane_id: NodeId,
         pane: &Pane,
     ) -> Option<Element<'a, Message, Theme, Renderer>> {
+        if pane.tabs.is_empty() {
+            if !pane.persistent {
+                return None;
+            }
+            let class = Rc::clone(&self.class);
+            return Some(
+                container(widget::space::Space::new())
+                    .style(move |t: &Theme| {
+                        let ds = Catalog::style(t, &class);
+                        container::Style {
+                            background: Some(Background::Color(ds.window.background)),
+                            border: ds.window.border,
+                            ..Default::default()
+                        }
+                    })
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into(),
+            );
+        }
         let active = pane.active.or_else(|| pane.tabs.first().copied())?;
         let entry = layout.get(active)?;
         let content_key: K = match &entry.kind {
