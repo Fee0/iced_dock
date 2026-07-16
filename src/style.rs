@@ -136,7 +136,6 @@ impl DockStyle {
     pub fn sync_tab_bar_with_dock(&mut self) {
         self.tab_bar.background = self.background.color;
     }
-
 }
 
 /// The theme catalog of dock chrome.

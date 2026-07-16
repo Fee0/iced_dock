@@ -6,8 +6,8 @@ use iced::keyboard::{self, Key};
 use iced::widget::{button, column, container, text};
 use iced::{application, Color, Element, Length, Size, Subscription, Task, Theme};
 use iced_dock::{
-    dock, horizontal, model::NodeKind, panel as tab, tabs, vertical, Direction, DockEvent,
-    DockSession, DockStyle, InitialFocus, LayoutTree,
+    dock, horizontal, panel as tab, tabs, vertical, Direction, DockEvent, DockSession, DockStyle,
+    InitialFocus, LayoutTree,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -72,26 +72,6 @@ fn demo_layout() -> LayoutTree<Content> {
         .group("tools"),
     ])
     .weights([0.75, 0.25])
-}
-
-fn panel_id(key: Content) -> &'static str {
-    match key {
-        Content::Explorer => "explorer",
-        Content::Search => "search",
-        Content::MainRs => "main",
-        Content::LibRs => "lib",
-        Content::ModA => "mod_a",
-        Content::ModB => "mod_b",
-        Content::ModC => "mod_c",
-        Content::ModD => "mod_d",
-        Content::CargoToml => "cargo",
-        Content::Outline => "outline",
-        Content::Properties => "properties",
-        Content::Terminal => "terminal",
-        Content::Output => "output",
-        Content::Problems => "problems",
-        Content::Debug => "debug",
-    }
 }
 
 fn main() -> iced::Result {
@@ -173,21 +153,8 @@ fn update(app: &mut App, message: Message) -> Task<Message> {
             app.dock.split_active_panel(direction);
         }
         Message::ToggleModified(key) => {
-            let is_modified = !app.modified.contains(&key);
-            if is_modified {
+            if !app.modified.remove(&key) {
                 app.modified.insert(key);
-            } else {
-                app.modified.remove(&key);
-            }
-            if let Some(node_id) = app.dock.panel_node(panel_id(key)) {
-                let state_rc = app.dock.state();
-                let mut state = state_rc.borrow_mut();
-                if let Some(NodeKind::Panel(ref mut panel)) =
-                    state.layout.get_mut(node_id).map(|e| &mut e.kind)
-                {
-                    panel.is_modified = is_modified;
-                }
-                state.layout_dirty = true;
             }
         }
     }
@@ -195,16 +162,15 @@ fn update(app: &mut App, message: Message) -> Task<Message> {
 }
 
 fn view(app: &App) -> Element<'_, Message> {
-    let modified = app.modified.clone();
     container(
         dock()
             .state(app.dock.state())
             .on_event(Message::Dock)
-            .content(move |key| panel_content(key, modified.contains(&key)))
+            .content(|key| panel_content(key, app.modified.contains(&key)))
+            .modified(|key| app.modified.contains(&key))
             .style(|theme| {
                 let mut style = DockStyle::from_palette(theme);
-                style.tab.modified_background =
-                    Some(Color::from_rgba(0.90, 0.55, 0.10, 0.30));
+                style.tab.modified_background = Some(Color::from_rgba(0.90, 0.55, 0.10, 0.30));
                 style
             })
             .min_pane_width(160.0)
@@ -263,10 +229,7 @@ fn panel_content(key: Content, is_modified: bool) -> Element<'static, Message> {
         } else {
             "Mark as modified"
         };
-        col = col.push(
-            button(text(btn_label))
-                .on_press(Message::ToggleModified(key)),
-        );
+        col = col.push(button(text(btn_label)).on_press(Message::ToggleModified(key)));
     }
 
     container(col)

@@ -502,7 +502,11 @@ where
                 move |theme: &Theme| {
                     let tab = Catalog::style(theme, &class).tab;
                     let color = if is_active {
-                        if is_pressed { tab.pressed_text } else { tab.active_text }
+                        if is_pressed {
+                            tab.pressed_text
+                        } else {
+                            tab.active_text
+                        }
                     } else if is_pressed {
                         tab.pressed_text
                     } else if is_hovered {
@@ -1413,7 +1417,9 @@ where
                                 .max(0.0),
                         };
                         let active_bg = if self.tabs.get(active_i).is_some_and(|t| t.is_modified) {
-                            tab_style.modified_background.unwrap_or(dock_style.tab.active_background)
+                            tab_style
+                                .modified_background
+                                .unwrap_or(dock_style.tab.active_background)
                         } else {
                             dock_style.tab.active_background
                         };

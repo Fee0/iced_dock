@@ -11,7 +11,6 @@ pub struct Panel<K> {
     pub can_drag: bool,
     pub can_drop: bool,
     pub group: Option<String>,
-    pub is_modified: bool,
 }
 
 impl<K: Copy> Panel<K> {
@@ -24,7 +23,6 @@ impl<K: Copy> Panel<K> {
             can_drag: true,
             can_drop: true,
             group: None,
-            is_modified: false,
         }
     }
 }

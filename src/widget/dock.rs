@@ -65,6 +65,7 @@ where
     Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer,
 {
     content: Box<dyn Fn(K) -> PaneContent<'a, Message, Theme, Renderer> + 'a>,
+    modified: Option<ModifiedFn<'a, K>>,
     on_event: Rc<dyn Fn(DockEvent<K>) -> Message>,
     external_state: Option<Rc<RefCell<DockWidgetState<K>>>>,
     class: Rc<<Theme as Catalog>::Class<'static>>,
@@ -326,7 +327,7 @@ where
                         title: m.title.clone(),
                         can_close: m.can_close,
                         can_drag: m.can_drag,
-                        is_modified: m.is_modified,
+                        is_modified: self.modified.as_ref().is_some_and(|f| f(m.content)),
                     }),
                     _ => None,
                 }
@@ -410,6 +411,8 @@ where
 type ContentFn<'a, K, Message, Theme, Renderer> =
     Box<dyn Fn(K) -> PaneContent<'a, Message, Theme, Renderer> + 'a>;
 
+type ModifiedFn<'a, K> = Box<dyn Fn(K) -> bool + 'a>;
+
 /// Builder for constructing a [`Dock`] widget with ergonomic chained setters.
 ///
 /// Obtained via [`dock()`]. At minimum, call [`content`](Self::content),
@@ -428,6 +431,7 @@ where
     Renderer: advanced::Renderer + advanced::text::Renderer + advanced::svg::Renderer,
 {
     content: Option<ContentFn<'a, K, Message, Theme, Renderer>>,
+    modified: Option<ModifiedFn<'a, K>>,
     on_event: Option<Rc<dyn Fn(DockEvent<K>) -> Message>>,
     shared_state: Option<Rc<RefCell<DockWidgetState<K>>>>,
     class: Option<Rc<<Theme as Catalog>::Class<'static>>>,
@@ -471,6 +475,7 @@ where
     fn default() -> Self {
         Self {
             content: None,
+            modified: None,
             on_event: None,
             shared_state: None,
             class: None,
@@ -545,6 +550,18 @@ where
         f: impl Fn(K) -> PaneContent<'a, Message, Theme, Renderer> + 'a,
     ) -> Self {
         self.content = Some(Box::new(f));
+        self
+    }
+
+    /// Set a predicate that marks tabs as modified (unsaved changes).
+    ///
+    /// Queried per tab each view pass, so the flag always reflects current
+    /// application state — no imperative syncing. Modified tabs render a `*`
+    /// title suffix and use [`TabStyle::modified_background`](crate::style::TabStyle::modified_background)
+    /// when set.
+    #[must_use]
+    pub fn modified(mut self, f: impl Fn(K) -> bool + 'a) -> Self {
+        self.modified = Some(Box::new(f));
         self
     }
 
@@ -838,6 +855,7 @@ where
             .unwrap_or_else(|| Rc::new(|_| panic!("dock().on_event(...) required")));
         Dock {
             content,
+            modified: self.modified,
             on_event,
             external_state: self.shared_state,
             class: self
