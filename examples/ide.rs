@@ -168,6 +168,7 @@ fn view(app: &App) -> Element<'_, Message> {
             .on_event(Message::Dock)
             .content(|key| panel_content(key, app.modified.contains(&key)))
             .modified(|key| app.modified.contains(&key))
+            .tab_tooltip(|key| file_path(key).map(str::to_owned))
             .style(|theme| {
                 let mut style = DockStyle::from_palette(theme);
                 style.tab.modified_background = Some(Color::from_rgba(0.90, 0.55, 0.10, 0.30));
@@ -182,6 +183,20 @@ fn view(app: &App) -> Element<'_, Message> {
     .height(Length::Fill)
     .padding(10)
     .into()
+}
+
+/// Fake full path shown as tab tooltip for document tabs.
+fn file_path(key: Content) -> Option<&'static str> {
+    match key {
+        Content::MainRs => Some("/home/dev/project/src/main.rs"),
+        Content::LibRs => Some("/home/dev/project/src/lib.rs"),
+        Content::ModA => Some("/home/dev/project/src/module_alpha.rs"),
+        Content::ModB => Some("/home/dev/project/src/module_alpha_beta.rs"),
+        Content::ModC => Some("/home/dev/project/src/module_alpha_gamma.rs"),
+        Content::ModD => Some("/home/dev/project/src/module_alpha_delta.rs"),
+        Content::CargoToml => Some("/home/dev/project/Cargo.toml"),
+        _ => None,
+    }
 }
 
 fn panel_content(key: Content, is_modified: bool) -> Element<'static, Message> {

@@ -66,6 +66,7 @@ pub struct TabInfo {
     pub can_close: bool,
     pub can_drag: bool,
     pub is_modified: bool,
+    pub tooltip: Option<String>,
 }
 
 #[derive(Default)]
@@ -157,6 +158,7 @@ where
         tab_bar_scrollbar_animated: bool,
         tab_bar_show_scrollbar: bool,
         tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
+        tab_tooltip_delay: Duration,
         close_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
         overflow_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     ) -> Self {
@@ -189,6 +191,7 @@ where
             tab_bar_scrollbar_animated,
             tab_bar_show_scrollbar,
             tab_bar_scrollbar_attachment,
+            tab_tooltip_delay,
             close_icon,
             overflow_icon,
         )

@@ -66,6 +66,7 @@ where
 {
     content: Box<dyn Fn(K) -> PaneContent<'a, Message, Theme, Renderer> + 'a>,
     modified: Option<ModifiedFn<'a, K>>,
+    tooltip: Option<TooltipFn<'a, K>>,
     on_event: Rc<dyn Fn(DockEvent<K>) -> Message>,
     external_state: Option<Rc<RefCell<DockWidgetState<K>>>>,
     class: Rc<<Theme as Catalog>::Class<'static>>,
@@ -97,6 +98,7 @@ where
     tab_bar_scrollbar_animated: bool,
     tab_bar_show_scrollbar: bool,
     tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
+    tab_tooltip_delay: Duration,
     close_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     overflow_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     on_close_requested: Option<Rc<dyn Fn(K) -> Message>>,
@@ -328,6 +330,7 @@ where
                         can_close: m.can_close,
                         can_drag: m.can_drag,
                         is_modified: self.modified.as_ref().is_some_and(|f| f(m.content)),
+                        tooltip: self.tooltip.as_ref().and_then(|f| f(m.content)),
                     }),
                     _ => None,
                 }
@@ -379,6 +382,7 @@ where
                 self.tab_bar_scrollbar_animated,
                 self.tab_bar_show_scrollbar,
                 self.tab_bar_scrollbar_attachment,
+                self.tab_tooltip_delay,
                 self.close_icon.clone(),
                 self.overflow_icon.clone(),
             )
@@ -413,6 +417,8 @@ type ContentFn<'a, K, Message, Theme, Renderer> =
 
 type ModifiedFn<'a, K> = Box<dyn Fn(K) -> bool + 'a>;
 
+type TooltipFn<'a, K> = Box<dyn Fn(K) -> Option<String> + 'a>;
+
 /// Builder for constructing a [`Dock`] widget with ergonomic chained setters.
 ///
 /// Obtained via [`dock()`]. At minimum, call [`content`](Self::content),
@@ -432,6 +438,7 @@ where
 {
     content: Option<ContentFn<'a, K, Message, Theme, Renderer>>,
     modified: Option<ModifiedFn<'a, K>>,
+    tooltip: Option<TooltipFn<'a, K>>,
     on_event: Option<Rc<dyn Fn(DockEvent<K>) -> Message>>,
     shared_state: Option<Rc<RefCell<DockWidgetState<K>>>>,
     class: Option<Rc<<Theme as Catalog>::Class<'static>>>,
@@ -462,6 +469,7 @@ where
     tab_bar_scrollbar_animated: bool,
     tab_bar_show_scrollbar: bool,
     tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
+    tab_tooltip_delay: Duration,
     close_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     overflow_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     on_close_requested: Option<Rc<dyn Fn(K) -> Message>>,
@@ -476,6 +484,7 @@ where
         Self {
             content: None,
             modified: None,
+            tooltip: None,
             on_event: None,
             shared_state: None,
             class: None,
@@ -506,6 +515,7 @@ where
             tab_bar_scrollbar_animated: true,
             tab_bar_show_scrollbar: false,
             tab_bar_scrollbar_attachment: TabBarScrollbarAttachment::Top,
+            tab_tooltip_delay: Duration::from_millis(500),
             close_icon: None,
             overflow_icon: None,
             on_close_requested: None,
@@ -562,6 +572,26 @@ where
     #[must_use]
     pub fn modified(mut self, f: impl Fn(K) -> bool + 'a) -> Self {
         self.modified = Some(Box::new(f));
+        self
+    }
+
+    /// Set a closure that provides a hover tooltip per tab (e.g. the full
+    /// file path). Queried per tab each view pass; `None` disables the
+    /// tooltip for that tab.
+    ///
+    /// The tooltip appears below the tab after
+    /// [`tab_tooltip_delay`](Self::tab_tooltip_delay) and is styled via
+    /// [`DockStyle::tooltip`](crate::style::DockStyle::tooltip).
+    #[must_use]
+    pub fn tab_tooltip(mut self, f: impl Fn(K) -> Option<String> + 'a) -> Self {
+        self.tooltip = Some(Box::new(f));
+        self
+    }
+
+    /// Hover time before a tab tooltip appears. Default 500 ms.
+    #[must_use]
+    pub fn tab_tooltip_delay(mut self, delay: Duration) -> Self {
+        self.tab_tooltip_delay = delay;
         self
     }
 
@@ -856,6 +886,7 @@ where
         Dock {
             content,
             modified: self.modified,
+            tooltip: self.tooltip,
             on_event,
             external_state: self.shared_state,
             class: self
@@ -889,6 +920,7 @@ where
             tab_bar_scrollbar_animated: self.tab_bar_scrollbar_animated,
             tab_bar_show_scrollbar: self.tab_bar_show_scrollbar,
             tab_bar_scrollbar_attachment: self.tab_bar_scrollbar_attachment,
+            tab_tooltip_delay: self.tab_tooltip_delay,
             close_icon: self.close_icon,
             overflow_icon: self.overflow_icon,
             on_close_requested: self.on_close_requested,

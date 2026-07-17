@@ -21,6 +21,8 @@ pub struct DockStyle {
     pub splitter: SplitterStyle,
     /// Highlight shown while dragging tabs over a drop target.
     pub drop_overlay: DropOverlayStyle,
+    /// Hover tooltip shown below tabs (see [`crate::DockBuilder::tab_tooltip`]).
+    pub tooltip: TabTooltipStyle,
 }
 
 /// Background fill for the dock root.
@@ -102,6 +104,23 @@ pub struct TabStyle {
     /// Background color override for modified (unsaved) inactive tabs.
     /// `None` falls back to the normal inactive background.
     pub modified_background: Option<Color>,
+}
+
+/// Hover tooltip shown below a tab (paint only).
+#[derive(Debug, Clone)]
+pub struct TabTooltipStyle {
+    /// Background fill of the tooltip box.
+    pub background: Color,
+    /// Tooltip text color.
+    pub text_color: Color,
+    /// Border color of the tooltip box.
+    pub border_color: Color,
+    /// Border width of the tooltip box.
+    pub border_width: f32,
+    /// Corner radius of the tooltip box.
+    pub border_radius: f32,
+    /// Inner padding: `[vertical, horizontal]`.
+    pub padding: [f32; 2],
 }
 
 /// Splitter handle colors.

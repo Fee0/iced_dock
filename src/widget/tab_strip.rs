@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::sync::LazyLock;
 
 use crate::model::NodeId;
-use crate::style::{Catalog, DockStyle, DropOverlayStyle, TabBarStyle};
+use crate::style::{Catalog, DockStyle, DropOverlayStyle, TabBarStyle, TabTooltipStyle};
 use crate::widget::action::{DockAction, TabAction};
 use crate::widget::compose;
 use crate::widget::dock::TabBarScrollbarAttachment;
@@ -85,6 +85,7 @@ struct TabStripState<Theme: menu::Catalog> {
     dragging: bool,
     pressed_tab: Option<NodeId>,
     hovered_tab: Option<NodeId>,
+    hover_started: Option<Instant>,
     insert_marker_index: Option<usize>,
     drag_blocked: bool,
     /// When true, tab label and close-button hover are disabled (active global tab drag).
@@ -125,6 +126,7 @@ where
             dragging: false,
             pressed_tab: None,
             hovered_tab: None,
+            hover_started: None,
             insert_marker_index: None,
             drag_blocked: false,
             suppress_hover: false,
@@ -233,6 +235,96 @@ where
     }
 }
 
+/// Non-interactive tooltip box shown below a hovered tab.
+struct TabTooltipOverlay<Font> {
+    content: String,
+    /// Desired top-left corner in window space (clamped to the viewport in `layout`).
+    anchor: Point,
+    style: TabTooltipStyle,
+    text_size: f32,
+    font: Option<Font>,
+    line_height: LineHeight,
+    shaping: Shaping,
+}
+
+impl<Message, Theme, Renderer> advanced::Overlay<Message, Theme, Renderer>
+    for TabTooltipOverlay<Renderer::Font>
+where
+    Renderer: advanced::Renderer + advanced::text::Renderer,
+{
+    fn layout(&mut self, renderer: &Renderer, bounds: Size) -> layout::Node {
+        let [pad_v, pad_h] = self.style.padding;
+        let mut paragraph = paragraph::Plain::default();
+        let limits = layout::Limits::new(Size::ZERO, Size::new(f32::INFINITY, f32::INFINITY));
+        let format = Format {
+            width: Length::Shrink,
+            height: Length::Shrink,
+            size: Some(Pixels(self.text_size)),
+            font: self.font,
+            line_height: self.line_height,
+            shaping: self.shaping,
+            ..Format::default()
+        };
+        let text_size =
+            text_layout(&mut paragraph, renderer, &limits, &self.content, format).size();
+        let size = Size::new(
+            text_size.width + 2.0 * pad_h,
+            text_size.height + 2.0 * pad_v,
+        );
+        let position = Point::new(
+            self.anchor.x.min(bounds.width - size.width).max(0.0),
+            self.anchor.y.min(bounds.height - size.height).max(0.0),
+        );
+        layout::Node::new(size).move_to(position)
+    }
+
+    fn draw(
+        &self,
+        renderer: &mut Renderer,
+        _theme: &Theme,
+        _style: &renderer::Style,
+        layout: Layout<'_>,
+        _cursor: Cursor,
+    ) {
+        let bounds = layout.bounds();
+        let [pad_v, pad_h] = self.style.padding;
+        renderer.fill_quad(
+            renderer::Quad {
+                bounds,
+                border: Border {
+                    color: self.style.border_color,
+                    width: self.style.border_width,
+                    radius: self.style.border_radius.into(),
+                },
+                ..renderer::Quad::default()
+            },
+            self.style.background,
+        );
+        let text_bounds = Rectangle {
+            x: bounds.x + pad_h,
+            y: bounds.y + pad_v,
+            width: (bounds.width - 2.0 * pad_h).max(0.0),
+            height: (bounds.height - 2.0 * pad_v).max(0.0),
+        };
+        renderer.fill_text(
+            advanced::Text {
+                content: self.content.clone(),
+                bounds: text_bounds.size(),
+                size: Pixels(self.text_size),
+                line_height: self.line_height,
+                font: self.font.unwrap_or_else(|| renderer.default_font()),
+                align_x: advanced::text::Alignment::Left,
+                align_y: iced::alignment::Vertical::Top,
+                shaping: self.shaping,
+                wrapping: advanced::text::Wrapping::None,
+            },
+            text_bounds.position(),
+            self.style.text_color,
+            text_bounds,
+        );
+    }
+}
+
 pub struct TabStrip<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: Catalog,
@@ -266,6 +358,7 @@ where
     scrollbar_animated: bool,
     show_scrollbar: bool,
     scrollbar_attachment: TabBarScrollbarAttachment,
+    tooltip_delay: Duration,
     theme: Rc<RefCell<Option<Theme>>>,
     close_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     overflow_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
@@ -318,6 +411,7 @@ where
         scrollbar_animated: bool,
         show_scrollbar: bool,
         scrollbar_attachment: TabBarScrollbarAttachment,
+        tooltip_delay: Duration,
         close_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
         overflow_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     ) -> Self {
@@ -370,6 +464,7 @@ where
             scrollbar_animated,
             show_scrollbar,
             scrollbar_attachment,
+            tooltip_delay,
             theme,
             close_icon,
             overflow_icon,
@@ -428,6 +523,29 @@ where
             tree.children[0].diff(&self.tabs_row);
         }
     }
+}
+
+/// Hovered tab whose tooltip is armed (has text, no press/drag/menu), with the
+/// instant the tooltip becomes visible.
+fn tooltip_target<'t, Theme: menu::Catalog>(
+    state: &TabStripState<Theme>,
+    tabs: &'t [TabInfo],
+    delay: Duration,
+) -> Option<(&'t TabInfo, Instant)> {
+    if state.suppress_hover
+        || state.dragging
+        || state.drag_pending
+        || state.pressed_tab.is_some()
+        || state.overflow_ui.borrow().open
+    {
+        return None;
+    }
+    let hovered = state.hovered_tab?;
+    let started = state.hover_started?;
+    let tab = tabs
+        .iter()
+        .find(|tab| tab.id == hovered && tab.tooltip.is_some())?;
+    Some((tab, started + delay))
 }
 
 fn visual_pressed_tab<Theme: menu::Catalog>(state: &TabStripState<Theme>) -> Option<NodeId> {
@@ -1583,6 +1701,7 @@ where
 
             if state.suppress_hover && state.hovered_tab.is_some() {
                 state.hovered_tab = None;
+                state.hover_started = None;
                 row_refresh = Some((None, visual_pressed_tab(state)));
                 shell.request_redraw();
             }
@@ -1599,6 +1718,7 @@ where
             };
             if hovered != state.hovered_tab {
                 state.hovered_tab = hovered;
+                state.hover_started = hovered.map(|_| now);
                 row_refresh = Some((hovered, visual_pressed_tab(state)));
                 shell.request_redraw();
             }
@@ -1852,6 +1972,12 @@ where
                 }
             }
 
+            if let Some((_, show_at)) = tooltip_target(state, &self.tabs, self.tooltip_delay) {
+                if now < show_at {
+                    shell.request_redraw_at(show_at);
+                }
+            }
+
             sync_tab_bar_hover(state, row_bounds, cursor, self.show_scrollbar, shell);
         };
 
@@ -1936,7 +2062,31 @@ where
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         let state = tree.state.downcast_mut::<TabStripState<Theme>>();
         if !state.overflow_ui.borrow().open {
-            return None;
+            let (tab, show_at) = tooltip_target(state, &self.tabs, self.tooltip_delay)?;
+            if Instant::now() < show_at {
+                return None;
+            }
+            let theme = self.resolved_theme()?;
+            let style = self.layout_style(&theme).tooltip;
+            let index = self.tabs.iter().position(|t| t.id == tab.id)?;
+            let row_layout = layout.children().next()?;
+            let tab_bounds = row_layout.children().nth(index)?.bounds();
+            let strip_bounds = layout.bounds();
+            let anchor = Point::new(
+                tab_bounds.x - state.scroll_offset + translation.x,
+                strip_bounds.y + strip_bounds.height + translation.y,
+            );
+            return Some(overlay::Element::new(Box::new(TabTooltipOverlay::<
+                Renderer::Font,
+            > {
+                content: tab.tooltip.clone()?,
+                anchor,
+                style,
+                text_size: self.tab_text_size,
+                font: self.tab_font,
+                line_height: self.tab_line_height.unwrap_or_default(),
+                shaping: self.tab_text_shaping.unwrap_or_default(),
+            })));
         }
 
         let row_layout = layout.children().next()?;

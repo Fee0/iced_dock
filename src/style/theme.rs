@@ -4,7 +4,7 @@ use iced::{Border, Color, Theme};
 
 use super::{
     CloseButtonStyle, DockBackgroundStyle, DockStyle, DropOverlayStyle, SplitterStyle, TabBarStyle,
-    TabStyle, WindowStyle,
+    TabStyle, TabTooltipStyle, WindowStyle,
 };
 
 impl DockStyle {
@@ -87,6 +87,14 @@ impl DockStyle {
                 blocked_color: Color::from_rgba(0.92, 0.25, 0.25, 0.28),
                 insert_marker_min_alpha: 0.65,
             },
+            tooltip: TabTooltipStyle {
+                background: Color::from_rgb(0.16, 0.16, 0.18),
+                text_color: text,
+                border_color: border,
+                border_width: 1.0,
+                border_radius: 4.0,
+                padding: [4.0, 8.0],
+            },
         }
     }
 
@@ -158,6 +166,14 @@ impl DockStyle {
                 color: Color::from_rgba(0.12, 0.45, 0.92, 0.25),
                 blocked_color: Color::from_rgba(0.92, 0.20, 0.20, 0.25),
                 insert_marker_min_alpha: 0.65,
+            },
+            tooltip: TabTooltipStyle {
+                background: Color::from_rgb(0.98, 0.98, 0.99),
+                text_color: text,
+                border_color: border,
+                border_width: 1.0,
+                border_radius: 4.0,
+                padding: [4.0, 8.0],
             },
         }
     }
@@ -259,6 +275,14 @@ pub fn default(theme: &Theme) -> DockStyle {
             color: accent.scale_alpha(0.28),
             blocked_color: Color::from_rgba(0.92, 0.25, 0.25, 0.28),
             insert_marker_min_alpha: 0.65,
+        },
+        tooltip: TabTooltipStyle {
+            background: palette.background.weaker.color,
+            text_color: text,
+            border_color: border,
+            border_width: 1.0,
+            border_radius: 4.0,
+            padding: [4.0, 8.0],
         },
     }
 }
