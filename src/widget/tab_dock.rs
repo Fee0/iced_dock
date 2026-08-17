@@ -240,6 +240,19 @@ where
             || tab_strip::is_dragging::<Theme>(tree.children.first())
     }
 
+    /// Cursor handed to the pane content. A tab drag owns the pointer, so the
+    /// content is blinded for its duration: widgets see "cursor not over me" and
+    /// clear their hover state instead of freezing it. Blocking pointer *events*
+    /// alone is not enough — `button` recomputes its status from the cursor on
+    /// every `RedrawRequested`, and canvases hover straight out of `draw`.
+    fn content_cursor(&self, cursor: Cursor) -> Cursor {
+        if self.dock_state.borrow().drag.is_some() {
+            Cursor::Unavailable
+        } else {
+            cursor
+        }
+    }
+
     fn register_drop_target(&self, bounds: Rectangle) {
         self.dock_state
             .borrow_mut()
@@ -408,7 +421,7 @@ where
                 theme,
                 style,
                 content_layout,
-                cursor,
+                self.content_cursor(cursor),
                 viewport,
             );
         }
@@ -571,17 +584,17 @@ where
             tab_strip::set_suppress_hover::<Theme>(&mut tree.children[0], false);
         }
         if let Some(content_layout) = layout.children().nth(1) {
-            // A tab drag owns the pointer: pane content must not hover or react to clicks.
-            // Non-pointer events keep flowing so keyboard/window handling stays intact.
-            let block_pointer = self.dock_state.borrow().drag.is_some()
-                && matches!(event, Event::Mouse(_) | Event::Touch(_));
-            if !is_picked && !block_pointer {
+            // Keep forwarding while a drag is in progress, but with a blinded cursor:
+            // widgets must clear hover rather than keep the highlight they had when the
+            // drag began, and a press with no cursor over them is a no-op.
+            let content_cursor = self.content_cursor(cursor);
+            if !is_picked {
                 compose::child_update(
                     &mut self.content,
                     &mut tree.children[1],
                     event,
                     content_layout,
-                    cursor,
+                    content_cursor,
                     renderer,
                     clipboard,
                     shell,
