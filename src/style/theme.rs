@@ -85,6 +85,9 @@ impl DockStyle {
             drop_overlay: DropOverlayStyle {
                 color: Color::from_rgba(0.38, 0.62, 0.98, 0.28),
                 blocked_color: Color::from_rgba(0.92, 0.25, 0.25, 0.28),
+                border_width: 2.0,
+                border_color: Color::from_rgb(0.38, 0.62, 0.98),
+                blocked_border_color: Color::from_rgb(0.92, 0.25, 0.25),
                 insert_marker_min_alpha: 0.65,
             },
             tooltip: TabTooltipStyle {
@@ -165,6 +168,9 @@ impl DockStyle {
             drop_overlay: DropOverlayStyle {
                 color: Color::from_rgba(0.12, 0.45, 0.92, 0.25),
                 blocked_color: Color::from_rgba(0.92, 0.20, 0.20, 0.25),
+                border_width: 2.0,
+                border_color: Color::from_rgb(0.12, 0.45, 0.92),
+                blocked_border_color: Color::from_rgb(0.92, 0.20, 0.20),
                 insert_marker_min_alpha: 0.65,
             },
             tooltip: TabTooltipStyle {
@@ -274,6 +280,9 @@ pub fn default(theme: &Theme) -> DockStyle {
         drop_overlay: DropOverlayStyle {
             color: accent.scale_alpha(0.28),
             blocked_color: Color::from_rgba(0.92, 0.25, 0.25, 0.28),
+            border_width: 2.0,
+            border_color: accent,
+            blocked_border_color: Color::from_rgb(0.92, 0.25, 0.25),
             insert_marker_min_alpha: 0.65,
         },
         tooltip: TabTooltipStyle {

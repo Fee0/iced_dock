@@ -259,6 +259,9 @@ where
                 let on_split = Rc::new(move |action: DockAction| {
                     Self::wrap_action(&h, &on_ev, on_close.as_ref(), action)
                 });
+                let drag_holder = Rc::clone(holder);
+                let drag_active: Rc<dyn Fn() -> bool> =
+                    Rc::new(move || drag_holder.borrow().drag.is_some());
                 Some(
                     SplitContainer::new(
                         node,
@@ -266,6 +269,7 @@ where
                         pg.proportions.clone(),
                         children,
                         on_split,
+                        drag_active,
                         Rc::clone(&self.class),
                         self.splitter_size,
                         self.splitter_gap,

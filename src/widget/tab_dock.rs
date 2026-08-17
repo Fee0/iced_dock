@@ -13,7 +13,7 @@ use iced::touch;
 use iced::widget::overlay::menu;
 use iced::widget::text::{LineHeight, Shaping};
 use iced::widget::{button, container, svg, text as iced_text};
-use iced::{Element, Event, Length, Rectangle, Size, Vector};
+use iced::{Border, Element, Event, Length, Rectangle, Size, Vector};
 
 use crate::manager::{DockManager, DragSession, DropZone, TabBarTarget};
 use crate::model::NodeId;
@@ -455,19 +455,34 @@ where
                                 self.pane_id,
                             )
                         });
-                    let highlight = if blocked {
-                        dock_style.drop_overlay.blocked_color
+                    let (highlight, outline) = if blocked {
+                        (
+                            dock_style.drop_overlay.blocked_color,
+                            dock_style.drop_overlay.blocked_border_color,
+                        )
                     } else {
-                        dock_style.drop_overlay.color
+                        (
+                            dock_style.drop_overlay.color,
+                            dock_style.drop_overlay.border_color,
+                        )
                     };
                     let zone_bounds = drop_zone_rect(bounds, zone, self.drop_edge_fraction);
-                    renderer.fill_quad(
-                        renderer::Quad {
-                            bounds: zone_bounds,
-                            ..Default::default()
-                        },
-                        highlight,
-                    );
+                    // Own layer: inside a single layer the renderer draws quads before meshes
+                    // and text, so a plain fill_quad here ends up *under* canvas-based content.
+                    renderer.with_layer(bounds, |renderer| {
+                        renderer.fill_quad(
+                            renderer::Quad {
+                                bounds: zone_bounds,
+                                border: Border {
+                                    width: dock_style.drop_overlay.border_width,
+                                    color: outline,
+                                    radius: 0.0.into(),
+                                },
+                                ..Default::default()
+                            },
+                            highlight,
+                        );
+                    });
                 }
             }
         }
@@ -556,7 +571,11 @@ where
             tab_strip::set_suppress_hover::<Theme>(&mut tree.children[0], false);
         }
         if let Some(content_layout) = layout.children().nth(1) {
-            if !is_picked {
+            // A tab drag owns the pointer: pane content must not hover or react to clicks.
+            // Non-pointer events keep flowing so keyboard/window handling stays intact.
+            let block_pointer = self.dock_state.borrow().drag.is_some()
+                && matches!(event, Event::Mouse(_) | Event::Touch(_));
+            if !is_picked && !block_pointer {
                 compose::child_update(
                     &mut self.content,
                     &mut tree.children[1],

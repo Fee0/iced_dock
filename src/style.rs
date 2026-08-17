@@ -141,6 +141,12 @@ pub struct DropOverlayStyle {
     pub color: Color,
     /// Color shown when the drag would be rejected (e.g. group mismatch).
     pub blocked_color: Color,
+    /// Outline width around the drop zone. `0.0` disables the outline.
+    pub border_width: f32,
+    /// Outline color for valid drop zones.
+    pub border_color: Color,
+    /// Outline color when the drag would be rejected.
+    pub blocked_border_color: Color,
     /// Minimum alpha for the tab-bar insertion marker (derived from [`Self::color`]).
     pub insert_marker_min_alpha: f32,
 }

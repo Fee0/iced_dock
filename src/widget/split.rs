@@ -54,6 +54,9 @@ where
     proportions: Vec<f32>,
     children: Vec<Element<'a, Message, Theme, Renderer>>,
     on_event: Rc<dyn Fn(DockAction) -> Message>,
+    /// Reports whether a tab drag owns the pointer. Kept as a closure so the
+    /// container stays free of the panel-key generic of `DockWidgetState`.
+    drag_active: Rc<dyn Fn() -> bool>,
     class: Rc<<Theme as Catalog>::Class<'static>>,
     splitter_size: f32,
     splitter_gap: f32,
@@ -72,6 +75,7 @@ where
         proportions: Vec<f32>,
         children: Vec<Element<'a, Message, Theme, Renderer>>,
         on_event: Rc<dyn Fn(DockAction) -> Message>,
+        drag_active: Rc<dyn Fn() -> bool>,
         class: Rc<<Theme as Catalog>::Class<'static>>,
         splitter_size: f32,
         splitter_gap: f32,
@@ -84,6 +88,7 @@ where
             proportions,
             children,
             on_event,
+            drag_active,
             class,
             splitter_size,
             splitter_gap,
@@ -324,7 +329,7 @@ where
 
         let pos = layout.position();
         let offset = iced::Vector::new(pos.x, pos.y);
-        let cursor_pos = cursor.position();
+        let cursor_pos = cursor.position().filter(|_| !(self.drag_active)());
         for (i, child_layout) in layout.children().enumerate() {
             if let Some(child) = self.children.get(i) {
                 compose::child_draw(
@@ -393,6 +398,7 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
+        let drag_active = (self.drag_active)();
         let state = tree.state.downcast_mut::<SplitWidgetState>();
         let is_horizontal = self.axis == Axis::Horizontal;
 
@@ -419,6 +425,14 @@ where
         } else {
             self.min_pane_height
         };
+
+        // A tab drag owns the pointer: no splitter grabs, no splitter hover.
+        if drag_active {
+            if state.hovered_splitter.take().is_some() {
+                shell.request_redraw();
+            }
+            return;
+        }
 
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
