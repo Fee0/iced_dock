@@ -185,15 +185,27 @@ where
     /// Requires at least one draw pass so [`DockWidgetState::pane_bounds`] is populated
     /// (run the dock widget once or wait for the first frame).
     /// Returns `true` if focus moved to a neighbor.
+    ///
+    /// When
+    /// [`DockBuilder::focus_frame_groups`](crate::widget::DockBuilder::focus_frame_groups)
+    /// restricts the focus frame, only panes in those groups are candidates — ineligible
+    /// panes are skipped rather than stepped through.
     #[expect(
         clippy::must_use_candidate,
         reason = "This is a command-style API; callers may intentionally ignore failed movement."
     )]
     pub fn focus_adjacent(&self, direction: Direction) -> bool {
-        let Some(pane) = self.focused_pane() else {
+        let state = self.inner.borrow();
+        let Some(pane) = state.focused_pane else {
             return false;
         };
-        let bounds = pane_bounds_map(&self.inner.borrow().pane_bounds);
+        // The current pane stays in the map as the origin rectangle even when it is not
+        // itself an eligible target (e.g. focus sits on a tool pane).
+        let bounds = pane_bounds_map(&state.pane_bounds)
+            .into_iter()
+            .filter(|&(id, _)| id == pane || state.frame_eligible(id))
+            .collect();
+        drop(state);
         let Some(adjacent) = adjacent_pane(pane, direction, &bounds) else {
             return false;
         };

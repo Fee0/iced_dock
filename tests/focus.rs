@@ -652,3 +652,68 @@ fn clear_focus_frame_survives_structural_change() {
     session.close_panel("terminal").expect("close terminal");
     assert_eq!(session.focus_frame_pane(), None);
 }
+
+/// main | lib side by side on top, terminal spanning the bottom.
+fn set_grouped_bounds(session: &DockSession<u32>) {
+    let rect = |x: f32, y: f32, w: f32, h: f32| {
+        iced::Rectangle::new(iced::Point::new(x, y), iced::Size::new(w, h))
+    };
+    session.state().borrow_mut().pane_bounds = vec![
+        (pane_of(session, "main"), rect(0.0, 0.0, 100.0, 70.0)),
+        (pane_of(session, "lib"), rect(100.0, 0.0, 100.0, 70.0)),
+        (pane_of(session, "terminal"), rect(0.0, 70.0, 200.0, 30.0)),
+    ];
+}
+
+#[test]
+fn focus_adjacent_reaches_tool_pane_without_filter() {
+    let session: DockSession<u32> = DockSession::from_tree(grouped_layout()).expect("session");
+    set_grouped_bounds(&session);
+    let main = pane_of(&session, "main");
+    let terminal = pane_of(&session, "terminal");
+
+    session.focus_pane(main).expect("focus main");
+    assert!(session.focus_adjacent(Direction::Down));
+    assert_eq!(session.focused_pane(), Some(terminal));
+}
+
+#[test]
+fn focus_adjacent_skips_ineligible_panes() {
+    let session: DockSession<u32> = DockSession::from_tree(grouped_layout()).expect("session");
+    set_grouped_bounds(&session);
+    restrict_to_documents(&session);
+    let main = pane_of(&session, "main");
+
+    session.focus_pane(main).expect("focus main");
+
+    // The terminal is the only pane below, and it is not in the "documents" group.
+    assert!(!session.focus_adjacent(Direction::Down));
+    assert_eq!(session.focused_pane(), Some(main));
+}
+
+#[test]
+fn focus_adjacent_moves_between_eligible_panes() {
+    let session: DockSession<u32> = DockSession::from_tree(grouped_layout()).expect("session");
+    set_grouped_bounds(&session);
+    restrict_to_documents(&session);
+    let main = pane_of(&session, "main");
+    let lib = pane_of(&session, "lib");
+
+    session.focus_pane(main).expect("focus main");
+    assert!(session.focus_adjacent(Direction::Right));
+    assert_eq!(session.focused_pane(), Some(lib));
+    assert_eq!(session.focus_frame_pane(), Some(lib));
+}
+
+#[test]
+fn focus_adjacent_escapes_tool_pane_to_document() {
+    let session: DockSession<u32> = DockSession::from_tree(grouped_layout()).expect("session");
+    set_grouped_bounds(&session);
+    restrict_to_documents(&session);
+    let terminal = pane_of(&session, "terminal");
+
+    // Focus sits on an ineligible pane; it still works as the navigation origin.
+    session.focus_pane(terminal).expect("focus terminal");
+    assert!(session.focus_adjacent(Direction::Up));
+    assert!(session.focused_pane() != Some(terminal));
+}

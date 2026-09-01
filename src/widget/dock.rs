@@ -660,13 +660,18 @@ where
     /// Restrict the pane focus frame to panes tagged with one of these tab groups.
     ///
     /// Groups are the tags set with [`TabsNode::group`](crate::TabsNode::group). When this is
-    /// set, focusing a pane outside these groups leaves the frame on the last focused pane that
-    /// *is* in one of them — useful for keeping the frame on the active document group while the
-    /// user clicks around tool panes. Logical focus still moves, so
-    /// [`DockEvent::PaneFocused`](crate::DockEvent::PaneFocused) and the
-    /// [`DockSession`](crate::DockSession) navigation helpers are unaffected.
+    /// set:
     ///
-    /// By default every pane shows the frame while focused.
+    /// * Clicking a pane outside these groups leaves the frame on the last focused pane that
+    ///   *is* in one of them — useful for keeping the frame on the active document group while
+    ///   the user clicks around tool panes. Logical focus still moves, so
+    ///   [`DockEvent::PaneFocused`](crate::DockEvent::PaneFocused) still fires for tool panes
+    ///   and [`DockSession::cycle_panel`](crate::DockSession::cycle_panel) still acts on them.
+    /// * [`DockSession::focus_adjacent`](crate::DockSession::focus_adjacent) only moves focus
+    ///   *to* panes in these groups; ineligible panes are skipped.
+    ///
+    /// By default every pane shows the frame while focused and is reachable by directional
+    /// focus movement.
     ///
     /// ```ignore
     /// dock().focus_frame_groups(["documents"])
