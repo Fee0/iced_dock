@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::rc::Rc;
 
 use iced::advanced;
@@ -99,6 +100,7 @@ where
     tab_bar_show_scrollbar: bool,
     tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
     tab_tooltip_delay: Duration,
+    focus_frame_groups: Option<HashSet<String>>,
     close_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     overflow_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     on_close_requested: Option<Rc<dyn Fn(K) -> Message>>,
@@ -144,6 +146,7 @@ where
     /// [`DockWidgetState`] (typically obtained from [`DockSession::state`](crate::DockSession::state)).
     #[must_use]
     pub fn with_state(mut self, state: Rc<RefCell<DockWidgetState<K>>>) -> Self {
+        apply_focus_frame_groups(&state, self.focus_frame_groups.as_ref());
         self.external_state = Some(state);
         self
     }
@@ -301,13 +304,21 @@ where
                 return None;
             }
             let class = Rc::clone(&self.class);
+            let frame_holder = Rc::clone(holder);
             return Some(
                 container(widget::space::Space::new())
                     .style(move |t: &Theme| {
                         let ds = Catalog::style(t, &class);
+                        let is_focused =
+                            frame_holder.borrow().focus_frame_pane == Some(pane_id);
+                        let border = if is_focused {
+                            ds.window.focused_border.unwrap_or(ds.window.border)
+                        } else {
+                            ds.window.border
+                        };
                         container::Style {
                             background: Some(Background::Color(ds.window.background)),
-                            border: ds.window.border,
+                            border,
                             ..Default::default()
                         }
                     })
@@ -474,6 +485,7 @@ where
     tab_bar_show_scrollbar: bool,
     tab_bar_scrollbar_attachment: TabBarScrollbarAttachment,
     tab_tooltip_delay: Duration,
+    focus_frame_groups: Option<HashSet<String>>,
     close_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     overflow_icon: Option<Rc<dyn Fn() -> Element<'static, Message, Theme, Renderer>>>,
     on_close_requested: Option<Rc<dyn Fn(K) -> Message>>,
@@ -520,6 +532,7 @@ where
             tab_bar_show_scrollbar: false,
             tab_bar_scrollbar_attachment: TabBarScrollbarAttachment::Top,
             tab_tooltip_delay: Duration::from_millis(500),
+            focus_frame_groups: None,
             close_icon: None,
             overflow_icon: None,
             on_close_requested: None,
@@ -641,6 +654,29 @@ where
     #[must_use]
     pub fn min_pane_width(mut self, min_pane_width: f32) -> Self {
         self.min_pane_width = min_pane_width.max(1.0);
+        self
+    }
+
+    /// Restrict the pane focus frame to panes tagged with one of these tab groups.
+    ///
+    /// Groups are the tags set with [`TabsNode::group`](crate::TabsNode::group). When this is
+    /// set, focusing a pane outside these groups leaves the frame on the last focused pane that
+    /// *is* in one of them — useful for keeping the frame on the active document group while the
+    /// user clicks around tool panes. Logical focus still moves, so
+    /// [`DockEvent::PaneFocused`](crate::DockEvent::PaneFocused) and the
+    /// [`DockSession`](crate::DockSession) navigation helpers are unaffected.
+    ///
+    /// By default every pane shows the frame while focused.
+    ///
+    /// ```ignore
+    /// dock().focus_frame_groups(["documents"])
+    /// ```
+    #[must_use]
+    pub fn focus_frame_groups(
+        mut self,
+        groups: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.focus_frame_groups = Some(groups.into_iter().map(Into::into).collect());
         self
     }
 
@@ -881,6 +917,9 @@ where
     /// Panics when [`on_event`](Self::on_event) was not set.
     #[must_use]
     pub fn build(self) -> Dock<'a, K, Message, Theme, Renderer> {
+        if let Some(state) = self.shared_state.as_ref() {
+            apply_focus_frame_groups(state, self.focus_frame_groups.as_ref());
+        }
         let content: ContentFn<'a, K, Message, Theme, Renderer> = self
             .content
             .unwrap_or_else(|| Box::new(|_| PaneContent::new(widget::text("No content"))));
@@ -925,11 +964,22 @@ where
             tab_bar_show_scrollbar: self.tab_bar_show_scrollbar,
             tab_bar_scrollbar_attachment: self.tab_bar_scrollbar_attachment,
             tab_tooltip_delay: self.tab_tooltip_delay,
+            focus_frame_groups: self.focus_frame_groups.clone(),
             close_icon: self.close_icon,
             overflow_icon: self.overflow_icon,
             on_close_requested: self.on_close_requested,
         }
     }
+}
+
+/// Push the focus-frame group filter into shared dock state.
+///
+/// A no-op when the filter is unchanged, so calling it on every `view` pass is free.
+fn apply_focus_frame_groups<K>(
+    state: &Rc<RefCell<DockWidgetState<K>>>,
+    groups: Option<&HashSet<String>>,
+) {
+    state.borrow_mut().set_focus_frame_groups(groups.cloned());
 }
 
 /// Create a [`DockBuilder`] for constructing a [`Dock`] widget.

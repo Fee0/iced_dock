@@ -174,6 +174,8 @@ fn view(app: &App) -> Element<'_, Message> {
                 style.tab.modified_background = Some(Color::from_rgba(0.90, 0.55, 0.10, 0.30));
                 style
             })
+            // Keep the focus frame on the editor group while tool panes are clicked.
+            .focus_frame_groups(["documents"])
             .min_pane_width(160.0)
             .min_pane_height(80.0)
             .tab_bar_show_scrollbar(true)

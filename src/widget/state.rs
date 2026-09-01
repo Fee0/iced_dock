@@ -1,10 +1,12 @@
+use std::collections::HashSet;
+
 use iced::Rectangle;
 
-use crate::builder::compile::{build_tree, first_pane, BuiltLayout};
+use crate::builder::compile::{build_tree, first_pane, first_pane_where, BuiltLayout};
 use crate::builder::DockIndex;
 use crate::factory::Factory;
 use crate::manager::{DockManager, DragSession, TabBarTarget};
-use crate::model::{Layout as DockLayout, NodeId, NodeKind};
+use crate::model::{Layout as DockLayout, NodeId, NodeKind, Pane};
 use crate::widget::action::{DockAction, TabAction};
 
 /// Persistent docking state shared between the [`Dock`](crate::Dock) widget
@@ -28,6 +30,15 @@ pub struct DockWidgetState<K> {
     pub pane_bounds: Vec<(NodeId, Rectangle)>,
     /// Pane that last received user focus (tab click or content click).
     pub focused_pane: Option<NodeId>,
+    /// Pane that currently draws the focus frame.
+    ///
+    /// Sticky: only follows [`Self::focused_pane`] when the newly focused pane is eligible
+    /// under [`Self::focus_frame_groups`]. Equal to `focused_pane` when no filter is set.
+    pub focus_frame_pane: Option<NodeId>,
+    /// Tab groups eligible for the focus frame. `None` means every pane is eligible.
+    ///
+    /// Set through [`DockBuilder::focus_frame_groups`](crate::widget::DockBuilder::focus_frame_groups).
+    pub focus_frame_groups: Option<HashSet<String>>,
     /// Set when focus changed without a layout rebuild; triggers a redraw.
     pub focus_dirty: bool,
     /// Set when the layout tree changes and the cached widget root must rebuild.
@@ -38,6 +49,68 @@ impl<K> DockWidgetState<K> {
     /// Rebuild string-id index from the current layout graph.
     pub fn sync_index(&mut self) {
         self.index = DockIndex::rebuild_from_layout(&self.layout);
+        self.resync_focus_frame();
+    }
+
+    /// Whether `pane` may draw the focus frame under the current group filter.
+    #[must_use]
+    pub fn frame_eligible(&self, pane: NodeId) -> bool {
+        matches!(
+            self.layout.kind(pane),
+            Some(NodeKind::Pane(p))
+                if pane_frame_eligible(self.focus_frame_groups.as_ref(), p)
+        )
+    }
+
+    /// Move logical focus to `pane`, dragging the focus frame along when eligible.
+    ///
+    /// Returns `true` when either field changed.
+    pub(crate) fn focus(&mut self, pane: NodeId) -> bool {
+        let mut changed = false;
+        if self.focused_pane != Some(pane) {
+            self.focused_pane = Some(pane);
+            changed = true;
+        }
+        if self.focus_frame_pane != Some(pane) && self.frame_eligible(pane) {
+            self.focus_frame_pane = Some(pane);
+            changed = true;
+        }
+        if changed {
+            self.focus_dirty = true;
+        }
+        changed
+    }
+
+    /// Restrict the focus frame to panes tagged with one of `groups`.
+    ///
+    /// `None` restores the default, where every pane shows the frame while focused.
+    pub fn set_focus_frame_groups(&mut self, groups: Option<HashSet<String>>) {
+        if self.focus_frame_groups == groups {
+            return;
+        }
+        self.focus_frame_groups = groups;
+        self.resync_focus_frame();
+        self.focus_dirty = true;
+    }
+
+    /// Re-resolve [`Self::focus_frame_pane`] after a policy or structural change.
+    ///
+    /// Repairs a frame that became dangling or ineligible; never resurrects one that was
+    /// deliberately cleared.
+    fn resync_focus_frame(&mut self) {
+        if self.focused_pane.is_some_and(|p| self.frame_eligible(p)) {
+            self.focus_frame_pane = self.focused_pane;
+            return;
+        }
+        let Some(current) = self.focus_frame_pane else {
+            return;
+        };
+        if self.frame_eligible(current) {
+            return;
+        }
+        let groups = self.focus_frame_groups.as_ref();
+        self.focus_frame_pane =
+            first_pane_where(&self.layout, |_, pane| pane_frame_eligible(groups, pane));
     }
 
     pub(crate) fn commit_layout(&mut self) {
@@ -68,10 +141,17 @@ impl<K> DockWidgetState<K> {
             tab_bar_targets: Vec::new(),
             pane_bounds: Vec::new(),
             focused_pane,
+            focus_frame_pane: focused_pane,
+            focus_frame_groups: None,
             focus_dirty: false,
             layout_dirty: true,
         }
     }
+}
+
+/// Whether a pane's group tag passes the focus-frame filter (`None` accepts every pane).
+fn pane_frame_eligible(groups: Option<&HashSet<String>>, pane: &Pane) -> bool {
+    groups.is_none_or(|groups| pane.group.as_deref().is_some_and(|g| groups.contains(g)))
 }
 
 impl<K> Default for DockWidgetState<K> {
@@ -86,6 +166,8 @@ impl<K> Default for DockWidgetState<K> {
             tab_bar_targets: Vec::new(),
             pane_bounds: Vec::new(),
             focused_pane: None,
+            focus_frame_pane: None,
+            focus_frame_groups: None,
             focus_dirty: false,
             layout_dirty: false,
         }
@@ -138,10 +220,7 @@ pub fn dispatch_action<K>(state: &mut DockWidgetState<K>, action: DockAction) ->
         DockAction::Tab(tab_msg) => match tab_msg {
             TabAction::Select { pane, panel } => {
                 factory.set_active_panel(&mut state.layout, pane, panel);
-                if state.focused_pane != Some(pane) {
-                    state.focused_pane = Some(pane);
-                    state.focus_dirty = true;
-                }
+                state.focus(pane);
                 state.layout_dirty = true;
                 changed = true;
             }
@@ -207,9 +286,7 @@ pub fn dispatch_action<K>(state: &mut DockWidgetState<K>, action: DockAction) ->
                     changed = true;
                 }
             }
-            if state.focused_pane != Some(pane) {
-                state.focused_pane = Some(pane);
-                state.focus_dirty = true;
+            if state.focus(pane) {
                 changed = true;
             }
         }

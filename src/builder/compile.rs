@@ -1,7 +1,7 @@
 use crate::builder::index::DockIndex;
 use crate::builder::spec::{LayoutTree, PanelDef, SplitNode, TabsNode};
 use crate::factory::Factory;
-use crate::model::{Layout, NodeId, NodeKind};
+use crate::model::{Layout, NodeId, NodeKind, Pane};
 use crate::widget::DockWidgetState;
 use crate::{Error, Result};
 
@@ -130,16 +130,28 @@ pub(crate) fn insert_panel_into_state<K: Copy>(
 /// Resolve the first pane in preorder tree walk.
 #[must_use]
 pub fn first_pane<K>(layout: &Layout<K>) -> Option<NodeId> {
-    let root = layout.root_child()?;
-    first_pane_walk(layout, root)
+    first_pane_where(layout, |_, _| true)
 }
 
-fn first_pane_walk<K>(layout: &Layout<K>, node: NodeId) -> Option<NodeId> {
+/// Resolve the first pane in preorder tree walk that satisfies `pred`.
+pub(crate) fn first_pane_where<K>(
+    layout: &Layout<K>,
+    pred: impl Fn(NodeId, &Pane) -> bool,
+) -> Option<NodeId> {
+    let root = layout.root_child()?;
+    first_pane_walk(layout, root, &pred)
+}
+
+fn first_pane_walk<K>(
+    layout: &Layout<K>,
+    node: NodeId,
+    pred: &impl Fn(NodeId, &Pane) -> bool,
+) -> Option<NodeId> {
     match layout.kind(node)? {
-        NodeKind::Pane(_) => Some(node),
+        NodeKind::Pane(pane) => pred(node, pane).then_some(node),
         NodeKind::Proportional(pg) => {
             for &child in &pg.children {
-                if let Some(found) = first_pane_walk(layout, child) {
+                if let Some(found) = first_pane_walk(layout, child, pred) {
                     return Some(found);
                 }
             }

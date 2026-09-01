@@ -119,6 +119,8 @@ fn pane_focused_updates_focus_without_layout_dirty() {
         tab_bar_targets: Vec::new(),
         pane_bounds: Vec::new(),
         focused_pane: Some(pane_a),
+        focus_frame_pane: Some(pane_a),
+        focus_frame_groups: None,
         focus_dirty: false,
         layout_dirty: false,
     };
@@ -523,4 +525,130 @@ fn clear_focus() {
     assert!(session.focused_pane().is_some());
     session.clear_focus();
     assert!(session.focused_pane().is_none());
+}
+
+// --- focus frame group filter -------------------------------------------------
+
+/// Two document panes, one tool pane, mirroring an IDE layout.
+fn grouped_layout() -> iced_dock::LayoutTree<u32> {
+    vertical([
+        horizontal([
+            tabs([panel("main", "main.rs", 0u32)]).group("documents"),
+            tabs([panel("lib", "lib.rs", 1u32)]).group("documents"),
+        ])
+        .weights([0.5, 0.5]),
+        tabs([panel("terminal", "Terminal", 10u32)]).group("tools"),
+    ])
+    .weights([0.7, 0.3])
+}
+
+fn pane_of(session: &DockSession<u32>, panel_id: &str) -> NodeId {
+    session.pane_for_panel(panel_id).expect("pane for panel")
+}
+
+fn restrict_to_documents(session: &DockSession<u32>) {
+    session
+        .state()
+        .borrow_mut()
+        .set_focus_frame_groups(Some(["documents".to_owned()].into_iter().collect()));
+}
+
+#[test]
+fn focus_frame_tracks_focus_without_filter() {
+    let session: DockSession<u32> = DockSession::from_tree(grouped_layout()).expect("session");
+    assert_eq!(session.focus_frame_pane(), session.focused_pane());
+
+    let terminal = pane_of(&session, "terminal");
+    session.focus_pane(terminal).expect("focus terminal");
+    assert_eq!(session.focused_pane(), Some(terminal));
+    assert_eq!(session.focus_frame_pane(), Some(terminal));
+}
+
+#[test]
+fn focus_frame_stays_on_document_pane() {
+    let session: DockSession<u32> = DockSession::from_tree(grouped_layout()).expect("session");
+    restrict_to_documents(&session);
+
+    let main = pane_of(&session, "main");
+    let terminal = pane_of(&session, "terminal");
+
+    session.focus_pane(main).expect("focus main");
+    assert_eq!(session.focus_frame_pane(), Some(main));
+
+    session.focus_pane(terminal).expect("focus terminal");
+    assert_eq!(session.focused_pane(), Some(terminal));
+    assert_eq!(session.focus_frame_pane(), Some(main));
+}
+
+#[test]
+fn focus_frame_moves_between_document_panes() {
+    let session: DockSession<u32> = DockSession::from_tree(grouped_layout()).expect("session");
+    restrict_to_documents(&session);
+
+    let main = pane_of(&session, "main");
+    let lib = pane_of(&session, "lib");
+    let terminal = pane_of(&session, "terminal");
+
+    session.focus_pane(main).expect("focus main");
+    session.focus_pane(terminal).expect("focus terminal");
+    session.focus_pane(lib).expect("focus lib");
+
+    assert_eq!(session.focused_pane(), Some(lib));
+    assert_eq!(session.focus_frame_pane(), Some(lib));
+}
+
+#[test]
+fn setting_filter_reresolves_frame_off_tool_pane() {
+    let session: DockSession<u32> = DockSession::from_tree(grouped_layout()).expect("session");
+    let main = pane_of(&session, "main");
+    let terminal = pane_of(&session, "terminal");
+
+    session.focus_pane(terminal).expect("focus terminal");
+    assert_eq!(session.focus_frame_pane(), Some(terminal));
+
+    restrict_to_documents(&session);
+    assert_eq!(session.focused_pane(), Some(terminal));
+    assert_eq!(session.focus_frame_pane(), Some(main));
+}
+
+#[test]
+fn closing_framed_pane_reresolves_frame() {
+    let session: DockSession<u32> = DockSession::from_tree(grouped_layout()).expect("session");
+    restrict_to_documents(&session);
+
+    let main = pane_of(&session, "main");
+    let lib = pane_of(&session, "lib");
+    session.focus_pane(main).expect("focus main");
+    assert_eq!(session.focus_frame_pane(), Some(main));
+
+    // Closing the only tab collapses the (non-persistent) pane.
+    session.close_panel("main").expect("close main");
+    assert_eq!(session.focus_frame_pane(), Some(lib));
+
+    session.close_panel("lib").expect("close lib");
+    assert_eq!(session.focus_frame_pane(), None);
+}
+
+#[test]
+fn tab_select_in_tool_pane_leaves_frame_on_document() {
+    let session: DockSession<u32> = DockSession::from_tree(grouped_layout()).expect("session");
+    restrict_to_documents(&session);
+
+    let main = pane_of(&session, "main");
+    session.focus_pane(main).expect("focus main");
+
+    session.select_panel("terminal").expect("select terminal");
+    assert_eq!(session.focused_pane(), Some(pane_of(&session, "terminal")));
+    assert_eq!(session.focus_frame_pane(), Some(main));
+}
+
+#[test]
+fn clear_focus_frame_survives_structural_change() {
+    let session: DockSession<u32> = DockSession::from_tree(grouped_layout()).expect("session");
+    session.clear_focus();
+    assert_eq!(session.focus_frame_pane(), None);
+
+    // A structural change resyncs the frame; a deliberate clear must not be undone.
+    session.close_panel("terminal").expect("close terminal");
+    assert_eq!(session.focus_frame_pane(), None);
 }

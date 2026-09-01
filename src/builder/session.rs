@@ -97,8 +97,7 @@ where
         factory.add_panel_to_pane(&mut state.layout, pane_id, panel_id)?;
         factory.set_active_panel(&mut state.layout, pane_id, panel_id);
         state.layout_dirty = true;
-        state.focused_pane = Some(pane_id);
-        state.focus_dirty = true;
+        state.focus(pane_id);
         state.sync_index();
         Ok(())
     }
@@ -157,6 +156,16 @@ where
     #[must_use]
     pub fn is_pane_focused(&self, pane: NodeId) -> bool {
         self.focused_pane() == Some(pane)
+    }
+
+    /// Pane that currently draws the focus frame, if any.
+    ///
+    /// Equal to [`Self::focused_pane`] unless
+    /// [`DockBuilder::focus_frame_groups`](crate::widget::DockBuilder::focus_frame_groups)
+    /// restricts the frame to a subset of tab groups.
+    #[must_use]
+    pub fn focus_frame_pane(&self) -> Option<NodeId> {
+        self.inner.borrow().focus_frame_pane
     }
 
     /// Focus a pane by id (does not change the active tab).
@@ -231,10 +240,7 @@ where
             return false;
         }
         state.layout_dirty = true;
-        if state.focused_pane != Some(target_pane) {
-            state.focused_pane = Some(target_pane);
-            state.focus_dirty = true;
-        }
+        state.focus(target_pane);
         state.sync_index();
         true
     }
@@ -289,19 +295,17 @@ where
         }
 
         state.layout_dirty = true;
-        if state.focused_pane != Some(target_pane) {
-            state.focused_pane = Some(target_pane);
-            state.focus_dirty = true;
-        }
+        state.focus(target_pane);
         state.sync_index();
         true
     }
 
-    /// Clear global pane focus without changing active tabs.
+    /// Clear global pane focus (and the focus frame) without changing active tabs.
     pub fn clear_focus(&self) {
         let mut state = self.inner.borrow_mut();
-        if state.focused_pane.is_some() {
+        if state.focused_pane.is_some() || state.focus_frame_pane.is_some() {
             state.focused_pane = None;
+            state.focus_frame_pane = None;
             state.focus_dirty = true;
         }
     }

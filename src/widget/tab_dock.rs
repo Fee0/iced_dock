@@ -385,7 +385,7 @@ where
 
         let pane_bounds = layout.bounds();
         let window = &dock_style.window;
-        let is_focused = self.dock_state.borrow().focused_pane == Some(self.pane_id);
+        let is_focused = self.dock_state.borrow().focus_frame_pane == Some(self.pane_id);
         let border = if is_focused {
             window.focused_border.unwrap_or(window.border)
         } else {
